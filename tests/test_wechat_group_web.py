@@ -38,6 +38,9 @@ class WechatGroupWebTest(unittest.TestCase):
             "wechat_group_names": conf().get("wechat_group_names"),
             "wechat_group_persona_prompt": conf().get("wechat_group_persona_prompt"),
             "wechat_group_persona_preset_id": conf().get("wechat_group_persona_preset_id"),
+            "wechat_group_recent_context_enabled": conf().get("wechat_group_recent_context_enabled"),
+            "wechat_group_recent_context_limit": conf().get("wechat_group_recent_context_limit"),
+            "wechat_group_recent_context_minutes": conf().get("wechat_group_recent_context_minutes"),
         }
 
     def tearDown(self):
@@ -65,6 +68,14 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("extra", item)
         self.assertIn("persona", item["extra"])
         self.assertIn("persona_presets", item["extra"])
+        self.assertEqual(
+            {
+                "enabled": True,
+                "limit": 20,
+                "minutes": 60,
+            },
+            item["extra"]["recent_context"],
+        )
         self.assertEqual("owner-digital-twin", item["extra"]["persona"]["preset_id"])
 
     def test_wechat_group_qr_handler_returns_running_channel_qr(self):
@@ -101,6 +112,9 @@ class WechatGroupWebTest(unittest.TestCase):
                 "wechat_group_names": ["测试群"],
                 "wechat_group_persona_prompt": "  自定义人设\r\n第二行  ",
                 "wechat_group_persona_preset_id": "tech-duty",
+                "wechat_group_recent_context_enabled": False,
+                "wechat_group_recent_context_limit": "12",
+                "wechat_group_recent_context_minutes": "45",
             },
         }
         with tempfile.TemporaryDirectory() as tmpdir, \
@@ -114,6 +128,9 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual(["测试群"], conf()["wechat_group_names"])
         self.assertEqual("自定义人设\n第二行", conf()["wechat_group_persona_prompt"])
         self.assertEqual("custom", conf()["wechat_group_persona_preset_id"])
+        self.assertFalse(conf()["wechat_group_recent_context_enabled"])
+        self.assertEqual(12, conf()["wechat_group_recent_context_limit"])
+        self.assertEqual(45, conf()["wechat_group_recent_context_minutes"])
 
 
 if __name__ == "__main__":

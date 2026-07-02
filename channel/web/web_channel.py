@@ -3694,6 +3694,14 @@ class ChannelsHandler:
             raw = re.split(r"[，,;；\n\r\t ]+", str(value or ""))
         return list(dict.fromkeys(str(item or "").strip() for item in raw if str(item or "").strip()))
 
+    @staticmethod
+    def _normalize_bool(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
     @classmethod
     def _wechat_group_extra(cls) -> dict:
         running_ch = cls._get_running_wechat_group_channel()
@@ -3709,6 +3717,11 @@ class ChannelsHandler:
                 "max_length": persona["max_length"],
             },
             "persona_presets": persona["presets"],
+            "recent_context": {
+                "enabled": conf().get("wechat_group_recent_context_enabled", True),
+                "limit": conf().get("wechat_group_recent_context_limit", 20),
+                "minutes": conf().get("wechat_group_recent_context_minutes", 60),
+            },
         }
 
     @classmethod
@@ -3718,6 +3731,9 @@ class ChannelsHandler:
             "wechat_group_names",
             "wechat_group_persona_prompt",
             "wechat_group_persona_preset_id",
+            "wechat_group_recent_context_enabled",
+            "wechat_group_recent_context_limit",
+            "wechat_group_recent_context_minutes",
         }
         local_config = conf()
         applied = {}
@@ -3731,6 +3747,10 @@ class ChannelsHandler:
                 value = normalize_wechat_group_persona_prompt(value)
             elif key == "wechat_group_persona_preset_id":
                 value = str(value or "").strip()
+            elif key == "wechat_group_recent_context_enabled":
+                value = cls._normalize_bool(value)
+            elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
+                value = max(1, int(value))
             local_config[key] = value
             applied[key] = value
 

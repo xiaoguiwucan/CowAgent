@@ -2,6 +2,22 @@
 
 ## 2026-07-02
 
+### 群聊管理页与 4.2 配置 UI
+
+- 更新 `channel/web/chat.html` 与 `channel/web/static/js/console.js`：在 Web 控制台管理目录新增“群聊”入口和独立群聊管理页，支持“基础设置 / 群聊开关 / 人设设定”三段式左侧子菜单。
+- Web 群聊页新增 4.2 最近上下文三个配置项、群名检索下拉多选、自定义人设设置；个人微信群通道卡片不再展示群聊细项设置。
+- 为 Web 控制台 `console.js` 引用增加版本参数，避免浏览器缓存旧脚本导致重启后看不到新 UI。
+- 修复 Web 群聊页状态提示误引用不存在的 `TRANSLATIONS` 对象导致的运行时异常，并补齐移除最后一个已选群后的空状态提示。
+- 新增 `plans/wechat_group_ui_management_plan_20260702.md`：记录群聊管理页双栏紧凑布局、三个左侧子菜单和 4.2 配置迁移范围。
+- 更新 `channel/web/web_channel.py`：`wechat_group.extra` 返回 `recent_context`，并支持保存 `wechat_group_recent_context_enabled`、`wechat_group_recent_context_limit`、`wechat_group_recent_context_minutes`。
+- 更新 `tests/test_wechat_group_web.py`：覆盖最近上下文配置返回与保存。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `node --check .\channel\web\static\js\console.js`
+
 ### 4.2 当前群最近上下文
 
 - 新增 `channel/wechat_group/wechat_group_archive.py`：使用微信群专用 SQLite 数据库记录 `wechat_group_messages` 与 `wechat_group_assistant_replies`，入站消息按 `room_id` 隔离，避免污染 CowAgent 全局长期记忆。

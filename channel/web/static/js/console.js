@@ -15,7 +15,7 @@ const I18N = {
         console: '控制台',
         nav_chat: '对话', nav_manage: '管理', nav_monitor: '监控',
         menu_chat: '对话', menu_config: '配置', menu_models: '模型', menu_skills: '技能',
-        menu_memory: '记忆', menu_knowledge: '知识', menu_channels: '通道', menu_tasks: '定时',
+        menu_memory: '记忆', menu_knowledge: '知识', menu_channels: '通道', menu_groups: '群聊', menu_tasks: '定时',
         menu_logs: '日志',
         models_title: '模型管理',
         models_desc: '统一管理对话、图像、语音、向量、搜索能力',
@@ -195,6 +195,38 @@ const I18N = {
         wechat_group_persona_boundary: '人设不能绕过安全守卫、群限制和管理员权限。',
         wechat_group_settings_save: '保存并生效',
         wechat_group_settings_saved: '已保存并生效',
+        groups_title: '群聊',
+        groups_desc: '管理微信群目标群、最近上下文和人设',
+        groups_loading: '加载群聊设置中...',
+        groups_load_failed: '加载群聊设置失败',
+        groups_nav_basic: '基础设置',
+        groups_nav_basic_hint: '最近上下文',
+        groups_nav_rooms: '群聊开关',
+        groups_nav_rooms_hint: '目标群范围',
+        groups_nav_persona: '人设设定',
+        groups_nav_persona_hint: '自定义回复风格',
+        groups_basic_title: '基础设置',
+        groups_basic_desc: '控制 4.2 当前群最近上下文注入窗口。',
+        groups_recent_enabled: '启用最近上下文',
+        groups_recent_enabled_hint: '回复前注入当前群最近聊天流水。',
+        groups_recent_limit: '消息条数',
+        groups_recent_limit_hint: '最多读取多少条最近消息。',
+        groups_recent_minutes: '时间窗口（分钟）',
+        groups_recent_minutes_hint: '只读取该时间范围内的消息。',
+        groups_rooms_title: '群聊开关',
+        groups_rooms_desc: '选择机器人允许响应的微信群，列表只展示群名。',
+        groups_rooms_select_label: '目标群',
+        groups_rooms_select_placeholder: '选择微信群',
+        groups_rooms_selected_count: '已选择 {count} 个群',
+        groups_rooms_search_placeholder: '搜索群名...',
+        groups_rooms_no_match: '没有匹配的群',
+        groups_rooms_none_selected: '尚未选择目标群',
+        groups_rooms_remove: '移除群',
+        groups_rooms_fallback_hint: '群名兜底只在 room ID 不可用时使用，每行一个群名。',
+        groups_room_unnamed: '未命名群',
+        groups_room_saved: '已保存群 {n}',
+        groups_persona_title: '人设设定',
+        groups_persona_desc: '只保留一份自定义人设，保存后对微信群回复生效。',
         wecom_scan_btn: '扫码创建企微机器人', wecom_scan_desc: '使用企业微信扫码，一键创建智能机器人',
         wecom_scan_success: '创建成功，正在启动通道...',
         wecom_scan_fail: '创建失败',
@@ -281,7 +313,7 @@ const I18N = {
         console: 'Console',
         nav_chat: 'Chat', nav_manage: 'Management', nav_monitor: 'Monitor',
         menu_chat: 'Chat', menu_config: 'Config', menu_models: 'Models', menu_skills: 'Skills',
-        menu_memory: 'Memory', menu_knowledge: 'Knowledge', menu_channels: 'Channels', menu_tasks: 'Tasks',
+        menu_memory: 'Memory', menu_knowledge: 'Knowledge', menu_channels: 'Channels', menu_groups: 'Groups', menu_tasks: 'Tasks',
         menu_logs: 'Logs',
         models_title: 'Models',
         models_desc: 'Manage chat, image, voice, embedding and search capabilities in one place',
@@ -461,6 +493,38 @@ const I18N = {
         wechat_group_persona_boundary: 'Persona cannot bypass guards, group limits, or admin permissions.',
         wechat_group_settings_save: 'Save and apply',
         wechat_group_settings_saved: 'Saved and applied',
+        groups_title: 'Groups',
+        groups_desc: 'Manage WeChat group targets, recent context, and persona',
+        groups_loading: 'Loading group settings...',
+        groups_load_failed: 'Failed to load group settings',
+        groups_nav_basic: 'Basic',
+        groups_nav_basic_hint: 'Recent context',
+        groups_nav_rooms: 'Group switches',
+        groups_nav_rooms_hint: 'Target groups',
+        groups_nav_persona: 'Persona',
+        groups_nav_persona_hint: 'Custom reply style',
+        groups_basic_title: 'Basic settings',
+        groups_basic_desc: 'Controls the 4.2 recent context window for the current group.',
+        groups_recent_enabled: 'Enable recent context',
+        groups_recent_enabled_hint: 'Inject recent messages from the current group before replying.',
+        groups_recent_limit: 'Message limit',
+        groups_recent_limit_hint: 'Maximum recent messages to read.',
+        groups_recent_minutes: 'Time window (minutes)',
+        groups_recent_minutes_hint: 'Only read messages within this time window.',
+        groups_rooms_title: 'Group switches',
+        groups_rooms_desc: 'Choose which WeChat groups the bot may respond to. Only group names are shown.',
+        groups_rooms_select_label: 'Target groups',
+        groups_rooms_select_placeholder: 'Select WeChat groups',
+        groups_rooms_selected_count: '{count} group(s) selected',
+        groups_rooms_search_placeholder: 'Search group names...',
+        groups_rooms_no_match: 'No matching groups',
+        groups_rooms_none_selected: 'No target groups selected',
+        groups_rooms_remove: 'Remove group',
+        groups_rooms_fallback_hint: 'Fallback names are used only when room IDs are unavailable. One group name per line.',
+        groups_room_unnamed: 'Unnamed group',
+        groups_room_saved: 'Saved group {n}',
+        groups_persona_title: 'Persona',
+        groups_persona_desc: 'Only one custom persona is kept. It applies to WeChat group replies after saving.',
         wecom_scan_btn: 'Scan to Create WeCom Bot', wecom_scan_desc: 'Scan with WeCom to create a bot instantly',
         wecom_scan_success: 'Bot created, starting channel...',
         wecom_scan_fail: 'Bot creation failed',
@@ -667,6 +731,9 @@ function rerenderDynamicViews() {
         tasksLoaded = false;
         loadTasksView();
     }
+    if (currentView === 'groups') {
+        renderGroupsView();
+    }
 }
 
 // Floating tooltip portal for [data-tip-key] elements. Tooltip nodes are
@@ -754,6 +821,7 @@ const VIEW_META = {
     memory:   { group: 'nav_manage',  page: 'menu_memory' },
     knowledge:{ group: 'nav_manage',  page: 'menu_knowledge' },
     channels: { group: 'nav_manage',  page: 'menu_channels' },
+    groups:   { group: 'nav_manage',  page: 'menu_groups' },
     tasks:    { group: 'nav_manage',  page: 'menu_tasks' },
     logs:     { group: 'nav_monitor', page: 'menu_logs' },
 };
@@ -6592,6 +6660,270 @@ function loadChannelsView() {
     });
 }
 
+let groupsActiveSection = 'basic';
+
+function loadGroupsView() {
+    const container = document.getElementById('groups-content');
+    if (container) {
+        container.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
+            <i class="fas fa-spinner fa-spin text-xs mr-2"></i>${t('groups_loading')}</div>`;
+    }
+    fetch('/api/channels').then(r => r.json()).then(data => {
+        if (data.status !== 'success') {
+            showGroupsStatus('groups_load_failed', true);
+            return;
+        }
+        channelsData = data.channels || [];
+        renderGroupsView();
+    }).catch(() => showGroupsStatus('groups_load_failed', true));
+}
+
+function getWechatGroupChannel() {
+    return channelsData.find(item => item.name === 'wechat_group') || null;
+}
+
+function showGroupsStatus(keyOrText, isError) {
+    const el = document.getElementById('groups-status');
+    if (!el) return;
+    const hasTranslation = (I18N[currentLang] && I18N[currentLang][keyOrText]) || I18N.en[keyOrText];
+    el.textContent = hasTranslation ? t(keyOrText) : String(keyOrText || '');
+    el.classList.toggle('text-red-500', !!isError);
+    el.classList.toggle('text-primary-500', !isError);
+    el.classList.remove('opacity-0');
+    el.classList.add('opacity-100');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => {
+        el.classList.add('opacity-0');
+        el.classList.remove('opacity-100');
+    }, 2500);
+}
+
+function renderGroupsView() {
+    const container = document.getElementById('groups-content');
+    if (!container) return;
+    const ch = getWechatGroupChannel();
+    const extra = ch?.extra || {};
+    container.innerHTML = `<div class="h-full min-h-0 flex rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] overflow-hidden">
+        <aside class="w-56 flex-shrink-0 border-r border-slate-200 dark:border-white/10 p-3 space-y-1">
+            ${buildGroupsSectionButton('basic', 'fa-sliders', 'groups_nav_basic', 'groups_nav_basic_hint')}
+            ${buildGroupsSectionButton('rooms', 'fa-comments', 'groups_nav_rooms', 'groups_nav_rooms_hint')}
+            ${buildGroupsSectionButton('persona', 'fa-user-pen', 'groups_nav_persona', 'groups_nav_persona_hint')}
+            <div class="pt-3 mt-3 border-t border-slate-200 dark:border-white/10">
+                <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2">
+                    <div class="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
+                        <span class="h-2 w-2 rounded-full ${ch?.active ? 'bg-primary-400' : 'bg-slate-400'}"></span>
+                        ${ch?.active ? t('channels_connected') : t('channels_empty')}
+                    </div>
+                    <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1 truncate">${escapeHtml(ch?.login_status || 'wechat_group')}</p>
+                </div>
+            </div>
+        </aside>
+        <main class="flex-1 min-w-0 h-full overflow-hidden p-5">
+            ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
+            ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
+            ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
+        </main>
+    </div>`;
+}
+
+function buildGroupsSectionButton(section, icon, labelKey, hintKey) {
+    const active = groupsActiveSection === section;
+    return `<button type="button" onclick="switchGroupsSection('${section}')"
+        class="w-full text-left rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${active ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'}">
+        <span class="flex items-center gap-2 text-sm font-medium"><i class="fas ${icon} text-xs w-4"></i>${t(labelKey)}</span>
+        <span class="block text-xs text-slate-400 dark:text-slate-500 mt-1 truncate">${t(hintKey)}</span>
+    </button>`;
+}
+
+function switchGroupsSection(section) {
+    groupsActiveSection = section;
+    renderGroupsView();
+}
+
+function buildGroupsPanelTitle(icon, titleKey, descKey) {
+    return `<div class="flex items-start gap-3 mb-5">
+        <span class="w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-900/20 text-primary-500 flex items-center justify-center flex-shrink-0">
+            <i class="fas ${icon} text-sm"></i>
+        </span>
+        <div class="min-w-0">
+            <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">${t(titleKey)}</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t(descKey)}</p>
+        </div>
+    </div>`;
+}
+
+function buildGroupsBasicPanel(extra) {
+    const recent = extra.recent_context || {};
+    const enabled = recent.enabled !== false;
+    const limit = Number(recent.limit || 20);
+    const minutes = Number(recent.minutes || 60);
+    return `<div class="h-full max-w-4xl">
+        ${buildGroupsPanelTitle('fa-sliders', 'groups_basic_title', 'groups_basic_desc')}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h4 class="text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_recent_enabled')}</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_recent_enabled_hint')}</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                        <input id="groups-recent-enabled" type="checkbox" class="sr-only peer" ${enabled ? 'checked' : ''}>
+                        <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:h-4 after:w-4 after:rounded-full after:transition-all peer-checked:after:translate-x-5"></div>
+                    </label>
+                </div>
+            </div>
+            ${buildGroupsNumberField('groups-recent-limit', 'groups_recent_limit', 'groups_recent_limit_hint', limit)}
+            ${buildGroupsNumberField('groups-recent-minutes', 'groups_recent_minutes', 'groups_recent_minutes_hint', minutes)}
+        </div>
+    </div>`;
+}
+
+function buildGroupsNumberField(id, labelKey, hintKey, value) {
+    return `<label class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 block">
+        <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t(labelKey)}</span>
+        <span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">${t(hintKey)}</span>
+        <input id="${id}" type="number" min="1" value="${Number(value || 1)}"
+            class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
+    </label>`;
+}
+
+function buildGroupsRoomsPanel(extra) {
+    const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
+    const selectedIds = Array.isArray(extra.selected_room_ids) ? extra.selected_room_ids : [];
+    const selectedNames = Array.isArray(extra.selected_room_names) ? extra.selected_room_names : [];
+    const roomNameById = new Map(rooms.map(room => [String(room.id || ''), String(room.name || t('groups_room_unnamed'))]));
+    const selectedLabels = selectedIds.map((id, idx) => roomNameById.get(String(id)) || t('groups_room_saved').replace('{n}', String(idx + 1)));
+    return `<div class="h-full max-w-5xl">
+        <div class="flex items-start justify-between gap-4 mb-5">
+            ${buildGroupsPanelTitle('fa-comments', 'groups_rooms_title', 'groups_rooms_desc')}
+            <button type="button" onclick="refreshWechatGroupRooms()"
+                class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
+                <i class="fas fa-rotate-right mr-1"></i>${t('wechat_group_rooms_refresh')}
+            </button>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+                <label class="block text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_rooms_select_label')}</label>
+                ${buildGroupsRoomDropdown(rooms, selectedIds)}
+                <div id="groups-room-selected-list" class="min-h-[72px] rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-2">
+                    ${selectedLabels.length ? `<div class="flex flex-wrap gap-1.5">${selectedLabels.map((label, idx) => `
+                        <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-white/10 px-2 py-1 text-xs text-slate-600 dark:text-slate-300 max-w-full">
+                            <span class="truncate">${escapeHtml(label)}</span>
+                            <button type="button" onclick="removeGroupsSelectedRoom(${idx}, this)" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer" title="${escapeHtml(t('groups_rooms_remove'))}">
+                                <i class="fas fa-xmark text-[10px]"></i>
+                            </button>
+                        </span>`).join('')}</div>` : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_rooms_none_selected')}</p>`}
+                </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_room_names_label')}</label>
+                <textarea id="groups-room-names" rows="7"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors resize-none"
+                    placeholder="${escapeHtml(t('wechat_group_room_names_placeholder'))}">${escapeHtml(selectedNames.join('\n'))}</textarea>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">${t('groups_rooms_fallback_hint')}</p>
+            </div>
+        </div>
+    </div>`;
+}
+
+function buildGroupsRoomDropdown(rooms, selectedIds) {
+    const selectedSet = new Set((selectedIds || []).map(String));
+    const items = rooms.length ? rooms.map(room => {
+        const id = String(room.id || '');
+        const name = String(room.name || t('groups_room_unnamed'));
+        const checked = selectedSet.has(id) ? 'checked' : '';
+        return `<label class="groups-room-option flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer" data-room-name="${escapeHtml(name.toLowerCase())}">
+            <input type="checkbox" class="accent-primary-500" data-groups-room-id="${escapeHtml(id)}" onchange="updateGroupsRoomSelectedCount()" ${checked}>
+            <span class="flex-1 min-w-0 truncate">${escapeHtml(name)}</span>
+        </label>`;
+    }).join('') : `<p class="px-2 py-4 text-center text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_rooms_empty')}</p>`;
+    return `<div class="relative" id="groups-room-dropdown">
+        <button type="button" onclick="toggleGroupsRoomDropdown()"
+            class="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 flex items-center justify-between gap-2 cursor-pointer transition-colors">
+            <span>${selectedIds.length ? t('groups_rooms_selected_count').replace('{count}', String(selectedIds.length)) : t('groups_rooms_select_placeholder')}</span>
+            <i class="fas fa-chevron-down text-xs text-slate-400"></i>
+        </button>
+        <div id="groups-room-dropdown-menu" class="hidden absolute left-0 right-0 top-[calc(100%+4px)] z-50 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] shadow-lg p-2">
+            <div class="relative mb-2">
+                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+                <input id="groups-room-search" oninput="filterGroupsRooms()" placeholder="${escapeHtml(t('groups_rooms_search_placeholder'))}"
+                    class="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-white/5 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+            </div>
+            <div id="groups-room-options" class="max-h-64 overflow-y-auto space-y-1">${items}</div>
+        </div>
+    </div>`;
+}
+
+function buildGroupsPersonaPanel(extra) {
+    const persona = extra.persona || {};
+    const prompt = String(persona.prompt || '');
+    const maxLength = Number(persona.max_length || 6000);
+    return `<div class="h-full max-w-4xl">
+        ${buildGroupsPanelTitle('fa-user-pen', 'groups_persona_title', 'groups_persona_desc')}
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_persona_prompt_label')}</label>
+            <textarea id="groups-persona-prompt" rows="13" maxlength="${maxLength}" oninput="updateGroupsPersonaCount()"
+                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                placeholder="${escapeHtml(t('wechat_group_persona_prompt_placeholder'))}">${escapeHtml(prompt)}</textarea>
+            <div class="flex items-center justify-between gap-3 mt-2">
+                <p class="text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_persona_boundary')}</p>
+                <span class="text-xs text-slate-500 dark:text-slate-400 tabular-nums"><span id="groups-persona-count">${prompt.length}</span>/${maxLength}</span>
+            </div>
+        </div>
+    </div>`;
+}
+
+function toggleGroupsRoomDropdown() {
+    const menu = document.getElementById('groups-room-dropdown-menu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+function filterGroupsRooms() {
+    const query = (document.getElementById('groups-room-search')?.value || '').trim().toLowerCase();
+    let visibleCount = 0;
+    document.querySelectorAll('.groups-room-option').forEach(option => {
+        const match = !query || String(option.dataset.roomName || '').includes(query);
+        option.classList.toggle('hidden', !match);
+        if (match) visibleCount += 1;
+    });
+    const emptyId = 'groups-room-no-match';
+    let empty = document.getElementById(emptyId);
+    if (!empty) {
+        empty = document.createElement('p');
+        empty.id = emptyId;
+        empty.className = 'px-2 py-4 text-center text-xs text-slate-500 dark:text-slate-400';
+        empty.textContent = t('groups_rooms_no_match');
+        document.getElementById('groups-room-options')?.appendChild(empty);
+    }
+    empty.classList.toggle('hidden', visibleCount > 0);
+}
+
+function updateGroupsRoomSelectedCount() {
+    const count = document.querySelectorAll('[data-groups-room-id]:checked').length;
+    const dropdown = document.querySelector('#groups-room-dropdown > button > span');
+    if (dropdown) {
+        dropdown.textContent = count ? t('groups_rooms_selected_count').replace('{count}', String(count)) : t('groups_rooms_select_placeholder');
+    }
+}
+
+function removeGroupsSelectedRoom(index, btn) {
+    const checked = Array.from(document.querySelectorAll('[data-groups-room-id]:checked'));
+    if (checked[index]) checked[index].checked = false;
+    const chip = btn?.closest('span');
+    if (chip) chip.remove();
+    const selectedList = document.getElementById('groups-room-selected-list');
+    if (selectedList && !selectedList.querySelector('button')) {
+        selectedList.innerHTML = `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_rooms_none_selected')}</p>`;
+    }
+    updateGroupsRoomSelectedCount();
+}
+
+function updateGroupsPersonaCount() {
+    const textarea = document.getElementById('groups-persona-prompt');
+    const counter = document.getElementById('groups-persona-count');
+    if (textarea && counter) counter.textContent = String(textarea.value.length);
+}
+
 function renderActiveChannels() {
     stopWeixinQrPoll();
     stopWeixinStatusPoll();
@@ -6688,7 +7020,7 @@ function renderActiveChannels() {
                         id="ch-save-${ch.name}">${t('channels_save')}</button>
                 </div>
             </div>` : '')}
-            ${isWechatGroup ? buildWechatGroupSettingsPanel(ch) : ''}`;
+            `;
 
         container.appendChild(card);
         bindSecretFieldEvents(card);
@@ -6831,19 +7163,41 @@ function refreshWechatGroupRooms() {
             ch.extra = data.extra || ch.extra || {};
             ch.extra.rooms = data.rooms || ch.extra.rooms || [];
         }
-        showChannelStatus('wechat_group', 'wechat_group_rooms_refreshed', false);
-        renderActiveChannels();
+        if (currentView === 'groups') {
+            showGroupsStatus('wechat_group_rooms_refreshed', false);
+            renderGroupsView();
+        } else {
+            showChannelStatus('wechat_group', 'wechat_group_rooms_refreshed', false);
+            renderActiveChannels();
+        }
     })
-    .catch(() => showChannelStatus('wechat_group', 'wechat_group_rooms_refresh_failed', true));
+    .catch(() => {
+        if (currentView === 'groups') showGroupsStatus('wechat_group_rooms_refresh_failed', true);
+        else showChannelStatus('wechat_group', 'wechat_group_rooms_refresh_failed', true);
+    });
 }
 
 function saveWechatGroupSettings() {
     const ch = channelsData.find(item => item.name === 'wechat_group');
     if (!ch) return;
-    const btn = document.getElementById('ch-save-wechat-group-extra');
-    const prompt = document.getElementById('wechat-group-persona-prompt')?.value || '';
-    const selectedIds = Array.from(document.querySelectorAll('[data-wechat-group-room-id]:checked')).map(el => el.dataset.wechatGroupRoomId).filter(Boolean);
-    const selectedNames = splitWechatGroupLines(document.getElementById('wechat-group-room-names')?.value || '');
+    const extra = ch.extra || {};
+    const btn = document.getElementById('groups-save-btn') || document.getElementById('ch-save-wechat-group-extra');
+    const prompt = document.getElementById('groups-persona-prompt')?.value ?? extra.persona?.prompt ?? '';
+    const checkedRoomIds = Array.from(document.querySelectorAll('[data-groups-room-id]:checked')).map(el => el.dataset.groupsRoomId).filter(Boolean);
+    const selectedIds = document.getElementById('groups-room-dropdown') ? checkedRoomIds : (extra.selected_room_ids || []);
+    const selectedNames = document.getElementById('groups-room-names')
+        ? splitWechatGroupLines(document.getElementById('groups-room-names')?.value || '')
+        : (extra.selected_room_names || []);
+    const recent = extra.recent_context || {};
+    const recentEnabled = document.getElementById('groups-recent-enabled')
+        ? !!document.getElementById('groups-recent-enabled').checked
+        : recent.enabled !== false;
+    const recentLimit = document.getElementById('groups-recent-limit')
+        ? Math.max(1, Number(document.getElementById('groups-recent-limit').value || 1))
+        : Number(recent.limit || 20);
+    const recentMinutes = document.getElementById('groups-recent-minutes')
+        ? Math.max(1, Number(document.getElementById('groups-recent-minutes').value || 1))
+        : Number(recent.minutes || 60);
     if (btn) btn.disabled = true;
     fetch('/api/channels', {
         method: 'POST',
@@ -6855,20 +7209,32 @@ function saveWechatGroupSettings() {
                 wechat_group_room_ids: selectedIds,
                 wechat_group_names: selectedNames,
                 wechat_group_persona_prompt: prompt,
-                wechat_group_persona_preset_id: getWechatGroupDraftPresetId(ch),
+                wechat_group_persona_preset_id: 'custom',
+                wechat_group_recent_context_enabled: recentEnabled,
+                wechat_group_recent_context_limit: recentLimit,
+                wechat_group_recent_context_minutes: recentMinutes,
             },
         })
     })
     .then(r => r.json())
     .then(data => {
         if (data.status === 'success') {
-            showChannelStatus('wechat_group', 'wechat_group_settings_saved', false);
-            loadChannelsView();
+            if (currentView === 'groups') {
+                showGroupsStatus('wechat_group_settings_saved', false);
+                loadGroupsView();
+            } else {
+                showChannelStatus('wechat_group', 'wechat_group_settings_saved', false);
+                loadChannelsView();
+            }
         } else {
-            showChannelStatus('wechat_group', 'channels_save_error', true);
+            if (currentView === 'groups') showGroupsStatus('channels_save_error', true);
+            else showChannelStatus('wechat_group', 'channels_save_error', true);
         }
     })
-    .catch(() => showChannelStatus('wechat_group', 'channels_save_error', true))
+    .catch(() => {
+        if (currentView === 'groups') showGroupsStatus('channels_save_error', true);
+        else showChannelStatus('wechat_group', 'channels_save_error', true);
+    })
     .finally(() => { if (btn) btn.disabled = false; });
 }
 
@@ -8055,6 +8421,7 @@ navigateTo = function(viewId) {
     }
     else if (viewId === 'knowledge') loadKnowledgeView();
     else if (viewId === 'channels') loadChannelsView();
+    else if (viewId === 'groups') loadGroupsView();
     else if (viewId === 'tasks') loadTasksView();
     else if (viewId === 'logs') startLogStream();
 };
