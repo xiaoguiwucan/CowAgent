@@ -3,12 +3,13 @@
 ## 2026-07-02
 
 ### 微信群运行时群友画像昵称兜底
-- 更新 `channel/wechat_group/wechat_group_memory.py`：在真实 `at_list` 过滤后没有群友 ID 时，按当前群 active 群友画像的 `sender_nickname` 做唯一精确兜底；唯一命中时注入 `matched_by="nickname"`，同名歧义时不注入并返回诊断原因。
-- 更新 `tests/test_wechat_group_memory.py`：覆盖“只 @ 机器人但正文包含群友昵称”可注入画像，以及同昵称多画像时跳过注入。
-- 新增 `plans/wechat_group_runtime_member_profile_lookup_20260702.md`：记录本次运行时昵称兜底方案、边界、验证结果和剩余真实链路手动验证项。
+- 更新 `channel/wechat_group/wechat_group_memory.py`：在真实 `at_list` 过滤后没有群友 ID 时，按当前群 active 群友画像的 `sender_nickname` 做唯一精确兜底；唯一命中时注入 `matched_by="nickname"`，同名歧义时不注入并返回诊断原因。参考 BaiLongmaPro 后修正 `at_list` 为空的真实链路，避免 `message.mentionList()` 未返回成员时跳过昵称画像召回。
+- 更新 `tests/test_wechat_group_memory.py`：覆盖“只 @ 机器人但正文包含群友昵称”可注入画像、`at_list` 为空但正文包含群友昵称仍可注入画像，以及同昵称多画像时跳过注入。
+- 新增 `plans/wechat_group_runtime_member_profile_lookup_20260702.md`：记录本次运行时昵称兜底方案、BaiLongmaPro 对照结论、边界、验证结果和剩余真实链路手动验证项。
 
 验证记录：
 - `python -m unittest tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_injects_unique_profile_by_nickname_when_only_bot_is_mentioned tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_skips_nickname_profile_when_match_is_ambiguous`
+- `python -m unittest tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_injects_unique_profile_by_nickname_when_at_list_is_empty`
 - `python -m unittest tests.test_wechat_group_memory`
 - `python -m unittest tests.test_wechat_group_context`
 - `python -m py_compile channel\wechat_group\wechat_group_memory.py tests\test_wechat_group_memory.py`
