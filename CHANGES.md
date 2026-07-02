@@ -2,6 +2,27 @@
 
 ## 2026-07-02
 
+### 桌面端群聊页宽度调整
+
+- 更新 `desktop/src/renderer/src/pages/GroupsPage.tsx`：移除右侧详情面板的 `max-w-4xl` / `max-w-5xl` 宽度限制，使群聊页主内容区与知识库页一样覆盖可用窗口宽度。
+- 调整群聊页内部布局：基础设置改为更适合宽屏的三列比例；群聊开关页扩大已选群列表和群名兜底编辑区；人设设定编辑器改为随右侧空间撑开并保留内部滚动。
+
+验证记录：
+
+- 静态布局断言：确认 `GroupsPage.tsx` 不再包含 `max-w-4xl` / `max-w-5xl` 详情宽度限制，并包含新的宽屏群聊布局。
+- `Set-Location -LiteralPath .\desktop`
+- `npm run build`
+
+### Agent LLM 请求上下文日志
+
+- 更新 `agent/protocol/agent_stream.py`：在每次调用 LLM 前只打印请求上下文来源与概要，包括 system prompt 字符数、加载来源文件、顶层章节、messages 角色/块类型/字符统计和 tools 名称/schema 概况，避免完整打印 system prompt、历史消息正文和 tool schema。
+- 更新 `tests/test_agent_stream_logging.py`：覆盖日志包含来源与概要信息，同时不泄露完整上下文正文、历史消息正文和长用户消息尾部内容。
+
+验证记录：
+
+- `python -m unittest tests.test_agent_stream_logging`
+- `python -m py_compile agent/protocol/agent_stream.py tests/test_agent_stream_logging.py`
+
 ### 桌面端群聊页与 4.3 计划补充
 
 - 新增 `desktop/src/renderer/src/pages/GroupsPage.tsx`：提供桌面端独立“群聊”管理页，支持“基础设置 / 群聊开关 / 人设设定”三段式左侧子菜单、4.2 最近上下文配置、群名检索多选和自定义人设保存。
@@ -9,9 +30,10 @@
 - 更新 `desktop/src/renderer/src/pages/ChannelsPage.tsx`：个人微信群通道卡片不再展示群聊细项设置，仅保留接入、扫码、连接和断开入口。
 - 更新 `desktop/src/renderer/src/types.ts` 与 `desktop/src/renderer/src/i18n.ts`：补充微信群最近上下文配置类型和群聊管理页中英文文案。
 - 更新 `AGENTS.md`：补充个人微信群通道请求 LLM 前的实际上下文链路，明确其是在原 `ChatChannel` / Agent 主链路基础上叠加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：细化 4.3 群永久记忆与群友永久记忆的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
-- 继续补充 4.3 记忆方案：明确微信群群记忆与群友记忆进入 CowAgent 通用作用域记忆体系，通过 `scope_type`、`scope_id`、`channel_type`、`subject_id` 兼容扩展保持旧记忆行为不变。
-- 细化 4.3 UI 展示要求：永久记忆页必须按群分类展示记忆内容；选中某个群后再区分群记忆与按成员分组的群友记忆，并补充对应测试要求。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：细化 4.3 群永久记忆与群友画像的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
+- 继续补充 4.3 记忆方案：明确微信群群记忆与群友画像进入 CowAgent 通用作用域记忆体系，通过 `scope_type`、`scope_id`、`channel_type`、`subject_id` 兼容扩展保持旧记忆行为不变。
+- 细化 4.3 UI 展示要求：永久记忆页必须按群分类展示记忆内容；选中某个群后再区分群记忆与按成员展示的群友画像，并补充对应测试要求。
+- 根据通用作用域记忆方案修订 4.3 任务五、任务六与相邻章节：明确群友画像采用单份 active profile + revision 审计模型，提示词装配必须通过 `WechatGroupMemoryService` / `MemoryScope` 获取已过滤结果，UI 分类数据必须来自统一记忆 API 的 scope 聚合结果，并补充作用域记忆验证命令。
 
 验证记录：
 

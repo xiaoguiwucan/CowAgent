@@ -12,7 +12,7 @@
 - Wechaty 侧车只负责微信登录、群列表、群消息收发、文件/图片/语音传输和 Wechaty 运行细节。
 - Python 侧把微信群消息转换为 CowAgent 现有 `Context` / `ChatMessage`，继续复用 `ChatChannel`、`Bridge`、Agent、插件、模型、语音、图像和记忆能力。
 - 不在微信群通道里重写一套模型调用、工具调用或 Agent 执行逻辑，避免后续能力分叉。
-- 首轮核心体验不是“能在群里机械回复”，而是结合当前群最近上下文、群永久记忆和群友永久记忆，让回复更像长期参与群聊的人。
+- 首轮核心体验不是“能在群里机械回复”，而是结合当前群最近上下文、群永久记忆和群友画像，让回复更像长期参与群聊的人。
 
 ## 2. 当前调研结论
 
@@ -35,7 +35,7 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 
 - `wechaty-duty-group.js`：Wechaty 连接、扫码登录、群列表、已选群路由、@ 触发、文本/文件/图片发送、离线二维码通知和 worker 状态。
 - `wechat-groups.js`：微信群外部 ID、唤醒规则、最近群消息归档和群提示词构造。
-- `wechat-group-memory.js`：群消息、群记忆条目、群友永久记忆和记忆上下文召回。
+- `wechat-group-memory.js`：群消息、群记忆条目、群友画像和记忆上下文召回。
 - `wechat-group-stats.js`：本地群活跃记录、成员名称、群统计、记录导出/导入和战报发送标记。
 - `wechat-command-guard.js`：微信群入口安全守卫。
 - `wechat-file-reply.js`：按明确格式要求生成附件回复。
@@ -105,7 +105,7 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 
 状态：已完成 4.2 最小闭环。当前实现新增微信群专用 SQLite 归档与最近上下文格式化服务，按 `room_id` 隔离记录入站群消息，并在微信群文本请求进入 CowAgent 回复链路前注入 `<recent-wechat-group-transcript>`。注入窗口受 `wechat_group_recent_context_enabled`、`wechat_group_recent_context_limit`、`wechat_group_recent_context_minutes` 控制；最近上下文只作为本轮提示词素材，不写入 CowAgent 全局长期记忆。出站助手回复已进入 `wechat_group_assistant_replies` 表，为后续记忆与审计阶段保留基础数据。
 
-架构论证：4.2 的“最近上下文”不是长期记忆，而是微信群通道的短期事件归档与提示词素材。它需要按时间窗口读取当前 `room_id` 的原始聊天流水，写入频率高、语义价值不稳定、生命周期短；如果直接塞进 CowAgent 现有 `MemoryManager`，会把普通闲聊提升为全局/用户/会话记忆，增加 embedding 与检索噪声，并且现有 `shared` / `user` / `session` scope 不能天然表达 `room_id` 和 `room_id + sender_id` 隔离。当前专用归档表的定位是低风险地复用 BaiLongmaPro 的 recent transcript 思路，先保证群隔离、时间窗查询和可审计流水。CowAgent 的长期记忆能力保留到 4.3 通过 `WechatGroupMemoryService` 复用：可以复用 embedding、chunker、FTS 和摘要提取思路，但写入与召回入口必须显式携带 `room_id` / `sender_id`，避免污染 Web、CLI、私聊和 Agent 全局记忆。后续如多渠道都需要作用域记忆，再统一规划 `scope_type + scope_id + channel_type` 的通用记忆模型升级，而不是在 4.2 为最近上下文提前改动全局 schema。
+架构论证：4.2 的“最近上下文”不是长期记忆，而是微信群通道的短期事件归档与提示词素材。它需要按时间窗口读取当前 `room_id` 的原始聊天流水，写入频率高、语义价值不稳定、生命周期短；如果直接塞进 CowAgent 现有 `MemoryManager`，会把普通闲聊提升为全局/用户/会话记忆，增加 embedding 与检索噪声，并且现有 `shared` / `user` / `session` scope 不能天然表达 `room_id` 和 `room_id + sender_id` 隔离。当前专用归档表的定位是低风险地复用 BaiLongmaPro 的 recent transcript 思路，先保证群隔离、时间窗查询和可审计流水。CowAgent 的长期记忆能力在 4.3 执行通用作用域记忆升级：通过 `scope_type`、`scope_id`、`channel_type`、`subject_id` 兼容扩展原记忆表，让群永久记忆和群友画像进入统一 `MemoryManager`，同时仍要求所有写入与召回入口显式携带 `room_id` / `sender_id`，避免污染 Web、CLI、私聊和 Agent 全局记忆。
 
 回复前注入当前群最近上下文，让模型知道群里刚刚发生了什么。
 
@@ -123,9 +123,9 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 - `wechat_group_recent_context_limit = 20`
 - `wechat_group_recent_context_minutes = 60`
 
-### 4.3 群永久记忆与群友永久记忆
+### 4.3 群永久记忆与群友画像
 
-群记忆是首轮核心能力。经方案确认，4.3 不再把群永久记忆做成微信群专用长期记忆孤岛，而是把 CowAgent 原本记忆升级为“通用作用域记忆”，让群记忆、群友记忆进入统一记忆管理体系，同时通过 `room_id` / `sender_id` 作用域约束保证隔离。
+群记忆是首轮核心能力。经方案确认，4.3 不再把群永久记忆做成微信群专用长期记忆孤岛，而是把 CowAgent 原本记忆升级为“通用作用域记忆”，让群记忆、群友画像进入统一记忆管理体系，同时通过 `room_id` / `sender_id` 作用域约束保证隔离。
 
 阶段一不直接把微信群消息塞进现有 `shared` / `user` / `session` 语义里，也不使用独立微信群长期记忆表绕开 CowAgent 记忆系统。推荐做法是对 `agent/memory/storage.py` 的 `chunks` 表做兼容扩展：保留旧字段与旧调用路径，同时新增 `scope_type`、`scope_id`、`channel_type`、`subject_id` 等 nullable 字段。旧记忆继续按原行为运行；微信群 4.3 通过新的作用域字段进入统一 `MemoryManager`，并由 `WechatGroupMemoryService` 做强校验和提示词装配适配。
 
@@ -141,16 +141,18 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
    - 统一记忆作用域：`scope_type = wechat_group`，`scope_id = room_id`，`channel_type = wechat_group`。
    - 只在当前群回复中召回。
 
-3. 群友永久记忆
-   - 保存某个群内成员的长期事实、偏好和身份信息。
-   - 统一记忆作用域：`scope_type = wechat_group_member`，`scope_id = room_id`，`subject_id = sender_id`，`channel_type = wechat_group`。
-   - 同一个 sender ID 出现在不同群时，默认视为不同记忆空间，除非后续做明确身份合并。
+3. 群友画像
+   - 保存某个群内成员的一份当前生效长期画像，而不是多条零散记忆。
+   - 统一记忆作用域：`scope_type = wechat_group_member_profile`，`scope_id = room_id`，`subject_id = sender_id`，`channel_type = wechat_group`。
+   - 画像建议包含身份/角色、长期偏好、专业背景、互动风格、已知边界、最近更新依据和更新时间。
+   - 同一个 sender ID 出现在不同群时，默认视为不同画像空间，除非后续做明确身份合并。
+   - 来源消息 ID、来源摘要和历史版本作为 metadata 或审计记录保留；提示词召回只使用当前生效画像。
 
 4. 与 CowAgent 全局记忆的关系
    - 微信群长期记忆写入 CowAgent 统一记忆索引，但必须携带明确作用域。
    - `WechatGroupMemoryService` 只作为微信群通道适配层：负责校验 `room_id` / `sender_id`、组装作用域、调用通用 `MemoryManager`、生成 `<wechat-group-memory>`。
    - embedding provider、chunker、FTS、向量检索和后续统一记忆管理能力复用 CowAgent 原本组件。
-   - 只有用户或管理员明确要求“写入全局记忆”的稳定知识，才允许提升到 CowAgent 通用 `MemoryManager`。
+   - 只有用户或管理员明确要求“写入全局记忆”的稳定知识，才允许提升到 `scope_type = shared` 的全局 shared 记忆；普通群记忆和群友画像虽然进入通用 `MemoryManager`，但必须保留 `wechat_group` 或 `wechat_group_member_profile` 作用域。
    - 旧 `shared` / `user` / `session` 调用方必须保持兼容，不能因为新增作用域字段影响 Web、CLI、私聊和 Agent 既有记忆行为。
 
 通用作用域映射：
@@ -180,8 +182,8 @@ scope_id = room_id
 channel_type = wechat_group
 subject_id = ""
 
-微信群群友永久记忆:
-scope_type = wechat_group_member
+微信群群友画像:
+scope_type = wechat_group_member_profile
 scope_id = room_id
 channel_type = wechat_group
 subject_id = sender_id
@@ -192,15 +194,15 @@ subject_id = sender_id
 ```text
 当前群最近消息
 → 当前群群永久记忆
-→ 当前群当前发言人的群友记忆
-→ 当前群被 @ / 被提到成员的群友记忆
+→ 当前群当前发言人的群友画像
+→ 当前群被 @ / 被提到成员的群友画像
 → CowAgent 全局 shared memory
 ```
 
 安全原则：
 
 - 任何群记忆召回都必须带 `room_id`。
-- 群友记忆必须带 `room_id + sender_id`。
+- 群友画像必须带 `room_id + sender_id`。
 - 不允许把 A 群的人设、隐私、聊天结论带到 B 群。
 - 全局 shared memory 只能作为通用背景，不允许反向泄露其他群信息。
 
@@ -210,9 +212,9 @@ subject_id = sender_id
 - `wechat_group_memory_auto_extract` 首轮继续默认关闭；即使配置打开，也必须只从当前 `room_id` 的最近消息窗口提取，并保留 `source_message_ids`，不得把普通闲聊直接提升为长期记忆。
 - 手动写入采用明确语义入口：
   - 群永久记忆：管理员在 UI 中选择目标群后写入，或后续通过群内管理命令写入。
-  - 群友永久记忆：管理员在 UI 中选择目标群和成员后写入；普通成员自助写入只允许落到“当前群 + 自己 sender_id”空间。
+  - 群友画像：管理员在 UI 中选择目标群和成员后创建或更新画像；普通成员自助更新只允许落到“当前群 + 自己 sender_id”画像空间。
 - 召回上下文使用独立 `<wechat-group-memory>` 块，和 `<wechat-group-persona>`、`<recent-wechat-group-transcript>` 分开，避免模型把人设、短期聊天和长期事实混为一类。
-- 群记忆 UI 只做运维型能力：开关状态、按群/群友分类展示、手动新增、列表/搜索、停用、来源查看和诊断预览；不做完整社交工作台、批量导入、跨群身份合并、记忆自动提取审核流或可视化战报。
+- 群记忆 UI 只做运维型能力：开关状态、按群/群友画像分类展示、手动新增或更新、搜索、停用、来源查看和诊断预览；不做完整社交工作台、批量导入、跨群身份合并、记忆自动提取审核流或可视化战报。
 
 建议注入顺序：
 
@@ -227,13 +229,13 @@ subject_id = sender_id
 
 <wechat-group-memory>
 [group_memory] ...
-[member_memory sender_id="..."] ...
+[member_profile sender_id="..."] ...
 </wechat-group-memory>
 
 用户本轮真实问题
 ```
 
-`<wechat-group-memory>` 最多注入当前群命中的群记忆、当前发言人的群友记忆和被 @ / 被明确提到成员的群友记忆。每条必须带来源类型，内部检索结果必须先按 `room_id` / `room_id + sender_id` 过滤，再排序。
+`<wechat-group-memory>` 最多注入当前群命中的群记忆、当前发言人的群友画像和被 @ / 被明确提到成员的群友画像。群记忆可以是多条事实；群友画像对每个 `room_id + sender_id` 只注入一份当前生效画像。所有召回必须带来源类型，内部检索结果必须先按 `room_id` / `room_id + sender_id` 过滤，再排序。
 
 ### 4.4 多模态能力
 
@@ -411,11 +413,11 @@ Python 发给侧车的命令：
 
 职责：
 
-- 将 CowAgent 原本记忆升级为通用作用域记忆，支持 `shared` / `user` / `session` / `wechat_group` / `wechat_group_member`。
+- 将 CowAgent 原本记忆升级为通用作用域记忆，支持 `shared` / `user` / `session` / `wechat_group` / `wechat_group_member_profile`。
 - 保持旧 `scope` / `user_id` 调用兼容，旧调用方不需要一次性改造。
-- `WechatGroupMemoryService` 管理群永久记忆和群友永久记忆的通道适配。
+- `WechatGroupMemoryService` 管理群永久记忆和群友画像的通道适配。
 - 强制所有查询携带 `room_id`。
-- 群友记忆强制使用 `room_id + sender_id`。
+- 群友画像强制使用 `room_id + sender_id`，且每个成员在每个群只有一份当前 active 画像。
 - 支持手动写入、自动提取、检索召回和删除/停用。
 - 复用 CowAgent embedding provider、文本切分、摘要提取、FTS 和向量检索能力，但不能把群记忆写入全局 shared memory。
 - 原始群消息仍保留在 `wechat_group_messages`，不进入长期记忆，除非通过明确手动写入或后续受控自动提取。
@@ -449,29 +451,31 @@ Python 发给侧车的命令：
 写入策略：
 
 - 原始群消息先进入 `wechat_group_messages`，不自动等同为长期记忆。
-- 管理员或明确指令写入的稳定事实可以直接进入群记忆或群友记忆。
+- 管理员或明确指令写入的稳定事实可以直接进入群记忆；群友相关稳定信息应合并进该成员当前画像。
 - `wechat_group_memory_auto_extract` 首轮默认关闭；后续开启时也只能从当前 `room_id` 的消息窗口中提取，并保留来源消息 ID。
-- 群友记忆必须落在“当前群 + 当前成员”空间内，不按昵称合并，不跨群合并。
-- UI 写入必须经过字段校验：`room_id` 必填；群友记忆还要求 `sender_id` 必填；`content` 去除首尾空白后不能为空，首轮建议限制在 1000 字以内。
+- 群友画像必须落在“当前群 + 当前成员”空间内，不按昵称合并，不跨群合并。
+- UI 写入必须经过字段校验：`room_id` 必填；群友画像还要求 `sender_id` 必填；画像正文去除首尾空白后不能为空，首轮建议限制在 2000 字以内。
 - 所有删除操作首轮采用软删除/停用：把 `status` 更新为 `disabled`，不物理删除原始记录，方便审计和回滚。
+- 群友画像更新采用 upsert：新信息先合并到当前画像，旧画像作为 revision / metadata 审计记录保留，不在提示词中召回多个历史版本。
 
 召回策略：
 
 - 群记忆检索必须传入 `room_id`。
-- 群友记忆检索必须传入 `room_id + sender_id`。
+- 群友画像读取必须传入 `room_id + sender_id`，返回当前 active 画像。
 - embedding 相似度、关键词匹配和时间衰减可以组合使用，但 SQL 查询必须先按 `scope_type`、`scope_id`、`channel_type`、`subject_id` 和 `status` 过滤，再执行相关性排序。
-- 返回给提示词装配层的每条记忆必须标注来源类型：`group_memory` 或 `member_memory`。
+- 返回给提示词装配层的每条上下文必须标注来源类型：`group_memory` 或 `member_profile`。
 - embedding provider 不可用时必须降级到 FTS/LIKE 关键词检索；不能因为 embedding 初始化失败阻断微信群正常回复。
-- 召回默认条数保持保守：群记忆最多 5 条，当前发言人群友记忆最多 5 条，被提到成员群友记忆最多 3 条。
+- 召回默认条数保持保守：群记忆最多 5 条；当前发言人群友画像最多 1 份；被提到成员每人最多 1 份画像。
 
 建议服务接口：
 
 - `add_group_memory(room_id, room_name, content, source_message_ids=None, created_by="ui")`
-- `add_member_memory(room_id, sender_id, sender_nickname, content, source_message_ids=None, created_by="ui")`
+- `upsert_member_profile(room_id, sender_id, sender_nickname, profile, source_message_ids=None, updated_by="ui")`
 - `search_group_memories(room_id, query, limit=5)`
-- `search_member_memories(room_id, sender_id, query, limit=5)`
+- `get_member_profile(room_id, sender_id)`
 - `list_group_memories(room_id, status="active", limit=50, offset=0)`
-- `list_member_memories(room_id, sender_id=None, status="active", limit=50, offset=0)`
+- `list_member_profiles(room_id, status="active", limit=50, offset=0)`
+- `list_member_profile_revisions(room_id, sender_id, limit=20)`
 - `disable_memory(memory_type, memory_id, room_id, sender_id=None)`
 - `preview_prompt_memories(room_id, sender_id, query, mentioned_sender_ids=None)`
 
@@ -483,6 +487,12 @@ Python 发给侧车的命令：
 - `MemoryManager.list_by_scope(memory_scope, status="active", limit=50, offset=0)`
 - `MemoryManager.disable(chunk_id, memory_scope)`
 
+迁移与兼容验证要求：
+
+- 旧 `shared` / `user` / `session` 记忆在 schema 扩展前后的搜索结果、权限过滤和返回格式保持一致。
+- 旧数据迁移后必须能通过新 `MemoryScope` 查询到等价结果，同时旧 API 仍能查询到原结果。
+- 新增作用域字段为空、缺省或旧库未迁移完成时，必须有兼容读取路径，不能导致现有记忆启动失败。
+
 ### 任务六：新增微信群提示词上下文装配
 
 新增：
@@ -491,21 +501,31 @@ Python 发给侧车的命令：
 
 职责：
 
-- 把微信群人设、最近群消息、群永久记忆、当前发言人记忆、被提到成员记忆拼成紧凑上下文。
+- 把微信群人设、最近群消息、群永久记忆、当前发言人画像、被提到成员画像拼成紧凑上下文。
 - 将当前生效人设作为独立 `<wechat-group-persona>` 块注入，只影响回复风格和边界，不作为群事实或记忆证据。
 - 当本轮请求来自已验证管理员且属于配置/诊断语义时，可以跳过或降低普通人设块优先级，避免人设覆盖管理员意图。
 - 控制 token 长度和条数。
 - 标明每段上下文来源，避免模型把其他群信息当作当前群事实。
 - 在进入 CowAgent 现有回复链路前追加到当前用户消息或 context metadata。
 - 在 `WechatGroupChannel._compose_context()` 中按顺序追加人设、最近上下文和长期记忆块；当前实现已有前两者，4.3 只补充长期记忆块和统一装配帮助函数，不改 Agent 主链路。
+- 长期记忆来源必须是 `WechatGroupMemoryService` 调用通用 `MemoryManager` 后返回的已过滤结果；提示词装配层不得自己拼 SQL、不得直接扫 `chunks`，也不得绕过 `MemoryScope`。
+- 群永久记忆召回必须使用 `MemoryScope(scope_type="wechat_group", scope_id=room_id, channel_type="wechat_group")`。
+- 当前发言人的群友画像读取必须使用 `MemoryScope(scope_type="wechat_group_member_profile", scope_id=room_id, channel_type="wechat_group", subject_id=sender_id)`。
+- 被 @ / 被明确提到成员的群友画像读取也必须逐个使用对应成员的 `subject_id`，不能按昵称模糊合并。
+- 每个成员最多注入一份当前 active 画像；历史 revision 和来源依据只用于 UI 审计，不进入默认提示词。
 - 当 `wechat_group_memory_enabled` 与 `wechat_group_member_memory_enabled` 都关闭时，不生成 `<wechat-group-memory>`。
 - 当长期记忆检索失败时记录 warning 并继续原回复链路，不能因为记忆服务异常导致群消息不可回复。
 - 建议长期记忆块格式：
 
 ```text
 <wechat-group-memory>
-[group_memory] 群规：工作日不刷屏。
-[member_memory sender_id="wxid_alice" nickname="Alice"] Alice 偏好简短结论。
+[group_memory scope_type="wechat_group" scope_id="room@@abc"] 群规：工作日不刷屏。
+[member_profile scope_type="wechat_group_member_profile" scope_id="room@@abc" sender_id="wxid_alice" nickname="Alice"]
+身份/角色：项目负责人。
+长期偏好：偏好简短结论。
+互动风格：直接、关注执行。
+已知边界：不要公开其私人联系方式。
+最近更新依据：2026-07-02 群聊中确认。
 </wechat-group-memory>
 ```
 
@@ -568,30 +588,34 @@ Python 发给侧车的命令：
 - 人设设置文案明确说明：点击预设只填入文本，不会立即生效；保存后才写入配置；人设不能绕过安全守卫。
 - 群记忆运维入口：放在已有“群聊”管理页中新增“永久记忆”子菜单，不放回通道卡片，避免通道接入页承载过多运维细项。
 - 永久记忆页整体采用“按群分组”的信息架构：
-  - 左侧或顶部第一层显示已选目标群列表，包含群名、`room_id`、群记忆数量、群友记忆数量和最近更新时间。
+  - 左侧或顶部第一层显示已选目标群列表，包含群名、`room_id`、群记忆数量、群友画像数量和最近更新时间。
   - 选中某个群后，右侧或下方显示当前群详情，不允许同时混看多个群的记忆正文。
-  - 当前群详情内分为“群记忆”和“群友记忆”两个清晰区域，可用标签页、分栏或分段控件实现。
-  - 群友记忆区域按成员分组展示：成员昵称 / `sender_id` 作为分组标题，组内列出该成员在当前群的记忆条目。
+  - 当前群详情内分为“群记忆”和“群友画像”两个清晰区域，可用标签页、分栏或分段控件实现。
+  - 群友画像区域按成员一人一张画像卡展示：成员昵称 / `sender_id`、画像摘要、标签、完整度/置信度、最近更新时间。
 - 群永久记忆面板：
   - 显示 `wechat_group_memory_enabled` 开关、召回条数说明、当前选中群和当前群记忆数量。
   - 提供“新增群记忆”表单：目标群只允许从已选群列表中选择，正文为多行文本，保存时按钮 loading/disabled。
   - 展示当前群 active 记忆列表：内容摘要、更新时间、作用域标识、来源消息 ID、停用按钮。
   - 提供关键词搜索框，查询只调用当前 `room_id`，结果区域显示命中分数或匹配方式。
-- 群友永久记忆面板：
+- 群友画像面板：
   - 显示 `wechat_group_member_memory_enabled` 开关。
   - 先选择目标群，再选择或输入稳定 `sender_id`；昵称只作辅助显示，不作为隔离键。
-  - 提供“新增群友记忆”表单和按成员分组的记忆列表，停用时二次确认。
-  - 明确提示“同一成员在不同群默认是不同记忆空间”。
-  - 支持只看某个成员、只看有记忆成员、按昵称 / `sender_id` 搜索成员。
+  - 提供“创建/更新群友画像”表单，字段建议为身份/角色、长期偏好、专业背景、互动风格、已知边界、更新依据。
+  - 画像列表不显示“记忆条数”，而显示画像是否存在、最近更新时间、来源数量和版本数量。
+  - 点击画像卡进入详情：展示当前画像正文、来源依据列表、历史版本列表、手动编辑按钮、停用画像按钮。
+  - 自动提取后续开启时，UI 只展示“画像更新预览”：列出将新增/修改的字段，管理员确认后再合并到当前画像。
+  - 明确提示“画像是当前群内对该成员的长期理解，不代表跨群身份”。
+  - 支持只看有画像成员、按昵称 / `sender_id` / 标签搜索成员。
 - 诊断预览：
   - 提供只读“本轮将注入的记忆预览”：输入模拟问题、当前发言人 sender ID、可选被提到 sender IDs，展示 `<wechat-group-memory>` 预览块。
   - 预览接口只读，不触发模型调用，不写入记忆。
-- 统一记忆管理入口如果后续新增，也必须支持按 `scope_type` 分类筛选；其中微信群记忆应显示为“微信群 / 群记忆”和“微信群 / 群友记忆”，而不是混入普通 shared/user 记忆列表。
+- 统一记忆管理入口如果后续新增，也必须支持按 `scope_type` 分类筛选；其中微信群记忆应显示为“微信群 / 群记忆”和“微信群 / 群友画像”，而不是混入普通 shared/user 记忆列表。
 - Web 控制台与桌面端保持同一信息架构：基础设置 / 群聊开关 / 人设设定 / 永久记忆。桌面端沿用现有 `GroupsPage.tsx` 左侧子菜单；Web 控制台沿用现有群聊管理页子菜单。
 - UI 使用现有语义 token、表单控件和 `lucide-react` 图标；不新增 UI 框架，不使用 emoji 图标。所有按钮要有 loading/disabled 状态，长 `room_id` / `sender_id` 使用 `font-mono`、`truncate` 或 `break-words` 防止撑破布局。
 - 后端 API 首轮建议沿用 `/api/channels` 返回 `wechat_group.extra.memory` 作为开关与摘要状态；记忆列表、写入、停用和预览使用独立接口，例如 `/api/wechat-group/memories`，避免把复杂 CRUD 塞进通道配置保存接口。
+- UI 分类展示的数据必须来自统一记忆 API 的 `scope_type` / `scope_id` / `subject_id` 聚合结果，不得另建微信群长期记忆统计表作为事实来源。可选的成员身份表只用于昵称和成员选择辅助显示；画像来源和历史版本只用于审计，不作为当前画像正文的替代事实来源。
 
-不做完整富文本记忆编辑器、跨群身份合并 UI、自动提取审核台、战报、图库、备份导入 UI。
+不做完整富文本记忆编辑器、跨群身份合并 UI、自动提取审核台、战报、图库、备份导入 UI。群友画像首轮只做当前画像编辑、来源/版本只读查看和停用，不做复杂版本 diff 编辑器。
 
 ### 任务十：新增测试
 
@@ -602,6 +626,8 @@ Python 发给侧车的命令：
 - `tests/test_wechat_group_archive.py`
 - `tests/test_wechat_group_context.py`
 - `tests/test_wechat_group_persona.py`
+- `tests/test_memory_scope.py`
+- `tests/test_wechat_group_memory_scope.py`
 - `tests/test_wechat_group_memory.py`
 - `tests/test_wechat_group_guard.py`
 - `tests/test_wechat_group_multimodal.py`
@@ -616,7 +642,8 @@ Python 发给侧车的命令：
 - `wechat_group_persona_preset_id` 能区分内置预设和 `custom`，未保存修改不会被误标记为已生效。
 - 已验证管理员的配置/诊断请求不会被普通人设覆盖，但仍会经过安全守卫。
 - 群永久记忆只按当前 `room_id` 召回。
-- 群友记忆只按 `room_id + sender_id` 召回。
+- 群友画像只按 `room_id + sender_id` 读取。
+- 同一个 `room_id + sender_id` 更新画像时只保留一份当前 active 画像，旧内容进入 revision / metadata 审计记录。
 - A 群记忆不会泄漏到 B 群。
 - 通用记忆 `shared` / `user` / `session` 旧调用路径保持兼容。
 - 统一记忆检索必须先按 `scope_type` / `scope_id` / `channel_type` / `subject_id` 过滤，再做排序。
@@ -624,10 +651,10 @@ Python 发给侧车的命令：
 - 高风险命令在模型执行前被拒绝。
 - 出站回复使用 room ID 和稳定发送人 @ 元数据。
 - Web API 能返回微信群记忆开关与摘要状态。
-- Web API 写入群记忆时必须校验 `room_id`，写入群友记忆时必须校验 `room_id + sender_id`。
+- Web API 写入群记忆时必须校验 `room_id`，创建/更新群友画像时必须校验 `room_id + sender_id`。
 - Web API 查询和停用不得跨 `room_id` 操作。
 - 桌面端和 Web 控制台“永久记忆”页能保存开关、写入记忆、搜索当前群记忆、停用记忆，并在加载/失败/空状态下给出明确反馈。
-- 桌面端和 Web 控制台必须能直观看到按群分类的记忆数量与内容；选中某个群后，群友记忆必须再按成员分组展示。
+- 桌面端和 Web 控制台必须能直观看到按群分类的记忆数量与内容；选中某个群后，群友画像必须按成员一人一张画像卡展示。
 
 ## 7. 建议配置项
 
@@ -662,6 +689,8 @@ Python 发给侧车的命令：
 }
 ```
 
+说明：`wechat_group_member_memory_enabled` 和 `wechat_group_member_memory_context_limit` 为兼容既有命名保留，4.3 语义调整为“群友画像开关”和“群友画像上下文上限”。如果后续做配置重命名，需要提供旧键兼容读取。
+
 继续兼容 CowAgent 现有配置：
 
 - `group_name_white_list`
@@ -684,9 +713,17 @@ python -m unittest tests.test_wechat_group_channel
 python -m unittest tests.test_wechat_group_archive
 python -m unittest tests.test_wechat_group_context
 python -m unittest tests.test_wechat_group_persona
+python -m unittest tests.test_memory_scope
+python -m unittest tests.test_wechat_group_memory_scope
 python -m unittest tests.test_wechat_group_memory
 python -m unittest tests.test_wechat_group_guard
 python -m unittest tests.test_wechat_group_multimodal
+```
+
+通用作用域记忆改造后优先运行：
+
+```powershell
+python -m unittest tests.test_memory_scope tests.test_wechat_group_memory_scope tests.test_wechat_group_context
 ```
 
 涉及桌面 UI 后运行：
@@ -714,7 +751,8 @@ python -m unittest discover -s tests
 - 点击“保存人设并生效”后再次 @ 机器人，确认回复风格体现新的人设设定。
 - 输入自定义人设并保存，确认配置标记为 `custom`，且人设只影响回复风格，不影响安全拦截和记忆隔离。
 - 写入一条当前群群记忆，确认只在当前群召回。
-- 写入一条当前群某成员记忆，确认只在该群该成员相关问题中召回。
+- 创建或更新当前群某成员画像，确认只在该群该成员相关问题中召回。
+- 再次更新同一成员画像，确认提示词只注入当前画像，旧画像只作为来源/版本审计展示。
 - 切换到另一个测试群，确认不会召回前一个群的记忆。
 - 发送图片，确认能进入图片理解或图片路径上下文。
 - 触发图片生成，确认生成图能发回当前群。
@@ -732,7 +770,7 @@ python -m unittest discover -s tests
 - @ 触发文本回复。
 - 微信群助手人设设定：内置预设、自定义 prompt、当前生效状态和保存后注入。
 - 当前群最近上下文注入。
-- 群永久记忆和群友永久记忆的基础写入、隔离、召回。
+- 群永久记忆和群友画像的基础写入/更新、隔离、召回。
 - 文本、图片理解、图片生成、语音识别、语音合成的基础通路。
 - 微信群入口安全守卫。
 - 最小 UI 运维面板。
@@ -752,6 +790,6 @@ python -m unittest discover -s tests
 - 能稳定作为 CowAgent 的一个微信群消息通道运行。
 - 回复能结合当前群最近上下文。
 - 人设设定能通过 UI 保存并注入当前微信群回复，且不能绕过安全守卫。
-- 群记忆和群友记忆不会跨群泄漏。
+- 群记忆和群友画像不会跨群泄漏。
 - 多模态请求能复用 CowAgent 现有能力。
 - 安全守卫能在模型和工具执行前阻断高风险请求。

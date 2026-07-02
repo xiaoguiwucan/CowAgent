@@ -53,6 +53,134 @@ def _truncate_reasoning_for_storage(text: str) -> str:
     return head + _REASONING_TRUNCATE_MARKER.format(omitted=omitted) + tail
 
 
+def _summarize_names(names: List[str], limit: int = 20) -> str:
+    if not names:
+        return "none"
+    visible = names[:limit]
+    suffix = f" (+{len(names) - limit} more)" if len(names) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _extract_system_prompt_sources(system_prompt: str) -> List[str]:
+    sources = []
+    seen = set()
+    for raw_line in (system_prompt or "").splitlines():
+        line = raw_line.strip()
+        if not line.startswith("## "):
+            continue
+        source = line[3:].strip().strip("`").strip()
+        source_lower = source.lower()
+        if not (
+            source_lower.endswith((".md", ".mdx"))
+            or "/" in source
+            or "\\" in source
+        ):
+            continue
+        if source not in seen:
+            seen.add(source)
+            sources.append(source)
+    return sources
+
+
+def _extract_system_prompt_sections(system_prompt: str) -> List[str]:
+    sections = []
+    seen = set()
+    for raw_line in (system_prompt or "").splitlines():
+        line = raw_line.strip()
+        if not line.startswith("# "):
+            continue
+        section = line[2:].strip()
+        if section and section not in seen:
+            seen.add(section)
+            sections.append(section)
+    return sections
+
+
+def _summarize_system_prompt_for_llm_log(system_prompt: str) -> str:
+    prompt = system_prompt or ""
+    sources = _extract_system_prompt_sources(prompt)
+    sections = _extract_system_prompt_sections(prompt)
+    return (
+        f"chars={len(prompt)} "
+        f"sources={_summarize_names(sources, limit=12)} "
+        f"sections={_summarize_names(sections, limit=8)}"
+    )
+
+
+def _content_log_stats(content: Any) -> Tuple[int, Dict[str, int]]:
+    block_types: Dict[str, int] = {}
+
+    def visit(value: Any) -> int:
+        if value is None:
+            return 0
+        if isinstance(value, str):
+            return len(value)
+        if isinstance(value, list):
+            return sum(visit(item) for item in value)
+        if isinstance(value, dict):
+            block_type = value.get("type")
+            if block_type:
+                block_types[block_type] = block_types.get(block_type, 0) + 1
+            total = 0
+            for key in ("text", "content", "thinking"):
+                total += visit(value.get(key))
+            return total
+        return len(str(value))
+
+    return visit(content), block_types
+
+
+def _summarize_messages_for_llm_log(messages: List[Dict[str, Any]]) -> str:
+    role_counts: Dict[str, int] = {}
+    block_counts: Dict[str, int] = {}
+    total_chars = 0
+
+    for message in messages or []:
+        role = str(message.get("role") or "unknown")
+        role_counts[role] = role_counts.get(role, 0) + 1
+        chars, blocks = _content_log_stats(message.get("content"))
+        total_chars += chars
+        for block_type, count in blocks.items():
+            block_counts[block_type] = block_counts.get(block_type, 0) + count
+
+    role_order = ["system", "assistant", "user", "tool", "unknown"]
+    ordered_roles = [role for role in role_order if role in role_counts]
+    ordered_roles.extend(sorted(role for role in role_counts if role not in role_order))
+    role_summary = ", ".join(f"{role}={role_counts[role]}" for role in ordered_roles) or "none"
+    block_summary = ", ".join(
+        f"{block_type}={block_counts[block_type]}"
+        for block_type in sorted(block_counts)
+    ) or "none"
+    return (
+        f"count={len(messages or [])} "
+        f"roles={role_summary} "
+        f"content_chars={total_chars} "
+        f"blocks={block_summary}"
+    )
+
+
+def _summarize_tools_for_llm_log(tools_schema: Optional[List[Dict[str, Any]]]) -> str:
+    tools = tools_schema or []
+    names = [str(tool.get("name") or "unknown") for tool in tools]
+    schema_summaries = []
+    for tool in tools[:10]:
+        input_schema = tool.get("input_schema") or {}
+        properties = input_schema.get("properties") if isinstance(input_schema, dict) else {}
+        required = input_schema.get("required") if isinstance(input_schema, dict) else []
+        prop_count = len(properties) if isinstance(properties, dict) else 0
+        req_count = len(required) if isinstance(required, list) else 0
+        schema_summaries.append(
+            f"{tool.get('name') or 'unknown'}(properties={prop_count}, required={req_count})"
+        )
+    schema_suffix = f" (+{len(tools) - 10} more)" if len(tools) > 10 else ""
+    schema_summary = ", ".join(schema_summaries) + schema_suffix if schema_summaries else "none"
+    return (
+        f"count={len(tools)} "
+        f"names={_summarize_names(names, limit=20)} "
+        f"schemas={schema_summary}"
+    )
+
+
 def _parse_tool_args(args_str: str, finish_reason: Optional[str]) -> Tuple[dict, Optional[str]]:
     """Parse tool args JSON. Returns (args, error_msg); error_msg is None on success.
 
@@ -756,21 +884,12 @@ class AgentStreamExecutor:
                     "input_schema": input_schema,
                 })
 
-        # Debug: dump the full system prompt and messages sent to the LLM.
-        # Gated behind `debug` config to avoid flooding normal logs.
-        # try:
-        #     from config import conf
-        #     if conf().get("debug", False):
-        #         logger.debug(
-        #             "[Agent][debug] system_prompt sent to LLM "
-        #             f"({len(self.system_prompt or '')} chars):\n"
-        #             "================ SYSTEM PROMPT BEGIN ================\n"
-        #             f"{self.system_prompt}\n"
-        #             "================ SYSTEM PROMPT END =================="
-        #         )
-        #         logger.info(f"[Agent][debug] messages sent to LLM: {messages}")
-        # except Exception:
-        #     pass
+        logger.info(
+            "[Agent] LLM request summary:\n"
+            f"system: {_summarize_system_prompt_for_llm_log(self.system_prompt)}\n"
+            f"messages: {_summarize_messages_for_llm_log(messages)}\n"
+            f"tools: {_summarize_tools_for_llm_log(tools_schema)}"
+        )
 
         # Create request
         request = LLMRequest(
