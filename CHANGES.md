@@ -58,6 +58,16 @@
 
 - 文档变更，已静态检查计划文件包含 `4.3.1` 至 `4.3.5` 小节、建议 API 形态、UI 设计细化和待确认点。
 
+### New API 自定义渠道计划修正
+
+- 更新 `plans/newapi_capability_routing_plan_20260702.md`：将方案从“新增独立 `newapi` provider”修正为“把 QuantumNous/new-api 作为现有 `custom:<id>` 自定义 OpenAI-compatible 渠道使用”。
+- 明确不新增 `newapi_api_key` / `newapi_api_base`，改为增强现有自定义渠道覆盖图像理解、图像生成、语音识别、语音合成和向量五类能力。
+
+验证记录：
+
+- 已核对 QuantumNous/new-api 项目定位为统一 AI 模型网关，支持 OpenAI-compatible 及 Chat/Image/Audio/Embeddings 等接口。
+- 文档变更，已静态检查计划文件包含 `custom:<id>` 路由、五类能力任务、配置示例、风险回退和验证命令。
+
 ### 个人微信群 4.3 记忆上下文链路文档
 
 - 更新 `AGENTS.md`：将个人微信群 LLM 请求上下文链路扩展为 4.3 目标结构，明确 `<wechat-group-memory>` 应注入当前群记忆、当前发言人群友画像和本轮被 @ 群友画像，并补充 `room_id` / `sender_id` 隔离规则。
