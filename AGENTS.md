@@ -103,7 +103,8 @@ npm run dev:hot
 - 遵守最小修改原则：只改让当前需求成立的必要文件。
 - 不顺手重构无关代码；发现无关问题时在回复里单独说明。
 - 用户要求修改 UI、页面、布局、交互或样式但未明确指定端时，默认只修改 Web 控制台（`channel/web/chat.html`、`channel/web/static/js/console.js`、`channel/web/static/css/console.css` 等）；不要同时修改桌面端 `desktop/`。只有用户明确要求“桌面端”“Electron”“桌面应用”或指定 `desktop/` 文件时，才修改桌面端 UI。
-- 每次代码、配置或文档修改后，必须同步更新根目录 `CHANGES.md`，记录本次修改日期、任务背景、关键改动文件和验证结果；不得只在最终回复中描述而不落文档。
+- 仅在新增或修改代码并提交/交付代码变更时，才同步更新根目录 `CHANGES.md`，记录本次修改日期、任务背景、关键改动文件和验证结果；纯文档、计划、规则、配置说明等非代码变更不更新 `CHANGES.md`。
+- 提交 Git 代码变更时，必须将根目录 `AGENTS.md` 与 `CHANGES.md` 纳入同一次提交范围；提交前检查两者状态，确保规则说明与变更记录不会遗漏。
 - 面向本项目的开发计划、迁移计划、实施方案和阶段性任务文档必须使用简体中文编写；如需引用英文 API、命令、路径或错误信息，保留原文即可。
 - 跟进开发计划文档进行开发时，开发完成后必须回写对应开发计划文档，更新已完成进度、实际改动、验证结果与剩余事项，确保计划状态与代码交付一致。
 - 优先沿用现有工厂、单例、配置读取和日志模式。
@@ -161,7 +162,7 @@ npm run dev:hot
 
 1. `WechatGroupChannel.handle_text()` 把 sidecar 消息包装为 `Context`。
 2. `WechatGroupChannel._compose_context()` 先调用 `super()._compose_context()`，继续执行原 `ChatChannel` 群白名单、触发词、@ 去除、`session_id`、`receiver` 和插件事件逻辑。
-3. 微信群通道随后在 `context.content` 前追加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
+3. 微信群通道随后在 `context.content` 前追加微信群专属上下文。4.2 阶段包括 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`；4.3 完成后还应追加 `<wechat-group-memory>`。
 4. `ChatChannel._generate_reply()` 调用 `super().build_reply_content(context.content, context)`。
 5. 当 `agent` 配置为 `true` 时，`Channel.build_reply_content()` 进入 `Bridge.fetch_agent_reply()`，由 Agent 模式请求 LLM。
 
@@ -185,8 +186,29 @@ current user message:
   当前 room_id 最近群聊归档，默认最近 60 分钟、最多 20 条。
   </recent-wechat-group-transcript>
 
+  <wechat-group-memory>
+  [group_memory]
+  当前 room_id 的群永久记忆，例如群规、长期项目、群偏好、群内约定。
+
+  [speaker_profile sender_id="..."]
+  本次发言人在当前 room_id 下的一份当前生效群友画像。
+
+  [mentioned_profile sender_id="..."]
+  本次发言中被 @ 的群友在当前 room_id 下的一份当前生效群友画像。
+  可有多份；首轮只注入本轮明确 @ 到的成员画像。
+  </wechat-group-memory>
+
   用户本次去掉开头 @ 后的真实问题
 ```
+
+4.3 群永久记忆与群友画像的注入规则：
+
+- 当前群记忆按 `scope_type = wechat_group`、`scope_id = room_id`、`channel_type = wechat_group` 召回，只允许进入当前群回复。
+- 当前发言人的群友画像按 `scope_type = wechat_group_member_profile`、`scope_id = room_id`、`subject_id = sender_id`、`channel_type = wechat_group` 召回。
+- 本次发言被 @ 的群友画像从 `at_list` 中排除机器人自身和当前发言人后召回；首轮只处理明确 @ 到的成员，不把普通文本昵称匹配作为强需求。
+- 群友画像不是多条零散记忆拼接；每个 `room_id + sender_id` 最多注入一份当前生效画像，历史版本和来源只用于审计。
+- 所有群记忆和画像召回必须先按 `room_id` 或 `room_id + sender_id` 强过滤，再排序；不允许跨群泄露。
+- CowAgent 全局 shared memory 仍属于通用 Agent 记忆能力，不放进 `<wechat-group-memory>`；全局 shared memory 只能作为通用背景，不能反向泄露其他群信息。
 
 通用 CowAgent 能力仍然生效：
 
@@ -197,7 +219,8 @@ current user message:
 
 当前实现边界：
 
-- `wechat_group_memory_enabled`、`wechat_group_member_memory_enabled` 已存在于配置中，但当前微信群 `_compose_context()` 直接注入链路只明确使用人设块和最近群聊 transcript；不要假设已经有独立的 room/member 长期记忆块被自动拼进当前消息。
+- 4.3 完成前，当前微信群 `_compose_context()` 直接注入链路只明确使用人设块和最近群聊 transcript；不要假设已经有独立的 room/member 长期记忆块被自动拼进当前消息。
+- 4.3 完成后，`<wechat-group-memory>` 必须通过 `WechatGroupMemoryService` 或等价适配层装配，统一从 CowAgent 作用域记忆读取已过滤结果，不允许在通道层绕过 `room_id` / `sender_id` 校验直接拼接原始记忆。
 - Agent 模式会预持久化传入的 `query`；微信群增强后的 `context.content` 可能进入 Agent 会话历史。后续如需避免 prompt 块污染长期会话，应单独设计 no-persist 或原文/增强 prompt 分离机制。
 
 新增或修改模型 Provider：

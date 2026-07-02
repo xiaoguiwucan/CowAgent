@@ -2,6 +2,61 @@
 
 ## 2026-07-02
 
+### 个人微信群 4.3 群记忆完整闭环
+
+- 更新 `channel/web/static/js/console.js` 与 `channel/web/chat.html`：在 Web 控制台“群聊”页新增“永久记忆”子菜单，支持按已选 `room_id` 管理群记忆、群友画像和注入预览；包含当前群搜索、摘要数量、停用、画像 revision 只读查看和脚本缓存版本更新。
+- 更新 `agent/memory/storage.py` 与 `channel/wechat_group/wechat_group_memory.py`：补齐 scoped chunk 软停用、群记忆摘要、按群摘要列表、群记忆停用和群友画像停用能力。
+- 更新 `channel/web/web_channel.py`：补齐 `/api/wechat-group/memories/summary`、`groups` 和 `disable` 后端分支，形成列表、搜索、新增、更新、停用、版本查看和预览的 API 闭环。
+- 更新 `tests/test_wechat_group_memory.py`、`tests/test_wechat_group_web.py`、`tests/test_wechat_group_memory_ui.py`：覆盖停用隔离、按群摘要、summary/disable Web API、Web 控制台永久记忆入口、搜索、停用和 revision 入口。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.2/4.3.3/4.3.6 最新完成进度、实际改动、验证结果与剩余手动验证事项。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_memory`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_context tests.test_wechat_group_memory tests.test_memory_scope tests.test_wechat_group_memory_ui`
+- `python -m py_compile agent\memory\scope.py agent\memory\storage.py agent\memory\manager.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_channel.py channel\web\web_channel.py tests\test_memory_scope.py tests\test_wechat_group_memory.py tests\test_wechat_group_context.py tests\test_wechat_group_web.py tests\test_wechat_group_memory_ui.py`
+
+### 个人微信群 4.3 群记忆后端基础
+
+- 新增 `agent/memory/scope.py`：定义 `MemoryScope`，统一表达 shared/user/session 与微信群 `room_id`、`room_id + sender_id` 作用域。
+- 更新 `agent/memory/storage.py` 与 `agent/memory/manager.py`：为长期记忆索引兼容新增 `scope_type`、`scope_id`、`channel_type`、`subject_id`、`status`、`source_message_ids` 字段，支持按 `MemoryScope` 强过滤检索和写入；旧 `scope` / `user_id` 路径保持兼容。
+- 新增 `channel/wechat_group/wechat_group_memory.py`：提供 `WechatGroupMemoryService`，支持群永久记忆、群友画像 active profile、画像 revision 审计和 `<wechat-group-memory>` 预览装配。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：在最近群聊上下文之后、用户真实问题之前注入 `<wechat-group-memory>`，配置关闭、无命中或异常时不注入空块。
+- 更新 `channel/web/web_channel.py`：新增 `/api/wechat-group/memories/(.*)` 后端 handler，完成 group、profiles、profiles/revisions 与 preview 的最小 API 闭环。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.1 和 4.3.2 已完成进度、实际改动、验证结果与剩余事项。
+
+验证记录：
+
+- `python -m unittest tests.test_memory_scope`
+- `python -m unittest tests.test_wechat_group_memory`
+- `python -m unittest tests.test_wechat_group_context`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_context tests.test_wechat_group_memory tests.test_memory_scope`
+- `python -m py_compile agent\memory\scope.py agent\memory\storage.py agent\memory\manager.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_channel.py channel\web\web_channel.py tests\test_memory_scope.py tests\test_wechat_group_memory.py tests\test_wechat_group_context.py tests\test_wechat_group_web.py`
+- 未完成：`python -m pytest tests/test_knowledge_service.py` 因当前环境未安装 `pytest`，无法验证该 pytest 风格测试文件。
+
+### 个人微信群 4.3 开发计划与 UI 设计细化
+
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：在 4.3 群永久记忆与群友画像章节新增待确认细化方案，覆盖通用作用域记忆升级、`WechatGroupMemoryService` 适配层、上下文注入链路、后端 Web API、配置边界和不做项。
+- 细化 4.3 UI 设计：明确“永久记忆”入口放在群聊管理页子菜单，采用按群分组的信息架构，并拆分群记忆、群友画像、诊断预览三个面板；补充加载、错误、空状态、长 ID 展示、loading/disabled 和可访问性约束。
+- 补充 4.3 待确认点：包括 Web 控制台与桌面端交付范围、群友画像表单形态、API 路径命名和画像 revision 存储方式。
+
+验证记录：
+
+- 文档变更，已静态检查计划文件包含 `4.3.1` 至 `4.3.5` 小节、建议 API 形态、UI 设计细化和待确认点。
+
+### 个人微信群 4.3 记忆上下文链路文档
+
+- 更新 `AGENTS.md`：将个人微信群 LLM 请求上下文链路扩展为 4.3 目标结构，明确 `<wechat-group-memory>` 应注入当前群记忆、当前发言人群友画像和本轮被 @ 群友画像，并补充 `room_id` / `sender_id` 隔离规则。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：在 4.3 群永久记忆与群友画像章节列出下一步开发任务，覆盖 `WechatGroupMemoryService` 装配入口、通道注入位置、被 @ 群友画像召回和测试要求。
+
+验证记录：
+
+- 文档变更，已检查 `AGENTS.md` 与 4.3 开发计划中的上下文注入顺序和隔离规则一致。
+
 ### AGENTS UI 默认修改目标规则
 
 - 更新 `AGENTS.md`：补充 UI 修改默认目标规则，明确用户要求修改 UI、页面、布局、交互或样式但未指定端时，只修改 Web 控制台相关文件，不默认联动修改桌面端；仅在用户明确指定桌面端、Electron 或 `desktop/` 时才修改桌面端 UI。

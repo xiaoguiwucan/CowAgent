@@ -11,6 +11,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 from agent.memory.config import MemoryConfig, get_default_memory_config
+from agent.memory.scope import MemoryScope
 from agent.memory.storage import MemoryStorage, MemoryChunk, SearchResult
 from agent.memory.chunker import TextChunker
 from agent.memory.embedding import EmbeddingProvider, EmbeddingCache
@@ -93,7 +94,8 @@ class MemoryManager:
         user_id: Optional[str] = None,
         max_results: Optional[int] = None,
         min_score: Optional[float] = None,
-        include_shared: bool = True
+        include_shared: bool = True,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """
         Search memory with hybrid search (vector + keyword)
@@ -118,7 +120,7 @@ class MemoryManager:
         if user_id:
             scopes.append("user")
         
-        if not scopes:
+        if not scopes and not memory_scope:
             return []
         
         # Sync if needed
@@ -144,7 +146,8 @@ class MemoryManager:
                     query_embedding=query_embedding,
                     user_id=user_id,
                     scopes=scopes,
-                    limit=max_results * 2  # Get more candidates for merging
+                    limit=max_results * 2,  # Get more candidates for merging
+                    memory_scope=memory_scope,
                 )
                 logger.info(f"[MemoryManager] Vector search found {len(vector_results)} results for query: {query}")
             except Exception as e:
@@ -157,16 +160,23 @@ class MemoryManager:
             query=query,
             user_id=user_id,
             scopes=scopes,
-            limit=max_results * 2
+            limit=max_results * 2,
+            memory_scope=memory_scope,
         )
         logger.info(f"[MemoryManager] Keyword search found {len(keyword_results)} results for query: {query}")
 
         # Merge results
+        if not vector_results:
+            vector_weight = 0.0
+            keyword_weight = 1.0
+        else:
+            vector_weight = self.config.vector_weight
+            keyword_weight = self.config.keyword_weight
         merged = self._merge_results(
             vector_results,
             keyword_results,
-            self.config.vector_weight,
-            self.config.keyword_weight
+            vector_weight,
+            keyword_weight
         )
 
         # Filter by min score and limit
@@ -180,7 +190,10 @@ class MemoryManager:
         scope: str = "shared",
         source: str = "memory",
         path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        memory_scope: Optional[MemoryScope] = None,
+        status: str = "active",
+        source_message_ids: Optional[List[str]] = None
     ):
         """
         Add new memory content
@@ -199,7 +212,10 @@ class MemoryManager:
         # Generate path if not provided
         if not path:
             content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()[:8]
-            if user_id and scope == "user":
+            if memory_scope:
+                scope_path = self._scope_path(memory_scope)
+                path = f"memory/scoped/{scope_path}/memory_{content_hash}.md"
+            elif user_id and scope == "user":
                 path = f"memory/users/{user_id}/memory_{content_hash}.md"
             else:
                 path = f"memory/shared/memory_{content_hash}.md"
@@ -224,7 +240,7 @@ class MemoryManager:
             memory_chunks.append(MemoryChunk(
                 id=chunk_id,
                 user_id=user_id,
-                scope=scope,
+                scope=memory_scope.scope_type if memory_scope else scope,
                 source=source,
                 path=path,
                 start_line=chunk.start_line,
@@ -232,7 +248,10 @@ class MemoryManager:
                 text=chunk.text,
                 embedding=embedding,
                 hash=chunk_hash,
-                metadata=metadata
+                metadata=metadata,
+                memory_scope=memory_scope,
+                status=status,
+                source_message_ids=source_message_ids,
             ))
         
         # Save to storage
@@ -246,6 +265,23 @@ class MemoryManager:
             file_hash=file_hash,
             mtime=int(os.path.getmtime(__file__)),  # Use current time
             size=len(content)
+        )
+
+    async def list_memory_scope(
+        self,
+        memory_scope: MemoryScope,
+        status: str = "active",
+        limit: int = 20,
+        offset: int = 0,
+        query: Optional[str] = None,
+    ) -> List[SearchResult]:
+        """List memory chunks in an exact scope without cross-scope search."""
+        return self.storage.list_chunks(
+            memory_scope=memory_scope,
+            status=status,
+            limit=limit,
+            offset=offset,
+            query=query,
         )
     
     async def sync(self, force: bool = False):
@@ -468,6 +504,20 @@ class MemoryManager:
         """Generate unique chunk ID"""
         content = f"{path}:{start_line}:{end_line}"
         return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def _scope_path(memory_scope: MemoryScope) -> str:
+        parts = [
+            memory_scope.scope_type,
+            memory_scope.channel_type or "_",
+            memory_scope.scope_id or "_",
+            memory_scope.subject_id or "_",
+        ]
+        return "/".join(MemoryManager._safe_path_part(part) for part in parts)
+
+    @staticmethod
+    def _safe_path_part(value: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in ("-", "_", "@") else "_" for ch in value)
     
     @staticmethod
     def _compute_temporal_decay(path: str, half_life_days: float = 30.0) -> float:

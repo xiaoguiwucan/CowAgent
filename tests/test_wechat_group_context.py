@@ -23,6 +23,8 @@ class WechatGroupRecentContextTest(unittest.TestCase):
             "wechat_group_record_messages": conf().get("wechat_group_record_messages"),
             "wechat_group_persona_prompt": conf().get("wechat_group_persona_prompt"),
             "wechat_group_persona_preset_id": conf().get("wechat_group_persona_preset_id"),
+            "wechat_group_memory_enabled": conf().get("wechat_group_memory_enabled"),
+            "wechat_group_member_memory_enabled": conf().get("wechat_group_member_memory_enabled"),
         }
         self._tmp = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self._tmp.name, "wechat_group_archive.db")
@@ -149,6 +151,87 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertTrue(context.content.rstrip().endswith("总结一下"))
         rows = archive.get_recent_messages("room@@abc", limit=10, minutes=60, now=1010)
         self.assertEqual(["msg-prev", "msg-current"], [row["message_id"] for row in rows])
+
+    def test_channel_injects_memory_after_recent_context_before_request(self):
+        class FakeMemoryService:
+            def preview_prompt_memories_sync(self, **kwargs):
+                return {
+                    "content": (
+                        "<wechat-group-memory>\n"
+                        "[group_memory]\n发布窗口是周五晚上\n"
+                        "</wechat-group-memory>"
+                    ),
+                    "filtered_reasons": [],
+                }
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_record_messages"] = True
+        conf()["wechat_group_recent_context_enabled"] = True
+        conf()["wechat_group_memory_enabled"] = True
+        conf()["wechat_group_member_memory_enabled"] = True
+        archive = WechatGroupArchive(self.db_path)
+        archive.record_message(
+            message_id="msg-prev",
+            room_id="room@@abc",
+            room_name="测试群",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            message_type="text",
+            text="刚才讨论了发布窗口",
+            created_at=1000,
+        )
+        channel = WechatGroupChannel(client=Mock(), archive=archive, memory_service=FakeMemoryService())
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "测试群",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot 总结一下",
+            "is_at": True,
+            "at_list": ["wxid_bot", "wxid_bob"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        recent_index = context.content.index("<recent-wechat-group-transcript>")
+        memory_index = context.content.index("<wechat-group-memory>")
+        request_index = context.content.rindex("总结一下")
+        self.assertLess(recent_index, memory_index)
+        self.assertLess(memory_index, request_index)
+        self.assertIn("发布窗口是周五晚上", context.content)
+
+    def test_channel_omits_memory_block_when_memory_config_disabled(self):
+        class FakeMemoryService:
+            def preview_prompt_memories_sync(self, **kwargs):
+                raise AssertionError("memory service should not be called")
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_memory_enabled"] = False
+        conf()["wechat_group_member_memory_enabled"] = False
+        channel = WechatGroupChannel(client=Mock(), archive=WechatGroupArchive(self.db_path), memory_service=FakeMemoryService())
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "测试群",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot 总结一下",
+            "is_at": True,
+            "at_list": ["wxid_bot"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        self.assertNotIn("<wechat-group-memory>", context.content)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from channel.wechat_group.protocol import SidecarEvent, SidecarEventType
 from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_client import WechatGroupClient
 from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
+from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
 from channel.wechat_group.wechat_group_persona import (
     build_wechat_group_persona_block,
@@ -17,6 +18,7 @@ from common import const
 from common.expired_dict import ExpiredDict
 from common.log import logger
 from config import conf
+from agent.memory.manager import MemoryManager
 
 
 class WechatGroupChannel(ChatChannel):
@@ -30,12 +32,13 @@ class WechatGroupChannel(ChatChannel):
     STATUS_CONNECTED = "connected"
     STATUS_ERROR = "error"
 
-    def __init__(self, client=None, archive=None):
+    def __init__(self, client=None, archive=None, memory_service=None):
         super().__init__()
         self.client = client or WechatGroupClient(event_handler=self.consume_sidecar_event)
         if hasattr(self.client, "event_handler"):
             self.client.event_handler = self.consume_sidecar_event
         self.archive = archive or WechatGroupArchive()
+        self.memory_service = memory_service
         self.status = self.STATUS_IDLE
         self.qr_code = ""
         self.rooms = []
@@ -126,6 +129,10 @@ class WechatGroupChannel(ChatChannel):
         if recent_block:
             blocks.append(recent_block)
             context["wechat_group_recent_context_injected"] = True
+        memory_block = self._build_memory_context_block(msg, context.content)
+        if memory_block:
+            blocks.append(memory_block)
+            context["wechat_group_memory_injected"] = True
         if blocks:
             context.content = "{}\n\n{}".format("\n\n".join(blocks), context.content).strip()
         return context
@@ -204,6 +211,28 @@ class WechatGroupChannel(ChatChannel):
         except Exception as e:
             logger.warning("[wechat_group] failed to build recent context: {}".format(e))
             return ""
+
+    def _build_memory_context_block(self, msg: WechatGroupMessage, query: str) -> str:
+        if not conf().get("wechat_group_memory_enabled", True) and not conf().get("wechat_group_member_memory_enabled", True):
+            return ""
+        try:
+            service = self._get_memory_service()
+            preview = service.preview_prompt_memories_sync(
+                room_id=msg.other_user_id,
+                sender_id=msg.actual_user_id,
+                query=query,
+                mentioned_sender_ids=getattr(msg, "at_list", []) or [],
+                bot_sender_id=msg.to_user_id,
+            )
+            return (preview or {}).get("content") or ""
+        except Exception as e:
+            logger.warning("[wechat_group] failed to build memory context: {}".format(e))
+            return ""
+
+    def _get_memory_service(self):
+        if self.memory_service is None:
+            self.memory_service = WechatGroupMemoryService(MemoryManager())
+        return self.memory_service
 
     @staticmethod
     def _is_selected_room(msg: WechatGroupMessage) -> bool:

@@ -1,4 +1,5 @@
 import datetime
+import asyncio
 import hashlib
 import hmac
 import json
@@ -1257,6 +1258,7 @@ class WebChannel(ChatChannel):
             '/api/channels', 'ChannelsHandler',
             '/api/weixin/qrlogin', 'WeixinQrHandler',
             '/api/wechat_group/qrlogin', 'WechatGroupQrHandler',
+            '/api/wechat-group/memories/(.*)', 'WechatGroupMemoriesHandler',
             '/api/feishu/register', 'FeishuRegisterHandler',
             '/api/tools', 'ToolsHandler',
             '/api/skills', 'SkillsHandler',
@@ -4247,6 +4249,166 @@ class WechatGroupQrHandler:
         except Exception as e:
             logger.error(f"[WebChannel] WechatGroupQr POST error: {e}")
             return json.dumps({"status": "error", "message": str(e)})
+
+
+class WechatGroupMemoriesHandler:
+    _service = None
+
+    def GET(self, action=""):
+        _require_auth()
+        try:
+            service = self._get_service()
+            params = web.input(room_id="", sender_id="", status="active", limit="20", offset="0", q="")
+            action = (action or "").strip("/")
+            limit = self._to_int(params.limit, 20)
+            offset = self._to_int(params.offset, 0)
+            if action == "summary":
+                return self._json({
+                    "status": "success",
+                    "summary": service.get_summary(params.room_id or None),
+                })
+            if action == "groups":
+                selected_ids = conf().get("wechat_group_room_ids", []) or []
+                selected_names = conf().get("wechat_group_names", []) or []
+                rooms = [
+                    {
+                        "id": str(room_id),
+                        "name": selected_names[idx] if idx < len(selected_names) else str(room_id),
+                    }
+                    for idx, room_id in enumerate(selected_ids)
+                    if str(room_id or "").strip()
+                ]
+                return self._json({
+                    "status": "success",
+                    "groups": service.list_group_summaries(rooms),
+                })
+            if action == "group":
+                data = self._run_async(service.list_group_memories(
+                    params.room_id,
+                    status=params.status,
+                    limit=limit,
+                    offset=offset,
+                    query=params.q or None,
+                ))
+                return self._json({"status": "success", "memories": data})
+            if action == "profiles":
+                data = self._run_async(service.list_member_profiles(
+                    params.room_id,
+                    status=params.status,
+                    limit=limit,
+                    offset=offset,
+                    query=params.q or None,
+                ))
+                return self._json({"status": "success", "profiles": data})
+            if action == "profiles/revisions":
+                data = service.list_profile_revisions(
+                    params.room_id,
+                    params.sender_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                return self._json({"status": "success", "revisions": data})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupMemories GET error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    def POST(self, action=""):
+        _require_auth()
+        try:
+            body = json.loads(web.data() or b"{}")
+            action = (action or "").strip("/")
+            service = self._get_service()
+            if action == "preview":
+                self._require_body(body, "room_id", "sender_id")
+                preview = service.preview_prompt_memories_sync(
+                    room_id=body.get("room_id"),
+                    sender_id=body.get("sender_id"),
+                    query=body.get("query") or "",
+                    mentioned_sender_ids=body.get("mentioned_sender_ids") or [],
+                    bot_sender_id=body.get("bot_sender_id") or None,
+                )
+                return self._json({"status": "success", "preview": preview})
+            if action == "group":
+                self._require_body(body, "room_id", "content")
+                memory = self._run_async(service.add_group_memory(
+                    room_id=body.get("room_id"),
+                    content=body.get("content"),
+                    source_message_ids=body.get("source_message_ids") or None,
+                    source_summary=body.get("source_summary") or "",
+                ))
+                return self._json({"status": "success", "memory": memory})
+            if action == "profiles":
+                self._require_body(body, "room_id", "sender_id")
+                profile = self._run_async(service.upsert_member_profile(
+                    room_id=body.get("room_id"),
+                    sender_id=body.get("sender_id"),
+                    sender_nickname=body.get("sender_nickname") or "",
+                    role=body.get("role") or "",
+                    preferences=body.get("preferences") or "",
+                    expertise=body.get("expertise") or "",
+                    interaction_style=body.get("interaction_style") or "",
+                    boundaries=body.get("boundaries") or "",
+                    evidence=body.get("evidence") or "",
+                    source_message_ids=body.get("source_message_ids") or None,
+                ))
+                return self._json({"status": "success", "profile": profile})
+            if action == "disable":
+                self._require_body(body, "room_id", "memory_type")
+                memory_type = str(body.get("memory_type") or "").strip()
+                if memory_type in ("group", "group_memory"):
+                    self._require_body(body, "memory_id")
+                    disabled = self._run_async(service.disable_group_memory(
+                        body.get("room_id"),
+                        body.get("memory_id"),
+                    ))
+                elif memory_type in ("profile", "member_profile"):
+                    self._require_body(body, "sender_id")
+                    disabled = self._run_async(service.disable_member_profile(
+                        body.get("room_id"),
+                        body.get("sender_id"),
+                    ))
+                else:
+                    raise ValueError(f"unknown memory_type: {memory_type}")
+                return self._json({"status": "success", "disabled": disabled})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupMemories POST error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    @classmethod
+    def _get_service(cls):
+        if cls._service is None:
+            from agent.memory.manager import MemoryManager
+            from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
+            cls._service = WechatGroupMemoryService(MemoryManager())
+        return cls._service
+
+    @staticmethod
+    def _json(payload):
+        web.header("Content-Type", "application/json; charset=utf-8")
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _to_int(value, default):
+        try:
+            return int(value)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _require_body(body, *keys):
+        for key in keys:
+            if not str(body.get(key) or "").strip():
+                raise ValueError(f"{key} is required")
+
+    @staticmethod
+    def _run_async(coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        raise RuntimeError("WechatGroupMemoriesHandler cannot run coroutine inside an active event loop")
 
 
 class FeishuRegisterHandler:

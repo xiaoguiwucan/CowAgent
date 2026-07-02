@@ -205,6 +205,8 @@ const I18N = {
         groups_nav_rooms_hint: '目标群范围',
         groups_nav_persona: '人设设定',
         groups_nav_persona_hint: '自定义回复风格',
+        groups_nav_memory: '永久记忆',
+        groups_nav_memory_hint: '群记忆与画像',
         groups_basic_title: '基础设置',
         groups_basic_desc: '控制 4.2 当前群最近上下文注入窗口。',
         groups_recent_enabled: '启用最近上下文',
@@ -227,6 +229,44 @@ const I18N = {
         groups_room_saved: '已保存群 {n}',
         groups_persona_title: '人设设定',
         groups_persona_desc: '只保留一份自定义人设，保存后对微信群回复生效。',
+        groups_memory_title: '永久记忆',
+        groups_memory_desc: '按当前目标群维护群记忆、群友画像和本轮注入预览。',
+        groups_memory_no_room: '请先在“群聊开关”中选择至少一个 room ID。',
+        groups_memory_group_title: '群记忆',
+        groups_memory_group_hint: '保存当前群长期稳定信息，例如群规、偏好、长期项目和约定。',
+        groups_memory_content_label: '群记忆正文',
+        groups_memory_content_placeholder: '输入只属于当前群的长期记忆',
+        groups_memory_summary_label: '来源摘要',
+        groups_memory_save: '保存群记忆',
+        groups_memory_saved: '群记忆已保存',
+        groups_memory_empty: '当前群暂无群记忆',
+        groups_memory_search_placeholder: '搜索当前群记忆',
+        groups_memory_search: '搜索',
+        groups_memory_disable: '停用',
+        groups_memory_disabled: '已停用',
+        groups_memory_count_label: '群记忆 {count}',
+        groups_memory_profile_count_label: '画像 {count}',
+        groups_memory_profiles_title: '群友画像',
+        groups_memory_profiles_hint: '每个 room ID + sender ID 最多维护一份当前画像。',
+        groups_memory_sender_id: 'sender ID',
+        groups_memory_sender_name: '昵称',
+        groups_memory_role: '身份/角色',
+        groups_memory_preferences: '长期偏好',
+        groups_memory_expertise: '专业背景',
+        groups_memory_interaction: '互动风格',
+        groups_memory_boundaries: '已知边界',
+        groups_memory_evidence: '更新依据',
+        groups_memory_profile_save: '保存画像',
+        groups_memory_profile_saved: '画像已保存',
+        groups_memory_profiles_empty: '当前群暂无群友画像',
+        groups_memory_revisions_title: '历史版本',
+        groups_memory_revisions_empty: '点击画像后查看历史版本',
+        groups_memory_preview_title: '注入预览',
+        groups_memory_preview_hint: '只读查看本轮将注入的 <wechat-group-memory>，不会调用模型或写入记忆。',
+        groups_memory_preview_query: '模拟问题',
+        groups_memory_preview_mentions: '被 @ 的 sender IDs',
+        groups_memory_preview_run: '生成预览',
+        groups_memory_preview_empty: '暂无可注入记忆',
         wecom_scan_btn: '扫码创建企微机器人', wecom_scan_desc: '使用企业微信扫码，一键创建智能机器人',
         wecom_scan_success: '创建成功，正在启动通道...',
         wecom_scan_fail: '创建失败',
@@ -503,6 +543,8 @@ const I18N = {
         groups_nav_rooms_hint: 'Target groups',
         groups_nav_persona: 'Persona',
         groups_nav_persona_hint: 'Custom reply style',
+        groups_nav_memory: 'Long-term memory',
+        groups_nav_memory_hint: 'Group memory and profiles',
         groups_basic_title: 'Basic settings',
         groups_basic_desc: 'Controls the 4.2 recent context window for the current group.',
         groups_recent_enabled: 'Enable recent context',
@@ -525,6 +567,44 @@ const I18N = {
         groups_room_saved: 'Saved group {n}',
         groups_persona_title: 'Persona',
         groups_persona_desc: 'Only one custom persona is kept. It applies to WeChat group replies after saving.',
+        groups_memory_title: 'Long-term memory',
+        groups_memory_desc: 'Maintain group memory, member profiles, and prompt injection preview per target group.',
+        groups_memory_no_room: 'Select at least one room ID in Group switches first.',
+        groups_memory_group_title: 'Group memory',
+        groups_memory_group_hint: 'Save stable long-term facts for the current group, such as rules, preferences, projects, and agreements.',
+        groups_memory_content_label: 'Memory content',
+        groups_memory_content_placeholder: 'Enter long-term memory for this group only',
+        groups_memory_summary_label: 'Source summary',
+        groups_memory_save: 'Save group memory',
+        groups_memory_saved: 'Group memory saved',
+        groups_memory_empty: 'No group memory for this group',
+        groups_memory_search_placeholder: 'Search current group memory',
+        groups_memory_search: 'Search',
+        groups_memory_disable: 'Disable',
+        groups_memory_disabled: 'Disabled',
+        groups_memory_count_label: 'Memory {count}',
+        groups_memory_profile_count_label: 'Profiles {count}',
+        groups_memory_profiles_title: 'Member profiles',
+        groups_memory_profiles_hint: 'Each room ID + sender ID keeps at most one active profile.',
+        groups_memory_sender_id: 'sender ID',
+        groups_memory_sender_name: 'Nickname',
+        groups_memory_role: 'Role',
+        groups_memory_preferences: 'Preferences',
+        groups_memory_expertise: 'Expertise',
+        groups_memory_interaction: 'Interaction style',
+        groups_memory_boundaries: 'Known boundaries',
+        groups_memory_evidence: 'Evidence',
+        groups_memory_profile_save: 'Save profile',
+        groups_memory_profile_saved: 'Profile saved',
+        groups_memory_profiles_empty: 'No member profiles for this group',
+        groups_memory_revisions_title: 'Revisions',
+        groups_memory_revisions_empty: 'Select a profile to view revisions',
+        groups_memory_preview_title: 'Injection preview',
+        groups_memory_preview_hint: 'Read-only preview of <wechat-group-memory>; it does not call models or write memory.',
+        groups_memory_preview_query: 'Simulated query',
+        groups_memory_preview_mentions: 'Mentioned sender IDs',
+        groups_memory_preview_run: 'Preview',
+        groups_memory_preview_empty: 'No memory would be injected',
         wecom_scan_btn: 'Scan to Create WeCom Bot', wecom_scan_desc: 'Scan with WeCom to create a bot instantly',
         wecom_scan_success: 'Bot created, starting channel...',
         wecom_scan_fail: 'Bot creation failed',
@@ -6661,6 +6741,16 @@ function loadChannelsView() {
 }
 
 let groupsActiveSection = 'basic';
+let groupsMemoryState = {
+    selectedRoomId: '',
+    loadedRoomId: '',
+    loading: false,
+    memories: [],
+    profiles: [],
+    summary: null,
+    search: '',
+    preview: null,
+};
 
 function loadGroupsView() {
     const container = document.getElementById('groups-content');
@@ -6708,6 +6798,7 @@ function renderGroupsView() {
             ${buildGroupsSectionButton('basic', 'fa-sliders', 'groups_nav_basic', 'groups_nav_basic_hint')}
             ${buildGroupsSectionButton('rooms', 'fa-comments', 'groups_nav_rooms', 'groups_nav_rooms_hint')}
             ${buildGroupsSectionButton('persona', 'fa-user-pen', 'groups_nav_persona', 'groups_nav_persona_hint')}
+            ${buildGroupsSectionButton('memory', 'fa-brain', 'groups_nav_memory', 'groups_nav_memory_hint')}
             <div class="pt-3 mt-3 border-t border-slate-200 dark:border-white/10">
                 <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2">
                     <div class="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
@@ -6722,8 +6813,12 @@ function renderGroupsView() {
             ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
             ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
             ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
+            ${groupsActiveSection === 'memory' ? buildGroupsMemoryPanel(extra) : ''}
         </main>
     </div>`;
+    if (groupsActiveSection === 'memory') {
+        ensureGroupsMemoryLoaded(extra);
+    }
 }
 
 function buildGroupsSectionButton(section, icon, labelKey, hintKey) {
@@ -6871,6 +6966,444 @@ function buildGroupsPersonaPanel(extra) {
             </div>
         </div>
     </div>`;
+}
+
+function getGroupsMemoryRooms(extra) {
+    const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
+    const selectedIds = Array.isArray(extra.selected_room_ids) ? extra.selected_room_ids.map(String).filter(Boolean) : [];
+    const roomNameById = new Map(rooms.map(room => [String(room.id || ''), String(room.name || '')]));
+    return selectedIds.map((id, idx) => ({
+        id,
+        name: roomNameById.get(id) || t('groups_room_saved').replace('{n}', String(idx + 1)),
+    }));
+}
+
+function ensureGroupsMemoryLoaded(extra) {
+    const rooms = getGroupsMemoryRooms(extra);
+    if (!rooms.length) return;
+    const stillSelected = rooms.some(room => room.id === groupsMemoryState.selectedRoomId);
+    if (!groupsMemoryState.selectedRoomId || !stillSelected) {
+        groupsMemoryState.selectedRoomId = rooms[0].id;
+        groupsMemoryState.loadedRoomId = '';
+        groupsMemoryState.preview = null;
+    }
+    if (!groupsMemoryState.loading && groupsMemoryState.loadedRoomId !== groupsMemoryState.selectedRoomId) {
+        refreshGroupsMemoryData(groupsMemoryState.selectedRoomId);
+    }
+}
+
+function buildGroupsMemoryPanel(extra) {
+    const rooms = getGroupsMemoryRooms(extra);
+    if (!rooms.length) {
+        return `<div class="h-full w-full">
+            ${buildGroupsPanelTitle('fa-brain', 'groups_memory_title', 'groups_memory_desc')}
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6 text-sm text-slate-500 dark:text-slate-400">
+                ${t('groups_memory_no_room')}
+            </div>
+        </div>`;
+    }
+    const selectedRoomId = groupsMemoryState.selectedRoomId || rooms[0].id;
+    return `<div class="h-full w-full flex flex-col min-h-0">
+        ${buildGroupsPanelTitle('fa-brain', 'groups_memory_title', 'groups_memory_desc')}
+        <div class="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] gap-4">
+            <aside class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3 overflow-y-auto" id="groups-memory-room-list">
+                ${rooms.map(room => {
+                    const active = room.id === selectedRoomId;
+                    return `<button type="button" onclick="selectGroupsMemoryRoom('${escapeHtml(room.id)}')"
+                        class="w-full text-left rounded-lg px-3 py-2 mb-1 cursor-pointer transition-colors ${active ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300' : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5'}">
+                        <span class="block text-sm font-medium truncate">${escapeHtml(room.name || room.id)}</span>
+                        <span class="block text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(room.id)}</span>
+                    </button>`;
+                }).join('')}
+            </aside>
+            <section class="min-w-0 min-h-0 overflow-y-auto space-y-4">
+                <div class="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                    ${buildGroupsMemoryGroupPanel(selectedRoomId)}
+                    ${buildGroupsMemoryProfilesPanel(selectedRoomId)}
+                </div>
+                ${buildGroupsMemoryPreviewPanel(selectedRoomId)}
+            </section>
+        </div>
+    </div>`;
+}
+
+function buildGroupsMemoryGroupPanel(roomId) {
+    const loading = groupsMemoryState.loading && groupsMemoryState.selectedRoomId === roomId;
+    const memories = groupsMemoryState.memories || [];
+    const summary = groupsMemoryState.summary || {};
+    const search = groupsMemoryState.search || '';
+    const listHtml = loading
+        ? `<p class="text-xs text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-1"></i>${t('groups_loading')}</p>`
+            : memories.length
+            ? memories.map(item => `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+                <p class="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(item.content || '')}</p>
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+                    <span class="font-mono">${escapeHtml(item.scope_type || '')}</span>
+                    <span class="font-mono break-all">${escapeHtml(item.scope_id || '')}</span>
+                    <button type="button" onclick="disableGroupsGroupMemory('${escapeHtml(item.id || '')}')"
+                        class="ml-auto px-2 py-1 rounded border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:border-red-200 dark:hover:border-red-900 cursor-pointer transition-colors">
+                        ${t('groups_memory_disable')}
+                    </button>
+                </div>
+            </div>`).join('')
+            : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_memory_empty')}</p>`;
+    return `<div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 min-w-0">
+        <div class="mb-3 flex items-start justify-between gap-3">
+            <div>
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('groups_memory_group_title')}</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_memory_group_hint')}</p>
+            </div>
+            <div class="flex flex-col items-end gap-1 text-[11px] text-slate-500 dark:text-slate-400 flex-shrink-0">
+                <span class="rounded-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 px-2 py-0.5">${t('groups_memory_count_label').replace('{count}', String(summary.group_memory_count || 0))}</span>
+                <span class="rounded-full bg-white dark:bg-[#111111] border border-slate-200 dark:border-white/10 px-2 py-0.5">${t('groups_memory_profile_count_label').replace('{count}', String(summary.member_profile_count || 0))}</span>
+            </div>
+        </div>
+        <div class="mb-3 flex gap-2">
+            <input id="groups-memory-search" type="text" value="${escapeHtml(search)}"
+                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors"
+                placeholder="${escapeHtml(t('groups_memory_search_placeholder'))}">
+            <button type="button" onclick="applyGroupsMemorySearch()"
+                class="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">
+                ${t('groups_memory_search')}
+            </button>
+        </div>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('groups_memory_content_label')}</label>
+        <textarea id="groups-memory-group-content" rows="4"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y"
+            placeholder="${escapeHtml(t('groups_memory_content_placeholder'))}"></textarea>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mt-3 mb-1.5">${t('groups_memory_summary_label')}</label>
+        <input id="groups-memory-group-summary" type="text"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
+        <div class="flex justify-end mt-3">
+            <button id="groups-memory-group-save" type="button" onclick="addGroupsGroupMemory()"
+                class="px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                ${t('groups_memory_save')}
+            </button>
+        </div>
+        <div class="mt-4 space-y-2 max-h-64 overflow-y-auto">${listHtml}</div>
+    </div>`;
+}
+
+function buildGroupsMemoryProfilesPanel(roomId) {
+    const profiles = groupsMemoryState.profiles || [];
+    const listHtml = groupsMemoryState.loading && groupsMemoryState.selectedRoomId === roomId
+        ? `<p class="text-xs text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-1"></i>${t('groups_loading')}</p>`
+        : profiles.length
+            ? profiles.map(item => {
+                const senderId = item.subject_id || item.metadata?.sender_id || '';
+                const nickname = item.metadata?.sender_nickname || senderId;
+                return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+                    <button type="button" onclick="editGroupsMemberProfile('${escapeHtml(senderId)}')"
+                        class="w-full text-left cursor-pointer">
+                        <span class="block text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(nickname)}</span>
+                        <span class="block text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(senderId)}</span>
+                        <span class="block mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">${escapeHtml(item.content || '')}</span>
+                    </button>
+                    <div class="mt-2 flex justify-end">
+                        <button type="button" onclick="disableGroupsMemberProfile('${escapeHtml(senderId)}')"
+                            class="px-2 py-1 rounded border border-slate-200 dark:border-white/10 text-[11px] text-slate-500 dark:text-slate-400 hover:text-red-500 hover:border-red-200 dark:hover:border-red-900 cursor-pointer transition-colors">
+                            ${t('groups_memory_disable')}
+                        </button>
+                    </div>
+                </div>`;
+            }).join('')
+            : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_memory_profiles_empty')}</p>`;
+    return `<div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 min-w-0">
+        <div class="mb-3">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('groups_memory_profiles_title')}</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_memory_profiles_hint')}</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${buildGroupsMemoryInput('groups-memory-profile-sender-id', 'groups_memory_sender_id', '', 'font-mono')}
+            ${buildGroupsMemoryInput('groups-memory-profile-nickname', 'groups_memory_sender_name')}
+            ${buildGroupsMemoryInput('groups-memory-profile-role', 'groups_memory_role')}
+            ${buildGroupsMemoryInput('groups-memory-profile-preferences', 'groups_memory_preferences')}
+            ${buildGroupsMemoryInput('groups-memory-profile-expertise', 'groups_memory_expertise')}
+            ${buildGroupsMemoryInput('groups-memory-profile-interaction', 'groups_memory_interaction')}
+        </div>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mt-3 mb-1.5">${t('groups_memory_boundaries')}</label>
+        <textarea id="groups-memory-profile-boundaries" rows="2"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y"></textarea>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mt-3 mb-1.5">${t('groups_memory_evidence')}</label>
+        <textarea id="groups-memory-profile-evidence" rows="2"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y"></textarea>
+        <div class="flex justify-end mt-3">
+            <button id="groups-memory-profile-save" type="button" onclick="saveGroupsMemberProfile()"
+                class="px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                ${t('groups_memory_profile_save')}
+            </button>
+        </div>
+        <div class="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+            <h5 class="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">${t('groups_memory_revisions_title')}</h5>
+            <div id="groups-memory-profile-revisions" class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
+                ${t('groups_memory_revisions_empty')}
+            </div>
+        </div>
+        <div class="mt-4 space-y-2 max-h-64 overflow-y-auto">${listHtml}</div>
+    </div>`;
+}
+
+function buildGroupsMemoryInput(id, labelKey, value, extraClass) {
+    return `<label class="block">
+        <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t(labelKey)}</span>
+        <input id="${id}" type="text" value="${escapeHtml(value || '')}"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors ${extraClass || ''}">
+    </label>`;
+}
+
+function buildGroupsMemoryPreviewPanel(roomId) {
+    const preview = groupsMemoryState.preview;
+    const content = preview?.content || '';
+    return `<div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+        <div class="mb-3">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('groups_memory_preview_title')}</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_memory_preview_hint')}</p>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.8fr)_minmax(260px,1fr)_auto] gap-3 items-end">
+            ${buildGroupsMemoryInput('groups-memory-preview-sender-id', 'groups_memory_sender_id', '', 'font-mono')}
+            <label class="block">
+                <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('groups_memory_preview_mentions')}</span>
+                <input id="groups-memory-preview-mentioned-ids" type="text"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors">
+            </label>
+            <button id="groups-memory-preview-run" type="button" onclick="runGroupsMemoryPreview()"
+                class="px-3 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                ${t('groups_memory_preview_run')}
+            </button>
+        </div>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mt-3 mb-1.5">${t('groups_memory_preview_query')}</label>
+        <textarea id="groups-memory-preview-query" rows="2"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y"></textarea>
+        <pre id="groups-memory-preview-content" class="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3 text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">${escapeHtml(content || t('groups_memory_preview_empty'))}</pre>
+    </div>`;
+}
+
+function selectGroupsMemoryRoom(roomId) {
+    groupsMemoryState.selectedRoomId = roomId;
+    groupsMemoryState.loadedRoomId = '';
+    groupsMemoryState.preview = null;
+    renderGroupsView();
+}
+
+function refreshGroupsMemoryData(roomId) {
+    if (!roomId) return;
+    groupsMemoryState.loading = true;
+    groupsMemoryState.selectedRoomId = roomId;
+    renderGroupsView();
+    const encoded = encodeURIComponent(roomId);
+    const query = encodeURIComponent(groupsMemoryState.search || '');
+    Promise.all([
+        fetch(`/api/wechat-group/memories/summary?room_id=${encoded}`).then(r => r.json()),
+        fetch(`/api/wechat-group/memories/group?room_id=${encoded}&q=${query}`).then(r => r.json()),
+        fetch(`/api/wechat-group/memories/profiles?room_id=${encoded}&q=${query}`).then(r => r.json()),
+    ]).then(([summaryData, memoryData, profileData]) => {
+        if (summaryData.status !== 'success') throw new Error(summaryData.message || 'summary load failed');
+        if (memoryData.status !== 'success') throw new Error(memoryData.message || 'memory load failed');
+        if (profileData.status !== 'success') throw new Error(profileData.message || 'profile load failed');
+        groupsMemoryState.summary = summaryData.summary || {};
+        groupsMemoryState.memories = memoryData.memories || [];
+        groupsMemoryState.profiles = profileData.profiles || [];
+        groupsMemoryState.loadedRoomId = roomId;
+    }).catch(err => {
+        showGroupsStatus(err.message || 'groups_load_failed', true);
+        groupsMemoryState.memories = [];
+        groupsMemoryState.profiles = [];
+        groupsMemoryState.loadedRoomId = roomId;
+    }).finally(() => {
+        groupsMemoryState.loading = false;
+        renderGroupsView();
+    });
+}
+
+function applyGroupsMemorySearch() {
+    groupsMemoryState.search = (document.getElementById('groups-memory-search')?.value || '').trim();
+    groupsMemoryState.loadedRoomId = '';
+    refreshGroupsMemoryData(groupsMemoryState.selectedRoomId);
+}
+
+function addGroupsGroupMemory() {
+    const roomId = groupsMemoryState.selectedRoomId;
+    const contentEl = document.getElementById('groups-memory-group-content');
+    const summaryEl = document.getElementById('groups-memory-group-summary');
+    const btn = document.getElementById('groups-memory-group-save');
+    const content = (contentEl?.value || '').trim();
+    if (!roomId || !content) {
+        showGroupsStatus('groups_memory_content_label', true);
+        return;
+    }
+    if (btn) btn.disabled = true;
+    fetch('/api/wechat-group/memories/group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            room_id: roomId,
+            content,
+            source_summary: summaryEl?.value || '',
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'save failed');
+        if (contentEl) contentEl.value = '';
+        if (summaryEl) summaryEl.value = '';
+        showGroupsStatus('groups_memory_saved', false);
+        groupsMemoryState.loadedRoomId = '';
+        refreshGroupsMemoryData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true))
+      .finally(() => { if (btn) btn.disabled = false; });
+}
+
+function saveGroupsMemberProfile() {
+    const roomId = groupsMemoryState.selectedRoomId;
+    const btn = document.getElementById('groups-memory-profile-save');
+    const senderId = (document.getElementById('groups-memory-profile-sender-id')?.value || '').trim();
+    if (!roomId || !senderId) {
+        showGroupsStatus('groups_memory_sender_id', true);
+        return;
+    }
+    const payload = {
+        room_id: roomId,
+        sender_id: senderId,
+        sender_nickname: document.getElementById('groups-memory-profile-nickname')?.value || '',
+        role: document.getElementById('groups-memory-profile-role')?.value || '',
+        preferences: document.getElementById('groups-memory-profile-preferences')?.value || '',
+        expertise: document.getElementById('groups-memory-profile-expertise')?.value || '',
+        interaction_style: document.getElementById('groups-memory-profile-interaction')?.value || '',
+        boundaries: document.getElementById('groups-memory-profile-boundaries')?.value || '',
+        evidence: document.getElementById('groups-memory-profile-evidence')?.value || '',
+    };
+    if (btn) btn.disabled = true;
+    fetch('/api/wechat-group/memories/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'save failed');
+        showGroupsStatus('groups_memory_profile_saved', false);
+        groupsMemoryState.loadedRoomId = '';
+        refreshGroupsMemoryData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true))
+      .finally(() => { if (btn) btn.disabled = false; });
+}
+
+function editGroupsMemberProfile(senderId) {
+    const profile = (groupsMemoryState.profiles || []).find(item => (item.subject_id || item.metadata?.sender_id) === senderId);
+    if (!profile) return;
+    const fields = profile.metadata?.profile_fields || {};
+    const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value || '';
+    };
+    setValue('groups-memory-profile-sender-id', senderId);
+    setValue('groups-memory-profile-nickname', profile.metadata?.sender_nickname || '');
+    setValue('groups-memory-profile-role', fields.role);
+    setValue('groups-memory-profile-preferences', fields.preferences);
+    setValue('groups-memory-profile-expertise', fields.expertise);
+    setValue('groups-memory-profile-interaction', fields.interaction_style);
+    setValue('groups-memory-profile-boundaries', fields.boundaries);
+    setValue('groups-memory-profile-evidence', fields.evidence);
+    setValue('groups-memory-preview-sender-id', senderId);
+    loadGroupsProfileRevisions(senderId);
+}
+
+function loadGroupsProfileRevisions(senderId) {
+    const roomId = groupsMemoryState.selectedRoomId;
+    const target = document.getElementById('groups-memory-profile-revisions');
+    if (!roomId || !senderId || !target) return;
+    target.innerHTML = `<p><i class="fas fa-spinner fa-spin mr-1"></i>${t('groups_loading')}</p>`;
+    fetch(`/api/wechat-group/memories/profiles/revisions?room_id=${encodeURIComponent(roomId)}&sender_id=${encodeURIComponent(senderId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status !== 'success') throw new Error(data.message || 'revision load failed');
+            const revisions = data.revisions || [];
+            target.innerHTML = revisions.length ? revisions.map(item => `
+                <div class="rounded-md border border-slate-200 dark:border-white/10 p-2">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <span class="font-mono text-[11px] text-slate-400">#${escapeHtml(String(item.revision_id || ''))}</span>
+                        <span class="font-mono text-[11px] text-slate-400">${escapeHtml(String(item.created_at || ''))}</span>
+                    </div>
+                    <pre class="whitespace-pre-wrap break-words text-xs text-slate-600 dark:text-slate-300">${escapeHtml(item.content || '')}</pre>
+                </div>
+            `).join('') : `<p>${t('groups_memory_revisions_empty')}</p>`;
+        })
+        .catch(err => {
+            target.innerHTML = `<p class="text-red-500">${escapeHtml(err.message || 'revision load failed')}</p>`;
+        });
+}
+
+function disableGroupsGroupMemory(memoryId) {
+    const roomId = groupsMemoryState.selectedRoomId;
+    if (!roomId || !memoryId) return;
+    const confirmed = window.confirm(currentLang === 'zh' ? '确定停用这条群记忆吗？' : 'Disable this group memory?');
+    if (!confirmed) return;
+    fetch('/api/wechat-group/memories/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            memory_type: 'group',
+            room_id: roomId,
+            memory_id: memoryId,
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'disable failed');
+        showGroupsStatus('groups_memory_disabled', false);
+        groupsMemoryState.loadedRoomId = '';
+        refreshGroupsMemoryData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true));
+}
+
+function disableGroupsMemberProfile(senderId) {
+    const roomId = groupsMemoryState.selectedRoomId;
+    if (!roomId || !senderId) return;
+    const confirmed = window.confirm(currentLang === 'zh' ? '确定停用这份群友画像吗？' : 'Disable this member profile?');
+    if (!confirmed) return;
+    fetch('/api/wechat-group/memories/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            memory_type: 'profile',
+            room_id: roomId,
+            sender_id: senderId,
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'disable failed');
+        showGroupsStatus('groups_memory_disabled', false);
+        groupsMemoryState.loadedRoomId = '';
+        refreshGroupsMemoryData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true));
+}
+
+function splitGroupsMemoryIds(value) {
+    return String(value || '')
+        .split(/[,\n]/)
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function runGroupsMemoryPreview() {
+    const roomId = groupsMemoryState.selectedRoomId;
+    const senderId = (document.getElementById('groups-memory-preview-sender-id')?.value || '').trim()
+        || (document.getElementById('groups-memory-profile-sender-id')?.value || '').trim();
+    if (!roomId || !senderId) {
+        showGroupsStatus('groups_memory_sender_id', true);
+        return;
+    }
+    const btn = document.getElementById('groups-memory-preview-run');
+    if (btn) btn.disabled = true;
+    fetch('/api/wechat-group/memories/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            room_id: roomId,
+            sender_id: senderId,
+            query: document.getElementById('groups-memory-preview-query')?.value || '',
+            mentioned_sender_ids: splitGroupsMemoryIds(document.getElementById('groups-memory-preview-mentioned-ids')?.value || ''),
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'preview failed');
+        groupsMemoryState.preview = data.preview || {};
+        const pre = document.getElementById('groups-memory-preview-content');
+        if (pre) pre.textContent = groupsMemoryState.preview.content || t('groups_memory_preview_empty');
+    }).catch(err => showGroupsStatus(err.message || 'groups_load_failed', true))
+      .finally(() => { if (btn) btn.disabled = false; });
 }
 
 function toggleGroupsRoomDropdown() {

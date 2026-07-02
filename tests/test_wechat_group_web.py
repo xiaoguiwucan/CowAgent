@@ -132,6 +132,92 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual(12, conf()["wechat_group_recent_context_limit"])
         self.assertEqual(45, conf()["wechat_group_recent_context_minutes"])
 
+    def test_wechat_group_memory_preview_api_uses_service(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeMemoryService:
+            def preview_prompt_memories_sync(self, **kwargs):
+                self.kwargs = kwargs
+                return {
+                    "content": "<wechat-group-memory>\n[group_memory]\n测试记忆\n</wechat-group-memory>",
+                    "filtered_reasons": [],
+                }
+
+        fake = FakeMemoryService()
+        body = {
+            "room_id": "room@@abc",
+            "sender_id": "wxid_alice",
+            "query": "测试",
+            "mentioned_sender_ids": ["wxid_bob"],
+        }
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_service", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")):
+            result = json.loads(handler.POST("preview"))
+
+        self.assertEqual("success", result["status"])
+        self.assertIn("<wechat-group-memory>", result["preview"]["content"])
+        self.assertEqual("room@@abc", fake.kwargs["room_id"])
+
+    def test_wechat_group_memory_group_post_requires_room_id(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps({"content": "x"}).encode("utf-8")):
+            result = json.loads(handler.POST("group"))
+
+        self.assertEqual("error", result["status"])
+        self.assertIn("room_id", result["message"])
+
+    def test_wechat_group_memory_summary_api_uses_service(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeMemoryService:
+            def get_summary(self, room_id=None):
+                self.room_id = room_id
+                return {"room_id": room_id or "", "group_memory_count": 2}
+
+        fake = FakeMemoryService()
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_service", return_value=fake), \
+                patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(
+                    room_id="room@@abc", sender_id="", status="active", limit="20", offset="0", q="",
+                )):
+            result = json.loads(handler.GET("summary"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual("room@@abc", fake.room_id)
+        self.assertEqual(2, result["summary"]["group_memory_count"])
+
+    def test_wechat_group_memory_disable_api_uses_service(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeMemoryService:
+            async def disable_group_memory(self, room_id, memory_id):
+                self.room_id = room_id
+                self.memory_id = memory_id
+                return True
+
+        fake = FakeMemoryService()
+        body = {
+            "memory_type": "group",
+            "room_id": "room@@abc",
+            "memory_id": "chunk-1",
+        }
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_service", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")):
+            result = json.loads(handler.POST("disable"))
+
+        self.assertEqual("success", result["status"])
+        self.assertTrue(result["disabled"])
+        self.assertEqual("room@@abc", fake.room_id)
+        self.assertEqual("chunk-1", fake.memory_id)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,7 @@ import threading
 from typing import List, Dict, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
+from agent.memory.scope import MemoryScope
 try:
     import numpy as np
     _HAS_NUMPY = True
@@ -57,6 +58,13 @@ class MemoryChunk:
     embedding: Optional[List[float]]
     hash: str
     metadata: Optional[Dict[str, Any]] = None
+    scope_type: Optional[str] = None
+    scope_id: Optional[str] = None
+    channel_type: Optional[str] = None
+    subject_id: Optional[str] = None
+    status: str = "active"
+    source_message_ids: Optional[List[str]] = None
+    memory_scope: Optional[MemoryScope] = None
 
 
 @dataclass
@@ -69,6 +77,14 @@ class SearchResult:
     snippet: str
     source: str
     user_id: Optional[str] = None
+    id: Optional[str] = None
+    scope_type: Optional[str] = None
+    scope_id: Optional[str] = None
+    channel_type: Optional[str] = None
+    subject_id: Optional[str] = None
+    status: str = "active"
+    metadata: Optional[Dict[str, Any]] = None
+    source_message_ids: Optional[List[str]] = None
 
 
 class MemoryStorage:
@@ -165,10 +181,18 @@ class MemoryStorage:
                 embedding TEXT,
                 hash TEXT NOT NULL,
                 metadata TEXT,
+                scope_type TEXT,
+                scope_id TEXT,
+                channel_type TEXT,
+                subject_id TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                source_message_ids TEXT,
                 created_at INTEGER DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER DEFAULT (strftime('%s', 'now'))
             )
         """)
+
+        self._migrate_scope_columns()
         
         # Create indexes
         self.conn.execute("""
@@ -184,6 +208,11 @@ class MemoryStorage:
         self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_chunks_hash 
             ON chunks(path, hash)
+        """)
+
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chunks_memory_scope
+            ON chunks(scope_type, scope_id, channel_type, subject_id, status)
         """)
         
         # Create FTS5 virtual table + triggers (only if supported).
@@ -300,6 +329,52 @@ class MemoryStorage:
 
         self.conn.commit()
 
+    def _migrate_scope_columns(self):
+        """Add and backfill generic scope columns without changing legacy fields."""
+        columns = {
+            row['name']
+            for row in self.conn.execute("PRAGMA table_info(chunks)").fetchall()
+        }
+        migrations = [
+            ("scope_type", "ALTER TABLE chunks ADD COLUMN scope_type TEXT"),
+            ("scope_id", "ALTER TABLE chunks ADD COLUMN scope_id TEXT"),
+            ("channel_type", "ALTER TABLE chunks ADD COLUMN channel_type TEXT"),
+            ("subject_id", "ALTER TABLE chunks ADD COLUMN subject_id TEXT"),
+            ("status", "ALTER TABLE chunks ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"),
+            ("source_message_ids", "ALTER TABLE chunks ADD COLUMN source_message_ids TEXT"),
+        ]
+        for column, sql in migrations:
+            if column not in columns:
+                self.conn.execute(sql)
+
+        self.conn.execute("""
+            UPDATE chunks
+            SET
+                scope_type = COALESCE(NULLIF(scope_type, ''), scope, 'shared'),
+                scope_id = COALESCE(
+                    scope_id,
+                    CASE
+                        WHEN scope = 'user' THEN COALESCE(user_id, '')
+                        ELSE ''
+                    END
+                ),
+                channel_type = COALESCE(channel_type, ''),
+                subject_id = COALESCE(
+                    subject_id,
+                    CASE
+                        WHEN scope = 'user' THEN COALESCE(user_id, '')
+                        ELSE ''
+                    END
+                ),
+                status = COALESCE(NULLIF(status, ''), 'active')
+            WHERE scope_type IS NULL
+               OR scope_id IS NULL
+               OR channel_type IS NULL
+               OR subject_id IS NULL
+               OR status IS NULL
+               OR status = ''
+        """)
+
     def _fts5_state_inconsistent(self) -> bool:
         """Detect a half-broken FTS5 setup (e.g. trigger exists but table doesn't)."""
         try:
@@ -409,6 +484,39 @@ class MemoryStorage:
         """)
         self.conn.commit()
 
+    @staticmethod
+    def _chunk_scope_values(chunk: MemoryChunk) -> tuple:
+        memory_scope = chunk.memory_scope
+        if memory_scope:
+            scope_type = memory_scope.scope_type
+            scope_id = memory_scope.scope_id
+            channel_type = memory_scope.channel_type
+            subject_id = memory_scope.subject_id
+        else:
+            legacy_scope = chunk.scope or "shared"
+            scope_type = chunk.scope_type or legacy_scope
+            if chunk.scope_id is not None:
+                scope_id = chunk.scope_id
+            elif legacy_scope == "user":
+                scope_id = chunk.user_id or ""
+            else:
+                scope_id = ""
+            channel_type = chunk.channel_type or ""
+            if chunk.subject_id is not None:
+                subject_id = chunk.subject_id
+            elif legacy_scope == "user":
+                subject_id = chunk.user_id or ""
+            else:
+                subject_id = ""
+        return (
+            scope_type,
+            scope_id,
+            channel_type,
+            subject_id,
+            chunk.status or "active",
+            json.dumps(chunk.source_message_ids) if chunk.source_message_ids else None,
+        )
+
     def save_chunk(self, chunk: MemoryChunk):
         """Save a memory chunk (insert or update by id).
 
@@ -425,8 +533,9 @@ class MemoryStorage:
             _SQL = """
                 INSERT INTO chunks
                 (id, user_id, scope, source, path, start_line, end_line,
-                 text, embedding, hash, metadata, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+                 text, embedding, hash, metadata, scope_type, scope_id,
+                 channel_type, subject_id, status, source_message_ids, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
                     user_id     = excluded.user_id,
                     scope       = excluded.scope,
@@ -438,14 +547,21 @@ class MemoryStorage:
                     embedding   = excluded.embedding,
                     hash        = excluded.hash,
                     metadata    = excluded.metadata,
+                    scope_type  = excluded.scope_type,
+                    scope_id    = excluded.scope_id,
+                    channel_type = excluded.channel_type,
+                    subject_id  = excluded.subject_id,
+                    status      = excluded.status,
+                    source_message_ids = excluded.source_message_ids,
                     updated_at  = strftime('%s', 'now')
             """
         else:
             _SQL = """
                 INSERT OR REPLACE INTO chunks
                 (id, user_id, scope, source, path, start_line, end_line,
-                 text, embedding, hash, metadata, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+                 text, embedding, hash, metadata, scope_type, scope_id,
+                 channel_type, subject_id, status, source_message_ids, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
             """
         params = (
             chunk.id, chunk.user_id, chunk.scope, chunk.source, chunk.path,
@@ -453,6 +569,7 @@ class MemoryStorage:
             self._encode_embedding(chunk.embedding),
             chunk.hash,
             json.dumps(chunk.metadata) if chunk.metadata else None,
+            *self._chunk_scope_values(chunk),
         )
         with self._lock:
             self.conn.execute(_SQL, params)
@@ -467,8 +584,9 @@ class MemoryStorage:
             _SQL = """
                 INSERT INTO chunks
                 (id, user_id, scope, source, path, start_line, end_line,
-                 text, embedding, hash, metadata, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+                 text, embedding, hash, metadata, scope_type, scope_id,
+                 channel_type, subject_id, status, source_message_ids, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
                 ON CONFLICT(id) DO UPDATE SET
                     user_id     = excluded.user_id,
                     scope       = excluded.scope,
@@ -480,14 +598,21 @@ class MemoryStorage:
                     embedding   = excluded.embedding,
                     hash        = excluded.hash,
                     metadata    = excluded.metadata,
+                    scope_type  = excluded.scope_type,
+                    scope_id    = excluded.scope_id,
+                    channel_type = excluded.channel_type,
+                    subject_id  = excluded.subject_id,
+                    status      = excluded.status,
+                    source_message_ids = excluded.source_message_ids,
                     updated_at  = strftime('%s', 'now')
             """
         else:
             _SQL = """
                 INSERT OR REPLACE INTO chunks
                 (id, user_id, scope, source, path, start_line, end_line,
-                 text, embedding, hash, metadata, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+                 text, embedding, hash, metadata, scope_type, scope_id,
+                 channel_type, subject_id, status, source_message_ids, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
             """
         params_list = [
             (
@@ -496,6 +621,7 @@ class MemoryStorage:
                 self._encode_embedding(c.embedding),
                 c.hash,
                 json.dumps(c.metadata) if c.metadata else None,
+                *self._chunk_scope_values(c),
             )
             for c in chunks
         ]
@@ -513,13 +639,75 @@ class MemoryStorage:
             return None
         
         return self._row_to_chunk(row)
+
+    @staticmethod
+    def _scope_filter_sql(memory_scope: Optional[MemoryScope]) -> tuple[str, List[str]]:
+        if not memory_scope:
+            return "", []
+        clauses = [
+            "chunks.scope_type = ?",
+            "chunks.scope_id = ?",
+            "chunks.channel_type = ?",
+            "chunks.status = 'active'",
+        ]
+        params = [
+            memory_scope.scope_type,
+            memory_scope.scope_id,
+            memory_scope.channel_type,
+        ]
+        if memory_scope.subject_id:
+            clauses.append("chunks.subject_id = ?")
+            params.append(memory_scope.subject_id)
+        else:
+            clauses.append("chunks.subject_id = ''")
+        return " AND " + " AND ".join(clauses), params
+
+    @staticmethod
+    def _load_json_list(value) -> Optional[List[str]]:
+        if not value:
+            return None
+        try:
+            data = json.loads(value)
+            return data if isinstance(data, list) else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _load_json_dict(value) -> Optional[Dict[str, Any]]:
+        if not value:
+            return None
+        try:
+            data = json.loads(value)
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
+    def _row_to_result(self, row, score: float, snippet: Optional[str] = None) -> SearchResult:
+        return SearchResult(
+            id=row['id'],
+            path=row['path'],
+            start_line=row['start_line'],
+            end_line=row['end_line'],
+            score=score,
+            snippet=snippet if snippet is not None else self._truncate_text(row['text'], 500),
+            source=row['source'],
+            user_id=row['user_id'],
+            scope_type=row['scope_type'],
+            scope_id=row['scope_id'],
+            channel_type=row['channel_type'],
+            subject_id=row['subject_id'],
+            status=row['status'],
+            metadata=self._load_json_dict(row['metadata']),
+            source_message_ids=self._load_json_list(row['source_message_ids']),
+        )
     
     def search_vector(
         self,
         query_embedding: List[float],
         user_id: Optional[str] = None,
         scopes: List[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """
         Vector similarity search using numpy-vectorized cosine similarity.
@@ -531,14 +719,23 @@ class MemoryStorage:
             if user_id:
                 scopes.append("user")
 
+        scope_where, scope_params = self._scope_filter_sql(memory_scope)
         scope_placeholders = ','.join('?' * len(scopes))
         params = list(scopes)
 
-        if user_id:
+        if memory_scope:
+            query = f"""
+                SELECT * FROM chunks
+                WHERE embedding IS NOT NULL
+                {scope_where}
+            """
+            params = scope_params
+        elif user_id:
             query = f"""
                 SELECT * FROM chunks
                 WHERE scope IN ({scope_placeholders})
                 AND (scope = 'shared' OR user_id = ?)
+                AND status = 'active'
                 AND embedding IS NOT NULL
             """
             params.append(user_id)
@@ -546,6 +743,7 @@ class MemoryStorage:
             query = f"""
                 SELECT * FROM chunks
                 WHERE scope IN ({scope_placeholders})
+                AND status = 'active'
                 AND embedding IS NOT NULL
             """
 
@@ -596,15 +794,7 @@ class MemoryStorage:
             top_idx = top_idx[np.argsort(sims[top_idx])[::-1]]
 
             return [
-                SearchResult(
-                    path=valid_rows[i]['path'],
-                    start_line=valid_rows[i]['start_line'],
-                    end_line=valid_rows[i]['end_line'],
-                    score=float(sims[i]),
-                    snippet=self._truncate_text(valid_rows[i]['text'], 500),
-                    source=valid_rows[i]['source'],
-                    user_id=valid_rows[i]['user_id']
-                )
+                self._row_to_result(valid_rows[i], float(sims[i]))
                 for i in top_idx
                 if sims[i] > 0
             ]
@@ -622,15 +812,7 @@ class MemoryStorage:
                     scored.append((sim, valid_rows[i]))
             scored.sort(key=lambda x: x[0], reverse=True)
             return [
-                SearchResult(
-                    path=row['path'],
-                    start_line=row['start_line'],
-                    end_line=row['end_line'],
-                    score=sim,
-                    snippet=self._truncate_text(row['text'], 500),
-                    source=row['source'],
-                    user_id=row['user_id']
-                )
+                self._row_to_result(row, sim)
                 for sim, row in scored[:limit]
             ]
     
@@ -639,7 +821,8 @@ class MemoryStorage:
         query: str,
         user_id: Optional[str] = None,
         scopes: List[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """
         Keyword search using FTS5 + LIKE fallback
@@ -666,7 +849,7 @@ class MemoryStorage:
                 and not MemoryStorage._contains_cjk(query)
                 and MemoryStorage._build_fts_query(query)):
             fts1_attempted = True
-            fts_results = self._search_fts5(query, user_id, scopes, limit)
+            fts_results = self._search_fts5(query, user_id, scopes, limit, memory_scope=memory_scope)
             if fts_results:
                 return fts_results
 
@@ -676,14 +859,16 @@ class MemoryStorage:
         if self.trigram_fts5_available and (
             MemoryStorage._contains_cjk(query) or fts1_attempted
         ):
-            trigram_results = self._search_fts5_trigram(query, user_id, scopes, limit)
+            trigram_results = self._search_fts5_trigram(
+                query, user_id, scopes, limit, memory_scope=memory_scope
+            )
             if trigram_results:
                 return trigram_results
 
         # Step 3: LIKE fallback — last resort (FTS5 unavailable, or CJK tokens
         # shorter than 3 characters that trigram cannot match, e.g. a single-char query).
         if not self.fts5_available or MemoryStorage._contains_cjk(query):
-            return self._search_like(query, user_id, scopes, limit)
+            return self._search_like(query, user_id, scopes, limit, memory_scope=memory_scope)
 
         return []
     
@@ -692,17 +877,31 @@ class MemoryStorage:
         query: str,
         user_id: Optional[str],
         scopes: List[str],
-        limit: int
+        limit: int,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """FTS5 full-text search"""
         fts_query = self._build_fts_query(query)
         if not fts_query:
             return []
         
+        scope_where, scope_params = self._scope_filter_sql(memory_scope)
         scope_placeholders = ','.join('?' * len(scopes))
-        params = [fts_query] + scopes
+        params = [fts_query]
         
-        if user_id:
+        if memory_scope:
+            sql_query = f"""
+                SELECT chunks.*, bm25(chunks_fts) as rank
+                FROM chunks_fts
+                JOIN chunks ON chunks.rowid = chunks_fts.rowid
+                WHERE chunks_fts MATCH ?
+                {scope_where}
+                ORDER BY rank
+                LIMIT ?
+            """
+            params.extend(scope_params)
+            params.append(limit)
+        elif user_id:
             sql_query = f"""
                 SELECT chunks.*, bm25(chunks_fts) as rank
                 FROM chunks_fts
@@ -710,9 +909,11 @@ class MemoryStorage:
                 WHERE chunks_fts MATCH ? 
                 AND chunks.scope IN ({scope_placeholders})
                 AND (chunks.scope = 'shared' OR chunks.user_id = ?)
+                AND chunks.status = 'active'
                 ORDER BY rank
                 LIMIT ?
             """
+            params.extend(scopes)
             params.extend([user_id, limit])
         else:
             sql_query = f"""
@@ -721,23 +922,17 @@ class MemoryStorage:
                 JOIN chunks ON chunks.rowid = chunks_fts.rowid
                 WHERE chunks_fts MATCH ? 
                 AND chunks.scope IN ({scope_placeholders})
+                AND chunks.status = 'active'
                 ORDER BY rank
                 LIMIT ?
             """
+            params.extend(scopes)
             params.append(limit)
         
         try:
             rows = self.conn.execute(sql_query, params).fetchall()
             return [
-                SearchResult(
-                    path=row['path'],
-                    start_line=row['start_line'],
-                    end_line=row['end_line'],
-                    score=self._bm25_rank_to_score(row['rank']),
-                    snippet=self._truncate_text(row['text'], 500),
-                    source=row['source'],
-                    user_id=row['user_id']
-                )
+                self._row_to_result(row, self._bm25_rank_to_score(row['rank']))
                 for row in rows
             ]
         except Exception:
@@ -750,7 +945,8 @@ class MemoryStorage:
         query: str,
         user_id: Optional[str],
         scopes: List[str],
-        limit: int
+        limit: int,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """LIKE-based search.
 
@@ -765,6 +961,7 @@ class MemoryStorage:
         if not words:
             return []
 
+        scope_where, scope_params = self._scope_filter_sql(memory_scope)
         scope_placeholders = ','.join('?' * len(scopes))
 
         # Build LIKE conditions for each word (case-insensitive for ASCII)
@@ -775,14 +972,26 @@ class MemoryStorage:
             params.append(f'%{word.lower()}%')
         
         where_clause = ' OR '.join(like_conditions)
-        params.extend(scopes)
+        if memory_scope:
+            params.extend(scope_params)
+        else:
+            params.extend(scopes)
         
-        if user_id:
+        if memory_scope:
+            sql_query = f"""
+                SELECT * FROM chunks
+                WHERE ({where_clause})
+                {scope_where}
+                LIMIT ?
+            """
+            params.append(limit)
+        elif user_id:
             sql_query = f"""
                 SELECT * FROM chunks
                 WHERE ({where_clause})
                 AND scope IN ({scope_placeholders})
                 AND (scope = 'shared' OR user_id = ?)
+                AND status = 'active'
                 LIMIT ?
             """
             params.extend([user_id, limit])
@@ -791,6 +1000,7 @@ class MemoryStorage:
                 SELECT * FROM chunks
                 WHERE ({where_clause})
                 AND scope IN ({scope_placeholders})
+                AND status = 'active'
                 LIMIT ?
             """
             params.append(limit)
@@ -808,21 +1018,107 @@ class MemoryStorage:
                 if matched_count == 0:
                     continue
                 score = min(0.85, 0.3 + 0.15 * matched_count)
-                results.append(SearchResult(
-                    path=row['path'],
-                    start_line=row['start_line'],
-                    end_line=row['end_line'],
-                    score=score,
-                    snippet=self._truncate_text(row['text'], 500),
-                    source=row['source'],
-                    user_id=row['user_id']
-                ))
+                results.append(self._row_to_result(row, score))
             results.sort(key=lambda r: r.score, reverse=True)
             return results
         except Exception:
             from common.log import logger
             logger.warning("[MemoryStorage] _search_like failed, returning empty", exc_info=True)
             return []
+
+    def list_chunks(
+        self,
+        memory_scope: MemoryScope,
+        status: str = "active",
+        limit: int = 20,
+        offset: int = 0,
+        query: Optional[str] = None,
+    ) -> List[SearchResult]:
+        """List chunks by exact MemoryScope, newest first."""
+        scope_where, scope_params = self._scope_filter_sql(memory_scope)
+        params: List[Any] = list(scope_params)
+        where = scope_where.replace(" AND chunks.status = 'active'", "")
+        status_clause = ""
+        if status:
+            status_clause = " AND chunks.status = ?"
+            params.append(status)
+        query_clause = ""
+        if query and query.strip():
+            query_clause = " AND LOWER(chunks.text) LIKE ?"
+            params.append(f"%{query.strip().lower()}%")
+        params.extend([limit, offset])
+        rows = self.conn.execute(f"""
+            SELECT chunks.*
+            FROM chunks
+            WHERE 1 = 1
+            {where}
+            {status_clause}
+            {query_clause}
+            ORDER BY chunks.updated_at DESC, chunks.created_at DESC
+            LIMIT ? OFFSET ?
+        """, params).fetchall()
+        return [self._row_to_result(row, 1.0) for row in rows]
+
+    def list_chunks_by_scope_type(
+        self,
+        scope_type: str,
+        scope_id: str,
+        channel_type: str = "",
+        status: str = "active",
+        limit: int = 20,
+        offset: int = 0,
+        query: Optional[str] = None,
+    ) -> List[SearchResult]:
+        """List chunks by scope type and scope id, for scoped admin views."""
+        params: List[Any] = [scope_type, scope_id, channel_type]
+        status_clause = ""
+        if status:
+            status_clause = " AND status = ?"
+            params.append(status)
+        query_clause = ""
+        if query and query.strip():
+            query_clause = " AND LOWER(text) LIKE ?"
+            params.append(f"%{query.strip().lower()}%")
+        params.extend([limit, offset])
+        rows = self.conn.execute(f"""
+            SELECT *
+            FROM chunks
+            WHERE scope_type = ?
+              AND scope_id = ?
+              AND channel_type = ?
+              {status_clause}
+              {query_clause}
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT ? OFFSET ?
+        """, params).fetchall()
+        return [self._row_to_result(row, 1.0) for row in rows]
+
+    def update_chunk_status_by_scope(
+        self,
+        chunk_id: str,
+        memory_scope: MemoryScope,
+        status: str,
+    ) -> bool:
+        """Update a chunk status only when the scoped identity matches."""
+        with self._lock:
+            cur = self.conn.execute("""
+                UPDATE chunks
+                   SET status = ?, updated_at = strftime('%s', 'now')
+                 WHERE id = ?
+                   AND scope_type = ?
+                   AND scope_id = ?
+                   AND channel_type = ?
+                   AND subject_id = ?
+            """, (
+                status,
+                chunk_id,
+                memory_scope.scope_type,
+                memory_scope.scope_id,
+                memory_scope.channel_type,
+                memory_scope.subject_id,
+            ))
+            self.conn.commit()
+            return cur.rowcount > 0
 
     def delete_by_path(self, path: str):
         """Delete all chunks and file metadata for a path."""
@@ -926,7 +1222,13 @@ class MemoryStorage:
             text=row['text'],
             embedding=self._decode_embedding(row['embedding']),
             hash=row['hash'],
-            metadata=json.loads(row['metadata']) if row['metadata'] else None
+            metadata=self._load_json_dict(row['metadata']),
+            scope_type=row['scope_type'],
+            scope_id=row['scope_id'],
+            channel_type=row['channel_type'],
+            subject_id=row['subject_id'],
+            status=row['status'],
+            source_message_ids=self._load_json_list(row['source_message_ids']),
         )
     
     @staticmethod
@@ -954,17 +1256,31 @@ class MemoryStorage:
         query: str,
         user_id: Optional[str],
         scopes: List[str],
-        limit: int
+        limit: int,
+        memory_scope: Optional[MemoryScope] = None
     ) -> List[SearchResult]:
         """Trigram FTS5 search — handles CJK and mixed queries with BM25 ranking."""
         trigram_query = self._build_trigram_query(query)
         if not trigram_query:
             return []
 
+        scope_where, scope_params = self._scope_filter_sql(memory_scope)
         scope_placeholders = ','.join('?' * len(scopes))
-        params = [trigram_query] + list(scopes)
+        params = [trigram_query]
 
-        if user_id:
+        if memory_scope:
+            sql = f"""
+                SELECT chunks.*, bm25(chunks_fts_trigram) as rank
+                FROM chunks_fts_trigram
+                JOIN chunks ON chunks.rowid = chunks_fts_trigram.rowid
+                WHERE chunks_fts_trigram MATCH ?
+                {scope_where}
+                ORDER BY rank
+                LIMIT ?
+            """
+            params.extend(scope_params)
+            params.append(limit)
+        elif user_id:
             sql = f"""
                 SELECT chunks.*, bm25(chunks_fts_trigram) as rank
                 FROM chunks_fts_trigram
@@ -972,9 +1288,11 @@ class MemoryStorage:
                 WHERE chunks_fts_trigram MATCH ?
                 AND chunks.scope IN ({scope_placeholders})
                 AND (chunks.scope = 'shared' OR chunks.user_id = ?)
+                AND chunks.status = 'active'
                 ORDER BY rank
                 LIMIT ?
             """
+            params.extend(scopes)
             params.extend([user_id, limit])
         else:
             sql = f"""
@@ -983,23 +1301,17 @@ class MemoryStorage:
                 JOIN chunks ON chunks.rowid = chunks_fts_trigram.rowid
                 WHERE chunks_fts_trigram MATCH ?
                 AND chunks.scope IN ({scope_placeholders})
+                AND chunks.status = 'active'
                 ORDER BY rank
                 LIMIT ?
             """
+            params.extend(scopes)
             params.append(limit)
 
         try:
             rows = self.conn.execute(sql, params).fetchall()
             return [
-                SearchResult(
-                    path=row['path'],
-                    start_line=row['start_line'],
-                    end_line=row['end_line'],
-                    score=self._bm25_rank_to_score(row['rank']),
-                    snippet=self._truncate_text(row['text'], 500),
-                    source=row['source'],
-                    user_id=row['user_id']
-                )
+                self._row_to_result(row, self._bm25_rank_to_score(row['rank']))
                 for row in rows
             ]
         except Exception:
