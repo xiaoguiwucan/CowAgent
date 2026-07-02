@@ -125,9 +125,9 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 
 ### 4.3 群永久记忆与群友永久记忆
 
-群记忆是首轮核心能力，但必须与 CowAgent 全局记忆隔离。
+群记忆是首轮核心能力。经方案确认，4.3 不再把群永久记忆做成微信群专用长期记忆孤岛，而是把 CowAgent 原本记忆升级为“通用作用域记忆”，让群记忆、群友记忆进入统一记忆管理体系，同时通过 `room_id` / `sender_id` 作用域约束保证隔离。
 
-阶段一不建议先大改 `agent/memory/storage.py` 现有 `chunks` 主表，也不把微信群消息直接塞进 CowAgent 通用 `MemoryManager`。原因是现有记忆模型面向 `shared` / `user` / `session`，如果直接扩展为群聊承载层，容易影响 Web、CLI、私聊和 Agent 既有记忆行为。阶段一采用“微信群专用存储 + 复用 CowAgent 记忆能力组件”的方式：数据隔离由微信群专用表保证，embedding、chunker、关键词检索和摘要提取思路可以复用，但所有写入和查询入口必须由 `WechatGroupMemoryService` 管控。
+阶段一不直接把微信群消息塞进现有 `shared` / `user` / `session` 语义里，也不使用独立微信群长期记忆表绕开 CowAgent 记忆系统。推荐做法是对 `agent/memory/storage.py` 的 `chunks` 表做兼容扩展：保留旧字段与旧调用路径，同时新增 `scope_type`、`scope_id`、`channel_type`、`subject_id` 等 nullable 字段。旧记忆继续按原行为运行；微信群 4.3 通过新的作用域字段进入统一 `MemoryManager`，并由 `WechatGroupMemoryService` 做强校验和提示词装配适配。
 
 记忆分层：
 
@@ -138,20 +138,54 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 
 2. 群永久记忆
    - 保存当前群长期稳定信息，例如群规、群偏好、长期项目、共同背景、群内约定。
-   - 主键隔离维度：`room_id`。
+   - 统一记忆作用域：`scope_type = wechat_group`，`scope_id = room_id`，`channel_type = wechat_group`。
    - 只在当前群回复中召回。
 
 3. 群友永久记忆
    - 保存某个群内成员的长期事实、偏好和身份信息。
-   - 主键隔离维度：`room_id + sender_id`。
+   - 统一记忆作用域：`scope_type = wechat_group_member`，`scope_id = room_id`，`subject_id = sender_id`，`channel_type = wechat_group`。
    - 同一个 sender ID 出现在不同群时，默认视为不同记忆空间，除非后续做明确身份合并。
 
 4. 与 CowAgent 全局记忆的关系
-   - 微信群记忆优先由 `WechatGroupMemoryService` 管理。
-   - 可以复用 CowAgent 的 embedding provider、chunker、FTS 思路，但存储表和查询接口必须显式携带 `room_id`。
+   - 微信群长期记忆写入 CowAgent 统一记忆索引，但必须携带明确作用域。
+   - `WechatGroupMemoryService` 只作为微信群通道适配层：负责校验 `room_id` / `sender_id`、组装作用域、调用通用 `MemoryManager`、生成 `<wechat-group-memory>`。
+   - embedding provider、chunker、FTS、向量检索和后续统一记忆管理能力复用 CowAgent 原本组件。
    - 只有用户或管理员明确要求“写入全局记忆”的稳定知识，才允许提升到 CowAgent 通用 `MemoryManager`。
-   - 阶段一不改造 `MemoryStorage` 的 `chunks` schema 作为前置条件，避免为了微信群通道牵动所有通用记忆调用方。
-   - 后续如果多个渠道都需要作用域记忆，再统一把 CowAgent 记忆模型升级为 `scope_type + scope_id + channel_type`，并提供迁移脚本和兼容层。
+   - 旧 `shared` / `user` / `session` 调用方必须保持兼容，不能因为新增作用域字段影响 Web、CLI、私聊和 Agent 既有记忆行为。
+
+通用作用域映射：
+
+```text
+旧 shared memory:
+scope_type = shared
+scope_id = ""
+channel_type = ""
+subject_id = ""
+
+旧 user memory:
+scope_type = user
+scope_id = user_id
+channel_type = ""
+subject_id = user_id
+
+旧 session memory:
+scope_type = session
+scope_id = session_id
+channel_type = ""
+subject_id = user_id 或空
+
+微信群群永久记忆:
+scope_type = wechat_group
+scope_id = room_id
+channel_type = wechat_group
+subject_id = ""
+
+微信群群友永久记忆:
+scope_type = wechat_group_member
+scope_id = room_id
+channel_type = wechat_group
+subject_id = sender_id
+```
 
 召回顺序：
 
@@ -178,7 +212,7 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
   - 群永久记忆：管理员在 UI 中选择目标群后写入，或后续通过群内管理命令写入。
   - 群友永久记忆：管理员在 UI 中选择目标群和成员后写入；普通成员自助写入只允许落到“当前群 + 自己 sender_id”空间。
 - 召回上下文使用独立 `<wechat-group-memory>` 块，和 `<wechat-group-persona>`、`<recent-wechat-group-transcript>` 分开，避免模型把人设、短期聊天和长期事实混为一类。
-- 群记忆 UI 只做运维型能力：开关状态、手动新增、列表/搜索、停用、来源查看和诊断预览；不做完整社交工作台、批量导入、跨群身份合并、记忆自动提取审核流或可视化战报。
+- 群记忆 UI 只做运维型能力：开关状态、按群/群友分类展示、手动新增、列表/搜索、停用、来源查看和诊断预览；不做完整社交工作台、批量导入、跨群身份合并、记忆自动提取审核流或可视化战报。
 
 建议注入顺序：
 
@@ -361,38 +395,55 @@ Python 发给侧车的命令：
 - `wechat_group_messages`
 - `wechat_group_assistant_replies`
 
-### 任务五：新增群记忆服务
+### 任务五：升级通用作用域记忆并新增微信群记忆适配层
+
+修改：
+
+- `agent/memory/storage.py`
+- `agent/memory/manager.py`
+- `agent/memory/service.py`
+- `agent/memory/config.py`
 
 新增：
 
+- `agent/memory/scope.py`
 - `channel/wechat_group/wechat_group_memory.py`
 
 职责：
 
-- 管理群永久记忆和群友永久记忆。
+- 将 CowAgent 原本记忆升级为通用作用域记忆，支持 `shared` / `user` / `session` / `wechat_group` / `wechat_group_member`。
+- 保持旧 `scope` / `user_id` 调用兼容，旧调用方不需要一次性改造。
+- `WechatGroupMemoryService` 管理群永久记忆和群友永久记忆的通道适配。
 - 强制所有查询携带 `room_id`。
 - 群友记忆强制使用 `room_id + sender_id`。
 - 支持手动写入、自动提取、检索召回和删除/停用。
-- 可复用 CowAgent embedding provider、文本切分、摘要提取和 FTS 检索思路，但不能直接污染全局 shared memory。
-- 阶段一只新增微信群专用 schema，不修改 `agent/memory/storage.py` 的 `chunks` 表作为前置条件。
-- 后续需要统一多渠道记忆时，再规划通用 `scope_type + scope_id + channel_type` 记忆模型升级。
+- 复用 CowAgent embedding provider、文本切分、摘要提取、FTS 和向量检索能力，但不能把群记忆写入全局 shared memory。
+- 原始群消息仍保留在 `wechat_group_messages`，不进入长期记忆，除非通过明确手动写入或后续受控自动提取。
 
-建议表：
+建议 schema 兼容扩展：
 
-- `wechat_group_memory_items`
-- `wechat_group_member_memory_items`
-- `wechat_group_member_identities`
+- `chunks` 新增 nullable 字段：
+  - `scope_type TEXT`
+  - `scope_id TEXT`
+  - `channel_type TEXT`
+  - `subject_id TEXT`
+  - `status TEXT NOT NULL DEFAULT 'active'`
+  - `source_message_ids TEXT`
+- 迁移脚本或初始化迁移逻辑必须把旧数据映射到新字段：
+  - `scope = shared` -> `scope_type = shared`
+  - `scope = user` -> `scope_type = user`，`scope_id = user_id`，`subject_id = user_id`
+  - `scope = session` -> `scope_type = session`
+- 旧字段 `scope`、`user_id` 暂不删除，所有旧 API 继续可读可写。
 
-建议字段：
+建议索引：
 
-- `wechat_group_memory_items`：`id`、`room_id`、`room_name`、`content`、`summary`、`keywords`、`embedding`、`source_message_ids`、`status`、`created_at`、`updated_at`。
-- `wechat_group_member_memory_items`：`id`、`room_id`、`sender_id`、`sender_nickname`、`content`、`summary`、`keywords`、`embedding`、`source_message_ids`、`status`、`created_at`、`updated_at`。
-- `wechat_group_member_identities`：`id`、`room_id`、`sender_id`、`current_nickname`、`alias_names`、`last_seen_at`、`created_at`、`updated_at`。
+- `chunks(scope_type, scope_id, channel_type, status, updated_at)`。
+- `chunks(scope_type, scope_id, subject_id, channel_type, status, updated_at)`。
+- 保留原有 `idx_chunks_user`、`idx_chunks_scope`、FTS 和 trigram FTS 索引。
 
-索引要求：
+可选辅助表：
 
-- `wechat_group_memory_items(room_id, status, updated_at)`。
-- `wechat_group_member_memory_items(room_id, sender_id, status, updated_at)`。
+- `wechat_group_member_identities`：只记录 `room_id`、`sender_id`、`current_nickname`、`alias_names`、`last_seen_at`、`created_at`、`updated_at`，用于 UI 显示昵称变化和成员选择，不承载长期记忆正文。
 - `wechat_group_member_identities(room_id, sender_id)` 唯一索引。
 
 写入策略：
@@ -408,7 +459,7 @@ Python 发给侧车的命令：
 
 - 群记忆检索必须传入 `room_id`。
 - 群友记忆检索必须传入 `room_id + sender_id`。
-- embedding 相似度、关键词匹配和时间衰减可以组合使用，但过滤条件必须先执行隔离约束，再执行相关性排序。
+- embedding 相似度、关键词匹配和时间衰减可以组合使用，但 SQL 查询必须先按 `scope_type`、`scope_id`、`channel_type`、`subject_id` 和 `status` 过滤，再执行相关性排序。
 - 返回给提示词装配层的每条记忆必须标注来源类型：`group_memory` 或 `member_memory`。
 - embedding provider 不可用时必须降级到 FTS/LIKE 关键词检索；不能因为 embedding 初始化失败阻断微信群正常回复。
 - 召回默认条数保持保守：群记忆最多 5 条，当前发言人群友记忆最多 5 条，被提到成员群友记忆最多 3 条。
@@ -423,6 +474,14 @@ Python 发给侧车的命令：
 - `list_member_memories(room_id, sender_id=None, status="active", limit=50, offset=0)`
 - `disable_memory(memory_type, memory_id, room_id, sender_id=None)`
 - `preview_prompt_memories(room_id, sender_id, query, mentioned_sender_ids=None)`
+
+建议通用记忆接口：
+
+- `MemoryScope(scope_type, scope_id="", channel_type="", subject_id="")`
+- `MemoryManager.add_text(text, memory_scope, metadata=None)`
+- `MemoryManager.search(query, memory_scope, limit=10)`
+- `MemoryManager.list_by_scope(memory_scope, status="active", limit=50, offset=0)`
+- `MemoryManager.disable(chunk_id, memory_scope)`
 
 ### 任务六：新增微信群提示词上下文装配
 
