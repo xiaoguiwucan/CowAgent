@@ -2,6 +2,16 @@
 
 ## 2026-07-02
 
+### OpenAI 兼容 Agent 消息格式修复
+
+- 更新 `models/openai_compatible_bot.py`：修复 Agent 内部 Claude text blocks 转 OpenAI 兼容消息时，普通 `user` 消息仍保留数组 `content` 的问题，避免严格网关报 `cannot unmarshal array into ... content of type string`。
+- 新增 `tests/test_openai_compatible_messages.py`：覆盖普通 `user` text blocks 必须转换为字符串 `content` 的回归场景。
+
+验证记录：
+- `python -m unittest tests.test_openai_compatible_messages`
+- `python -m unittest tests.test_openai_compatible_messages tests.test_custom_provider`
+- `python -m py_compile models\openai_compatible_bot.py tests\test_openai_compatible_messages.py`
+
 ### 个人微信群 4.3 群记忆完整闭环
 
 - 更新 `channel/web/static/js/console.js` 与 `channel/web/chat.html`：在 Web 控制台“群聊”页新增“永久记忆”子菜单，支持按已选 `room_id` 管理群记忆、群友画像和注入预览；包含当前群搜索、摘要数量、停用、画像 revision 只读查看和脚本缓存版本更新。

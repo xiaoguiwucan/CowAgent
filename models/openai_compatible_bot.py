@@ -380,6 +380,25 @@ class OpenAICompatibleBot:
                         openai_msg["_gemini_raw_parts"] = msg["_gemini_raw_parts"]
 
                     openai_messages.append(openai_msg)
+                elif role == "user":
+                    text_parts = []
+                    other_blocks = []
+
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        else:
+                            other_blocks.append(block)
+
+                    if text_parts and not other_blocks:
+                        openai_messages.append({
+                            "role": "user",
+                            "content": " ".join(text_parts)
+                        })
+                    else:
+                        # Keep non-text list content as-is for providers that support
+                        # OpenAI multimodal content blocks.
+                        openai_messages.append(msg)
                 else:
                     # Other list content, keep as is
                     openai_messages.append(msg)
