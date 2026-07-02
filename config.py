@@ -67,6 +67,30 @@ available_setting = {
     "concurrency_in_session": 1,  # max number of in-flight messages per session; values >1 may cause out-of-order replies
     "image_create_size": "256x256",  # image size, options: 256x256, 512x512, 1024x1024 (dall-e-3 defaults to 1024x1024)
     "group_chat_exit_group": False,
+    # WeChat group channel. Disabled by default; set channel_type to
+    # "wechat_group" and install sidecar npm dependencies before use.
+    "wechat_group_enabled": False,
+    "wechat_group_puppet": "wechaty-puppet-wechat4u",
+    "wechat_group_sidecar_node": "node",
+    "wechat_group_sidecar_memory_path": "",
+    "wechat_group_names": [],
+    "wechat_group_room_ids": [],
+    "wechat_group_ambient_names": [],
+    "wechat_group_admin_sender_ids": [],
+    "wechat_group_blocked_sender_ids": [],
+    "wechat_group_record_messages": True,
+    "wechat_group_media_dir": "",
+    "wechat_group_guard_enabled": True,
+    "wechat_group_sidecar_start_timeout": 60,
+    "wechat_group_persona_preset_id": "owner-digital-twin",
+    "wechat_group_persona_prompt": "",
+    "wechat_group_recent_context_enabled": True,
+    "wechat_group_recent_context_limit": 20,
+    "wechat_group_recent_context_minutes": 60,
+    "wechat_group_memory_enabled": True,
+    "wechat_group_member_memory_enabled": True,
+    "wechat_group_memory_auto_extract": False,
+    "wechat_group_voice_reply_enabled": False,
     # chatgpt session params
     "expires_in_seconds": 3600,  # idle session expiry time
     # persona description (only used in chat mode)
@@ -209,7 +233,7 @@ available_setting = {
     # custom trigger words for chatgpt commands
     "clear_memory_commands": ["#清除记忆"],  # session-reset command; must start with #
     # channel config
-    "channel_type": "",  # channel type; supports running multiple channels at once. Single: "feishu", multiple: "feishu, dingtalk" or ["feishu", "dingtalk"]. Options: web,feishu,dingtalk,wecom_bot,weixin,wechatmp,wechatmp_service,wechatcom_app,wechat_kf,telegram,slack,discord
+    "channel_type": "",  # channel type; supports running multiple channels at once. Single: "feishu", multiple: "feishu, dingtalk" or ["feishu", "dingtalk"]. Options: web,feishu,dingtalk,wecom_bot,weixin,wechat_group,wechatmp,wechatmp_service,wechatcom_app,wechat_kf,telegram,slack,discord
     "web_console": True,  # whether to auto-start the Web console (on by default). Set False to disable
     "subscribe_msg": "",  # subscribe message; supported by: wechatmp, wechatmp_service, wechatcom_app
     "debug": False,  # whether to enable debug mode; prints more logs when on

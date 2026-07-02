@@ -63,11 +63,17 @@ class ChatChannel(Channel):
 
                 group_name_white_list = config.get("group_name_white_list", [])
                 group_name_keyword_white_list = config.get("group_name_keyword_white_list", [])
+                wechat_group_room_ids = config.get("wechat_group_room_ids", [])
+                matched_wechat_group_room_id = (
+                    context.get("channel_type") == "wechat_group"
+                    and group_id in wechat_group_room_ids
+                )
                 if any(
                     [
                         group_name in group_name_white_list,
                         "ALL_GROUP" in group_name_white_list,
                         check_contain(group_name, group_name_keyword_white_list),
+                        matched_wechat_group_room_id,
                     ]
                 ):
                     # Check global group_shared_session config first

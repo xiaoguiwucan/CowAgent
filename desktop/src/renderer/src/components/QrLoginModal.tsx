@@ -4,7 +4,7 @@ import { t } from '../i18n'
 import apiClient from '../api/client'
 import { Modal } from '../pages/settings/primitives'
 
-type Provider = 'weixin' | 'feishu'
+type Provider = 'weixin' | 'wechat_group' | 'feishu'
 type Phase = 'loading' | 'waiting' | 'scanned' | 'success' | 'error'
 
 interface QrLoginModalProps {
@@ -82,6 +82,48 @@ const QrLoginModal: React.FC<QrLoginModalProps> = ({ provider, onClose, onConnec
     }
   }
 
+  const pollWechatGroup = () => {
+    timerRef.current = setTimeout(async () => {
+      if (!aliveRef.current) return
+      try {
+        const data = await apiClient.wechatGroupQrAction('poll')
+        if (!aliveRef.current) return
+        if (data.status !== 'success') return pollWechatGroup()
+        const s = data.login_status as string
+        if (s === 'logged_in' || s === 'connected') {
+          setPhase('success')
+          if (aliveRef.current) onConnected()
+        } else if (data.qr_image || data.qrcode_url) {
+          setQr((data.qr_image as string) || (data.qrcode_url as string))
+          setPhase('waiting')
+          pollWechatGroup()
+        } else {
+          pollWechatGroup()
+        }
+      } catch {
+        pollWechatGroup()
+      }
+    }, POLL_INTERVAL)
+  }
+
+  const startWechatGroup = async () => {
+    setPhase('loading')
+    try {
+      await apiClient.channelAction('connect', 'wechat_group', {})
+      if (!aliveRef.current) return
+      const data = await apiClient.getWechatGroupQr()
+      if (!aliveRef.current) return
+      if (data.status !== 'success') return fail(data.message || t('wechat_group_scan_fail'))
+      if (data.qr_image || data.qrcode_url) {
+        setQr(data.qr_image || data.qrcode_url || '')
+      }
+      setPhase('waiting')
+      pollWechatGroup()
+    } catch {
+      fail(t('wechat_group_scan_fail'))
+    }
+  }
+
   // ---- Feishu: GET qr, POST poll {done|expired|denied|error} ----------------
   const pollFeishu = () => {
     timerRef.current = setTimeout(async () => {
@@ -131,6 +173,7 @@ const QrLoginModal: React.FC<QrLoginModalProps> = ({ provider, onClose, onConnec
   const start = () => {
     stopPoll()
     if (provider === 'weixin') void startWeixin()
+    else if (provider === 'wechat_group') void startWechatGroup()
     else void startFeishu()
   }
 
@@ -144,14 +187,26 @@ const QrLoginModal: React.FC<QrLoginModalProps> = ({ provider, onClose, onConnec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider])
 
-  const title = provider === 'weixin' ? t('weixin_scan_title') : t('feishu_scan_title')
-  const desc = provider === 'weixin' ? t('weixin_scan_desc') : t('feishu_scan_desc')
-  const tip = provider === 'weixin' ? t('weixin_qr_tip') : t('feishu_scan_tip')
+  const title = provider === 'feishu'
+    ? t('feishu_scan_title')
+    : provider === 'wechat_group'
+      ? t('wechat_group_scan_title')
+      : t('weixin_scan_title')
+  const desc = provider === 'feishu'
+    ? t('feishu_scan_desc')
+    : provider === 'wechat_group'
+      ? t('wechat_group_scan_desc')
+      : t('weixin_scan_desc')
+  const tip = provider === 'feishu'
+    ? t('feishu_scan_tip')
+    : provider === 'wechat_group'
+      ? t('wechat_group_qr_tip')
+      : t('weixin_qr_tip')
 
   const statusText = (): string => {
-    if (provider === 'weixin') {
+    if (provider === 'weixin' || provider === 'wechat_group') {
       if (phase === 'scanned') return t('weixin_scan_scanned')
-      return t('weixin_scan_waiting')
+      return provider === 'wechat_group' ? t('wechat_group_scan_waiting') : t('weixin_scan_waiting')
     }
     return t('feishu_scan_waiting')
   }
@@ -162,7 +217,7 @@ const QrLoginModal: React.FC<QrLoginModalProps> = ({ provider, onClose, onConnec
         {phase === 'loading' && (
           <div className="flex items-center text-content-tertiary py-10">
             <Loader2 size={18} className="animate-spin mr-2" />
-            {provider === 'weixin' ? t('weixin_scan_loading') : t('feishu_scan_loading')}
+            {provider === 'feishu' ? t('feishu_scan_loading') : provider === 'wechat_group' ? t('wechat_group_scan_loading') : t('weixin_scan_loading')}
           </div>
         )}
 
@@ -197,7 +252,11 @@ const QrLoginModal: React.FC<QrLoginModalProps> = ({ provider, onClose, onConnec
               <Check size={22} className="text-accent" />
             </div>
             <p className="text-sm font-medium text-accent">
-              {provider === 'weixin' ? t('weixin_scan_success') : t('feishu_scan_success')}
+              {provider === 'feishu'
+                ? t('feishu_scan_success')
+                : provider === 'wechat_group'
+                  ? t('wechat_group_scan_success')
+                  : t('weixin_scan_success')}
             </p>
           </div>
         )}

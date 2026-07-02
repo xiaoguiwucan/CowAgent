@@ -55,6 +55,9 @@ def create_channel(channel_type) -> Channel:
         from channel.weixin.weixin_channel import WeixinChannel
         ch = WeixinChannel()
         channel_type = const.WEIXIN
+    elif channel_type == const.WECHAT_GROUP:
+        from channel.wechat_group.wechat_group_channel import WechatGroupChannel
+        ch = WechatGroupChannel()
     else:
         raise RuntimeError
     ch.channel_type = channel_type

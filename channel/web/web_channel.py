@@ -19,6 +19,11 @@ from bridge.context import *
 from bridge.reply import Reply, ReplyType
 from channel.chat_channel import ChatChannel, check_prefix
 from channel.chat_message import ChatMessage
+from channel.wechat_group.wechat_group_persona import (
+    get_wechat_group_persona_config,
+    normalize_wechat_group_persona_prompt,
+    resolve_wechat_group_persona_preset_id,
+)
 from collections import OrderedDict
 from common import const
 from common import i18n
@@ -1251,6 +1256,7 @@ class WebChannel(ChatChannel):
             '/api/models', 'ModelsHandler',
             '/api/channels', 'ChannelsHandler',
             '/api/weixin/qrlogin', 'WeixinQrHandler',
+            '/api/wechat_group/qrlogin', 'WechatGroupQrHandler',
             '/api/feishu/register', 'FeishuRegisterHandler',
             '/api/tools', 'ToolsHandler',
             '/api/skills', 'SkillsHandler',
@@ -3516,6 +3522,12 @@ class ChannelsHandler:
             "color": "emerald",
             "fields": [],
         }),
+        ("wechat_group", {
+            "label": {"zh": "个人微信群", "en": "WeChat Groups"},
+            "icon": "fa-comments",
+            "color": "emerald",
+            "fields": [],
+        }),
         ("feishu", {
             "label": {"zh": "飞书", "en": "Feishu"},
             "icon": "fa-paper-plane",
@@ -3631,6 +3643,20 @@ class ChannelsHandler:
         return "unknown"
 
     @staticmethod
+    def _get_channel_status(channel_name: str) -> str:
+        try:
+            import sys
+            app_module = sys.modules.get('__main__') or sys.modules.get('app')
+            mgr = getattr(app_module, '_channel_mgr', None) if app_module else None
+            if mgr:
+                ch = mgr.get_channel(channel_name)
+                if ch and hasattr(ch, 'status'):
+                    return ch.status
+        except Exception:
+            pass
+        return "unknown"
+
+    @staticmethod
     def _mask_secret(value: str) -> str:
         if not value or len(value) <= 8:
             return value
@@ -3647,6 +3673,88 @@ class ChannelsHandler:
     @classmethod
     def _active_channel_set(cls) -> set:
         return set(cls._parse_channel_list(conf().get("channel_type", "")))
+
+    @staticmethod
+    def _get_running_wechat_group_channel():
+        try:
+            import sys
+            app_module = sys.modules.get('__main__') or sys.modules.get('app')
+            mgr = getattr(app_module, '_channel_mgr', None) if app_module else None
+            if mgr:
+                return mgr.get_channel("wechat_group")
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _normalize_string_list(value) -> list:
+        if isinstance(value, list):
+            raw = value
+        else:
+            raw = re.split(r"[，,;；\n\r\t ]+", str(value or ""))
+        return list(dict.fromkeys(str(item or "").strip() for item in raw if str(item or "").strip()))
+
+    @classmethod
+    def _wechat_group_extra(cls) -> dict:
+        running_ch = cls._get_running_wechat_group_channel()
+        rooms = getattr(running_ch, "rooms", []) if running_ch else []
+        persona = get_wechat_group_persona_config()
+        return {
+            "rooms": rooms if isinstance(rooms, list) else [],
+            "selected_room_ids": conf().get("wechat_group_room_ids", []) or [],
+            "selected_room_names": conf().get("wechat_group_names", []) or [],
+            "persona": {
+                "preset_id": persona["preset_id"],
+                "prompt": persona["prompt"],
+                "max_length": persona["max_length"],
+            },
+            "persona_presets": persona["presets"],
+        }
+
+    @classmethod
+    def _apply_wechat_group_config(cls, updates: dict) -> dict:
+        allowed_keys = {
+            "wechat_group_room_ids",
+            "wechat_group_names",
+            "wechat_group_persona_prompt",
+            "wechat_group_persona_preset_id",
+        }
+        local_config = conf()
+        applied = {}
+        for key in allowed_keys:
+            if key not in updates:
+                continue
+            value = updates.get(key)
+            if key in ("wechat_group_room_ids", "wechat_group_names"):
+                value = cls._normalize_string_list(value)
+            elif key == "wechat_group_persona_prompt":
+                value = normalize_wechat_group_persona_prompt(value)
+            elif key == "wechat_group_persona_preset_id":
+                value = str(value or "").strip()
+            local_config[key] = value
+            applied[key] = value
+
+        if "wechat_group_persona_prompt" in applied:
+            preset_id = resolve_wechat_group_persona_preset_id(
+                applied["wechat_group_persona_prompt"],
+                applied.get("wechat_group_persona_preset_id") or local_config.get("wechat_group_persona_preset_id", ""),
+            )
+            local_config["wechat_group_persona_preset_id"] = preset_id
+            applied["wechat_group_persona_preset_id"] = preset_id
+
+        return applied
+
+    @staticmethod
+    def _write_channel_config(applied: dict) -> None:
+        config_path = os.path.join(get_data_root(), "config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                file_cfg = json.load(f)
+        else:
+            file_cfg = {}
+        file_cfg.update(applied)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(file_cfg, f, indent=4, ensure_ascii=False)
 
     def GET(self):
         _require_auth()
@@ -3684,6 +3792,10 @@ class ChannelsHandler:
                 }
                 if ch_name == "weixin" and ch_name in active_channels:
                     ch_info["login_status"] = self._get_weixin_login_status()
+                if ch_name == "wechat_group" and ch_name in active_channels:
+                    ch_info["login_status"] = self._get_channel_status("wechat_group")
+                if ch_name == "wechat_group":
+                    ch_info["extra"] = self._wechat_group_extra()
                 channels.append(ch_info)
             return json.dumps({"status": "success", "channels": channels}, ensure_ascii=False)
         except Exception as e:
@@ -3717,6 +3829,18 @@ class ChannelsHandler:
             return json.dumps({"status": "error", "message": str(e)})
 
     def _handle_save(self, channel_name: str, updates: dict):
+        if channel_name == "wechat_group":
+            applied = self._apply_wechat_group_config(updates)
+            if not applied:
+                return json.dumps({"status": "error", "message": "no valid fields to update"})
+            self._write_channel_config(applied)
+            return json.dumps({
+                "status": "success",
+                "applied": list(applied.keys()),
+                "restarted": False,
+                "extra": self._wechat_group_extra(),
+            }, ensure_ascii=False)
+
         ch_def = self.CHANNEL_DEFS[channel_name]
         valid_keys = {f["key"] for f in ch_def["fields"]}
         secret_keys = {f["key"] for f in ch_def["fields"] if f["type"] == "secret"}
@@ -3741,15 +3865,7 @@ class ChannelsHandler:
         if not applied:
             return json.dumps({"status": "error", "message": "no valid fields to update"})
 
-        config_path = os.path.join(get_data_root(), "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                file_cfg = json.load(f)
-        else:
-            file_cfg = {}
-        file_cfg.update(applied)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(file_cfg, f, indent=4, ensure_ascii=False)
+        self._write_channel_config(applied)
 
         logger.info(f"[WebChannel] Channel '{channel_name}' config updated: {list(applied.keys())}")
 
@@ -3790,6 +3906,8 @@ class ChannelsHandler:
 
         local_config = conf()
         applied = {}
+        if channel_name == "wechat_group":
+            applied.update(self._apply_wechat_group_config(updates))
         for key, value in updates.items():
             if key not in valid_keys:
                 continue
@@ -3811,16 +3929,8 @@ class ChannelsHandler:
         new_channel_type = ",".join(existing)
         local_config["channel_type"] = new_channel_type
 
-        config_path = os.path.join(get_data_root(), "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                file_cfg = json.load(f)
-        else:
-            file_cfg = {}
-        file_cfg.update(applied)
-        file_cfg["channel_type"] = new_channel_type
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(file_cfg, f, indent=4, ensure_ascii=False)
+        applied["channel_type"] = new_channel_type
+        self._write_channel_config(applied)
 
         logger.info(f"[WebChannel] Channel '{channel_name}' connecting, channel_type={new_channel_type}")
 
@@ -4051,6 +4161,72 @@ class WeixinQrHandler:
             })
 
         return json.dumps({"status": "success", "qr_status": qr_status})
+
+
+class WechatGroupQrHandler:
+    """Expose Wechaty sidecar QR status for the channel management UI."""
+
+    @staticmethod
+    def _qr_to_data_uri(data: str) -> str:
+        return WeixinQrHandler._qr_to_data_uri(data)
+
+    @staticmethod
+    def _get_running_channel():
+        try:
+            import sys
+            app_module = sys.modules.get('__main__') or sys.modules.get('app')
+            mgr = getattr(app_module, '_channel_mgr', None) if app_module else None
+            if mgr:
+                return mgr.get_channel("wechat_group")
+        except Exception:
+            pass
+        return None
+
+    def GET(self):
+        _require_auth()
+        web.header('Content-Type', 'application/json; charset=utf-8')
+        try:
+            running_ch = self._get_running_channel()
+            if not running_ch:
+                return json.dumps({
+                    "status": "success",
+                    "login_status": "idle",
+                    "message": "wechat_group channel is not running",
+                }, ensure_ascii=False)
+
+            qr_code = getattr(running_ch, "qr_code", "") or ""
+            login_status = getattr(running_ch, "status", "unknown")
+            result = {
+                "status": "success",
+                "login_status": login_status,
+                "rooms": getattr(running_ch, "rooms", []) or [],
+                "extra": ChannelsHandler._wechat_group_extra(),
+            }
+            if qr_code:
+                result["qrcode_url"] = qr_code
+                result["qr_image"] = self._qr_to_data_uri(qr_code)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupQr GET error: {e}")
+            return json.dumps({"status": "error", "message": str(e)})
+
+    def POST(self):
+        _require_auth()
+        web.header('Content-Type', 'application/json; charset=utf-8')
+        try:
+            body = json.loads(web.data())
+            action = body.get("action", "poll")
+            if action == "refresh":
+                running_ch = self._get_running_channel()
+                if running_ch and hasattr(running_ch, "refresh_rooms"):
+                    running_ch.refresh_rooms()
+                return self.GET()
+            if action == "poll":
+                return self.GET()
+            return json.dumps({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupQr POST error: {e}")
+            return json.dumps({"status": "error", "message": str(e)})
 
 
 class FeishuRegisterHandler:

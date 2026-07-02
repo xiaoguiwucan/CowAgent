@@ -173,6 +173,28 @@ const I18N = {
         weixin_scan_scanned: '已扫码，请在手机上确认', weixin_scan_expired: '二维码已过期，正在刷新...',
         weixin_scan_success: '登录成功，正在启动通道...', weixin_scan_fail: '获取二维码失败',
         weixin_qr_tip: '二维码约2分钟后过期',
+        wechat_group_scan_title: '个人微信群扫码登录', wechat_group_scan_desc: '请使用微信扫描下方二维码登录微信群通道',
+        wechat_group_scan_loading: '正在启动微信群通道...', wechat_group_scan_success: '微信群通道已连接',
+        wechat_group_scan_fail: '启动微信群通道失败', wechat_group_qr_tip: '扫码后将在群聊中响应 @ 消息',
+        wechat_group_rooms_title: '目标群',
+        wechat_group_rooms_hint: '优先按 room ID 精确限制，群名只作为兜底。',
+        wechat_group_rooms_refresh: '刷新群列表',
+        wechat_group_rooms_empty: '登录后刷新群列表，或先填写群名兜底。',
+        wechat_group_room_names_label: '群名兜底',
+        wechat_group_room_names_placeholder: '每行一个群名',
+        wechat_group_rooms_refreshed: '群列表已刷新',
+        wechat_group_rooms_refresh_failed: '刷新群列表失败',
+        wechat_group_persona_title: '人设设定',
+        wechat_group_persona_hint: '点击预设只填入文本，保存后才生效。',
+        wechat_group_persona_active: '当前生效',
+        wechat_group_persona_custom: '自定义',
+        wechat_group_persona_dirty: '有未保存修改',
+        wechat_group_persona_clean: '已生效',
+        wechat_group_persona_prompt_label: '人设提示词',
+        wechat_group_persona_prompt_placeholder: '输入微信群回复的身份、语气、风格和边界',
+        wechat_group_persona_boundary: '人设不能绕过安全守卫、群限制和管理员权限。',
+        wechat_group_settings_save: '保存并生效',
+        wechat_group_settings_saved: '已保存并生效',
         wecom_scan_btn: '扫码创建企微机器人', wecom_scan_desc: '使用企业微信扫码，一键创建智能机器人',
         wecom_scan_success: '创建成功，正在启动通道...',
         wecom_scan_fail: '创建失败',
@@ -417,6 +439,28 @@ const I18N = {
         weixin_scan_scanned: 'Scanned, please confirm on your phone', weixin_scan_expired: 'QR code expired, refreshing...',
         weixin_scan_success: 'Login successful, starting channel...', weixin_scan_fail: 'Failed to load QR code',
         weixin_qr_tip: 'QR code expires in ~2 minutes',
+        wechat_group_scan_title: 'WeChat Groups QR Login', wechat_group_scan_desc: 'Scan the QR code below with WeChat to connect the group channel',
+        wechat_group_scan_loading: 'Starting WeChat group channel...', wechat_group_scan_success: 'WeChat group channel connected',
+        wechat_group_scan_fail: 'Failed to start WeChat group channel', wechat_group_qr_tip: 'Replies to @ messages in groups after login',
+        wechat_group_rooms_title: 'Target groups',
+        wechat_group_rooms_hint: 'Room IDs are preferred; names are fallback matching.',
+        wechat_group_rooms_refresh: 'Refresh groups',
+        wechat_group_rooms_empty: 'Refresh after login, or enter fallback group names first.',
+        wechat_group_room_names_label: 'Fallback group names',
+        wechat_group_room_names_placeholder: 'One group name per line',
+        wechat_group_rooms_refreshed: 'Group list refreshed',
+        wechat_group_rooms_refresh_failed: 'Failed to refresh groups',
+        wechat_group_persona_title: 'Persona',
+        wechat_group_persona_hint: 'Selecting a preset only fills the editor; save to apply it.',
+        wechat_group_persona_active: 'Active',
+        wechat_group_persona_custom: 'Custom',
+        wechat_group_persona_dirty: 'Unsaved changes',
+        wechat_group_persona_clean: 'Applied',
+        wechat_group_persona_prompt_label: 'Persona prompt',
+        wechat_group_persona_prompt_placeholder: 'Describe identity, tone, style, and boundaries for group replies',
+        wechat_group_persona_boundary: 'Persona cannot bypass guards, group limits, or admin permissions.',
+        wechat_group_settings_save: 'Save and apply',
+        wechat_group_settings_saved: 'Saved and applied',
         wecom_scan_btn: 'Scan to Create WeCom Bot', wecom_scan_desc: 'Scan with WeCom to create a bot instantly',
         wecom_scan_success: 'Bot created, starting channel...',
         wecom_scan_fail: 'Bot creation failed',
@@ -6582,6 +6626,7 @@ function renderActiveChannels() {
         const wecomNeedsCreds = ch.name === 'wecom_bot' && !_wecomBotHasCreds(ch);
         // 飞书 active 卡片渲染带 Tab 的 panel：手动填写 + 扫码重建（覆盖现有配置）
         const isFeishu = ch.name === 'feishu';
+        const isWechatGroup = ch.name === 'wechat_group';
         let statusDot, statusText;
         if (weixinWaiting) {
             statusDot = 'bg-amber-400 animate-pulse';
@@ -6642,7 +6687,8 @@ function renderActiveChannels() {
                                cursor-pointer transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                         id="ch-save-${ch.name}">${t('channels_save')}</button>
                 </div>
-            </div>` : '')}`;
+            </div>` : '')}
+            ${isWechatGroup ? buildWechatGroupSettingsPanel(ch) : ''}`;
 
         container.appendChild(card);
         bindSecretFieldEvents(card);
@@ -6651,6 +6697,179 @@ function renderActiveChannels() {
             startWeixinActiveStatusPoll();
         }
     });
+}
+
+function splitWechatGroupLines(value) {
+    return String(value || '')
+        .split(/\r?\n/)
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function getWechatGroupDraftPresetId(ch) {
+    const prompt = document.getElementById('wechat-group-persona-prompt')?.value || '';
+    const presets = ch?.extra?.persona_presets || [];
+    const matched = presets.find(preset => String(preset.prompt || '') === prompt);
+    return matched ? matched.id : 'custom';
+}
+
+function buildWechatGroupSettingsPanel(ch) {
+    const extra = ch.extra || {};
+    const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
+    const selectedIds = new Set(extra.selected_room_ids || []);
+    const selectedNames = Array.isArray(extra.selected_room_names) ? extra.selected_room_names : [];
+    const persona = extra.persona || {};
+    const presets = Array.isArray(extra.persona_presets) ? extra.persona_presets : [];
+    const activePreset = presets.find(preset => preset.id === persona.preset_id);
+    const maxLength = Number(persona.max_length || 6000);
+    const roomsHtml = rooms.length ? rooms.map(room => {
+        const id = String(room.id || '');
+        const name = String(room.name || id);
+        const checked = selectedIds.has(id) ? 'checked' : '';
+        return `<label class="flex items-start gap-2 rounded-lg px-2 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer">
+            <input type="checkbox" class="mt-1 accent-primary-500" data-wechat-group-room-id="${escapeHtml(id)}" ${checked}>
+            <span class="min-w-0">
+                <span class="block text-slate-800 dark:text-slate-100 break-words">${escapeHtml(name)}</span>
+                <span class="block text-xs text-slate-400 dark:text-slate-500 font-mono break-all">${escapeHtml(id)}</span>
+            </span>
+        </label>`;
+    }).join('') : `<p class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_rooms_empty')}</p>`;
+    const presetHtml = presets.map(preset => {
+        const active = String(preset.prompt || '') === String(persona.prompt || '');
+        return `<button type="button" onclick="applyWechatGroupPersonaPreset('${escapeHtml(preset.id || '')}')"
+            class="text-left rounded-lg border px-3 py-2 transition-colors cursor-pointer ${active ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300' : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:border-primary-300'}">
+            <span class="flex items-center gap-1.5 text-sm font-medium">${escapeHtml(preset.name || preset.id || '')}${preset.badge ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-white/70 dark:bg-white/10 text-slate-500 dark:text-slate-400">${escapeHtml(preset.badge)}</span>` : ''}</span>
+            ${preset.summary ? `<span class="block text-xs text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">${escapeHtml(preset.summary)}</span>` : ''}
+        </button>`;
+    }).join('');
+    return `<div class="mt-5 pt-5 border-t border-slate-200 dark:border-white/10 space-y-5" id="wechat-group-settings-panel">
+        <div class="space-y-3">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('wechat_group_rooms_title')}</h4>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${t('wechat_group_rooms_hint')}</p>
+                </div>
+                <button type="button" onclick="refreshWechatGroupRooms()"
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
+                    <i class="fas fa-rotate-right mr-1"></i>${t('wechat_group_rooms_refresh')}
+                </button>
+            </div>
+            <div class="max-h-44 overflow-y-auto rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-1.5 space-y-1">${roomsHtml}</div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('wechat_group_room_names_label')}</label>
+                <textarea id="wechat-group-room-names" rows="2"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-white/5 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors resize-y"
+                    placeholder="${escapeHtml(t('wechat_group_room_names_placeholder'))}">${escapeHtml(selectedNames.join('\n'))}</textarea>
+            </div>
+        </div>
+        <div class="space-y-3">
+            <div>
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('wechat_group_persona_title')}</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${t('wechat_group_persona_hint')}</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2" id="wechat-group-persona-presets">${presetHtml}</div>
+            <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                ${t('wechat_group_persona_active')}: <span class="text-slate-800 dark:text-slate-100">${escapeHtml(activePreset?.name || t('wechat_group_persona_custom'))}</span>
+                <span id="wechat-group-persona-dirty" class="ml-2 text-primary-500">${t('wechat_group_persona_clean')}</span>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('wechat_group_persona_prompt_label')}</label>
+                <textarea id="wechat-group-persona-prompt" rows="7" maxlength="${maxLength}"
+                    oninput="markWechatGroupPersonaDirty()"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-white/5 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y"
+                    placeholder="${escapeHtml(t('wechat_group_persona_prompt_placeholder'))}">${escapeHtml(persona.prompt || '')}</textarea>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1"><span id="wechat-group-persona-count">${String(persona.prompt || '').length}</span>/${maxLength} · ${t('wechat_group_persona_boundary')}</p>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-3">
+            <span id="ch-status-wechat_group" class="text-xs text-primary-500 opacity-0 transition-opacity duration-300"></span>
+            <button type="button" id="ch-save-wechat-group-extra" onclick="saveWechatGroupSettings()"
+                class="px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium cursor-pointer transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed">
+                ${t('wechat_group_settings_save')}
+            </button>
+        </div>
+    </div>`;
+}
+
+function applyWechatGroupPersonaPreset(presetId) {
+    const ch = channelsData.find(item => item.name === 'wechat_group');
+    const preset = (ch?.extra?.persona_presets || []).find(item => item.id === presetId);
+    const textarea = document.getElementById('wechat-group-persona-prompt');
+    if (!preset || !textarea) return;
+    textarea.value = preset.prompt || '';
+    markWechatGroupPersonaDirty();
+}
+
+function markWechatGroupPersonaDirty() {
+    const ch = channelsData.find(item => item.name === 'wechat_group');
+    const textarea = document.getElementById('wechat-group-persona-prompt');
+    const counter = document.getElementById('wechat-group-persona-count');
+    const dirty = document.getElementById('wechat-group-persona-dirty');
+    if (counter && textarea) counter.textContent = String(textarea.value.length);
+    if (dirty && ch) {
+        const savedPrompt = ch.extra?.persona?.prompt || '';
+        dirty.textContent = textarea && textarea.value !== savedPrompt ? t('wechat_group_persona_dirty') : t('wechat_group_persona_clean');
+        dirty.classList.toggle('text-amber-500', textarea && textarea.value !== savedPrompt);
+        dirty.classList.toggle('text-primary-500', !(textarea && textarea.value !== savedPrompt));
+    }
+}
+
+function refreshWechatGroupRooms() {
+    fetch('/api/wechat_group/qrlogin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status !== 'success') {
+            showChannelStatus('wechat_group', 'wechat_group_rooms_refresh_failed', true);
+            return;
+        }
+        const ch = channelsData.find(item => item.name === 'wechat_group');
+        if (ch) {
+            ch.extra = data.extra || ch.extra || {};
+            ch.extra.rooms = data.rooms || ch.extra.rooms || [];
+        }
+        showChannelStatus('wechat_group', 'wechat_group_rooms_refreshed', false);
+        renderActiveChannels();
+    })
+    .catch(() => showChannelStatus('wechat_group', 'wechat_group_rooms_refresh_failed', true));
+}
+
+function saveWechatGroupSettings() {
+    const ch = channelsData.find(item => item.name === 'wechat_group');
+    if (!ch) return;
+    const btn = document.getElementById('ch-save-wechat-group-extra');
+    const prompt = document.getElementById('wechat-group-persona-prompt')?.value || '';
+    const selectedIds = Array.from(document.querySelectorAll('[data-wechat-group-room-id]:checked')).map(el => el.dataset.wechatGroupRoomId).filter(Boolean);
+    const selectedNames = splitWechatGroupLines(document.getElementById('wechat-group-room-names')?.value || '');
+    if (btn) btn.disabled = true;
+    fetch('/api/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'save',
+            channel: 'wechat_group',
+            config: {
+                wechat_group_room_ids: selectedIds,
+                wechat_group_names: selectedNames,
+                wechat_group_persona_prompt: prompt,
+                wechat_group_persona_preset_id: getWechatGroupDraftPresetId(ch),
+            },
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showChannelStatus('wechat_group', 'wechat_group_settings_saved', false);
+            loadChannelsView();
+        } else {
+            showChannelStatus('wechat_group', 'channels_save_error', true);
+        }
+    })
+    .catch(() => showChannelStatus('wechat_group', 'channels_save_error', true))
+    .finally(() => { if (btn) btn.disabled = false; });
 }
 
 function buildChannelFieldsHtml(chName, fields) {
@@ -6861,13 +7080,17 @@ function onAddChannelSelect(chName) {
         return;
     }
 
-    if (chName === 'weixin') {
+    if (chName === 'weixin' || chName === 'wechat_group') {
         actions.classList.add('hidden');
         fieldsContainer.innerHTML = `
             <div id="weixin-qr-panel" class="flex flex-col items-center py-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">${t('weixin_scan_loading')}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">${t(chName === 'wechat_group' ? 'wechat_group_scan_loading' : 'weixin_scan_loading')}</p>
             </div>`;
-        startWeixinQrLogin();
+        if (chName === 'wechat_group') {
+            startWechatGroupQrLogin();
+        } else {
+            startWeixinQrLogin();
+        }
         return;
     }
 
@@ -7104,6 +7327,80 @@ function connectWeixinAfterQr() {
         }
     })
     .catch(() => {});
+}
+
+function startWechatGroupQrLogin() {
+    stopWeixinQrPoll();
+    fetch('/api/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'connect', channel: 'wechat_group', config: {} })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status !== 'success') {
+            const panel = document.getElementById('weixin-qr-panel');
+            if (panel) panel.innerHTML = `<p class="text-sm text-red-500">${t('wechat_group_scan_fail')}: ${data.message || ''}</p>`;
+            return;
+        }
+        pollWechatGroupQrStatus(true);
+    })
+    .catch(() => {
+        const panel = document.getElementById('weixin-qr-panel');
+        if (panel) panel.innerHTML = `<p class="text-sm text-red-500">${t('wechat_group_scan_fail')}</p>`;
+    });
+}
+
+function renderWechatGroupQr(qrcodeUrl, status) {
+    const panel = document.getElementById('weixin-qr-panel');
+    if (!panel) return;
+
+    let statusText = t('weixin_scan_waiting');
+    let statusColor = 'text-slate-500 dark:text-slate-400';
+    if (status === 'connected') {
+        statusText = t('wechat_group_scan_success');
+        statusColor = 'text-primary-500';
+    }
+
+    panel.innerHTML = `
+        <div class="flex flex-col items-center">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">${t('wechat_group_scan_title')}</p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">${t('wechat_group_scan_desc')}</p>
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 mb-3">
+                <img src="${escapeHtml(qrcodeUrl || '')}" alt="QR Code" class="w-52 h-52" style="image-rendering: pixelated;"/>
+            </div>
+            <p class="text-xs ${statusColor} mb-1">${statusText}</p>
+            <p class="text-xs text-slate-400 dark:text-slate-500">${t('wechat_group_qr_tip')}</p>
+        </div>`;
+}
+
+function pollWechatGroupQrStatus(immediate) {
+    _weixinQrPollTimer = setTimeout(() => {
+        fetch('/api/wechat_group/qrlogin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'poll' })
+        })
+        .then(r => r.json())
+        .then(data => {
+            const panel = document.getElementById('weixin-qr-panel');
+            if (!panel) { stopWeixinQrPoll(); return; }
+            if (data.status !== 'success') {
+                pollWechatGroupQrStatus(false);
+                return;
+            }
+            if (data.login_status === 'connected' || data.login_status === 'logged_in') {
+                renderWechatGroupQr(data.qr_image || data.qrcode_url || '', 'connected');
+                setTimeout(() => loadChannelsView(), 1200);
+            } else {
+                if (data.qr_image || data.qrcode_url) {
+                    renderWechatGroupQr(data.qr_image || data.qrcode_url, 'waiting');
+                }
+                pollWechatGroupQrStatus(false);
+            }
+        })
+        .catch(() => pollWechatGroupQrStatus(false));
+    }, immediate ? 0 : 2000);
 }
 
 // =====================================================================

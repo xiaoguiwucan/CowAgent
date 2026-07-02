@@ -343,6 +343,31 @@ export interface ChannelField {
   default?: string | number | boolean
 }
 
+export interface WechatGroupRoom {
+  id: string
+  name: string
+}
+
+export interface WechatGroupPersonaPreset {
+  id: string
+  name: string
+  badge?: string
+  summary?: string
+  prompt: string
+}
+
+export interface WechatGroupExtra {
+  rooms: WechatGroupRoom[]
+  selected_room_ids: string[]
+  selected_room_names: string[]
+  persona: {
+    preset_id: string
+    prompt: string
+    max_length: number
+  }
+  persona_presets: WechatGroupPersonaPreset[]
+}
+
 export interface ChannelInfo {
   name: string
   label: { zh: string; en: string }
@@ -351,6 +376,7 @@ export interface ChannelInfo {
   active: boolean
   fields: ChannelField[]
   login_status?: string
+  extra?: WechatGroupExtra
 }
 
 export type ChannelAction = 'save' | 'connect' | 'disconnect'

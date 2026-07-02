@@ -1,0 +1,11 @@
+{
+  "name": "cowagent-wechat-group-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "file-box": "^1.4.15",
+    "wechaty": "^1.20.2",
+    "wechaty-puppet-wechat4u": "^1.14.14"
+  }
+}

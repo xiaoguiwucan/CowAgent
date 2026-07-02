@@ -243,6 +243,25 @@ class ApiClient {
     })
   }
 
+  async getWechatGroupQr(): Promise<{
+    status: string
+    login_status?: string
+    qrcode_url?: string
+    qr_image?: string
+    rooms?: Array<{ id: string; name: string }>
+    extra?: ChannelInfo['extra']
+    message?: string
+  }> {
+    return this.request('/api/wechat_group/qrlogin')
+  }
+
+  async wechatGroupQrAction(action: 'poll' | 'refresh'): Promise<Record<string, unknown> & { status: string }> {
+    return this.request('/api/wechat_group/qrlogin', {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    })
+  }
+
   // Feishu one-click register
   async getFeishuRegister(): Promise<{ status: string; qrcode_url?: string; qr_image?: string; expire_in?: number; message?: string }> {
     return this.request('/api/feishu/register')
