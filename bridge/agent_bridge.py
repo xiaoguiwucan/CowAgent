@@ -540,6 +540,7 @@ class AgentBridge:
                     on_event=event_handler.handle_event,
                     clear_history=clear_history,
                     cancel_event=cancel_event,
+                    context=context,
                 )
             finally:
                 # Clear the mid-run flag so idle scans can review this session.

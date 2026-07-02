@@ -41,6 +41,13 @@ class WechatGroupWebTest(unittest.TestCase):
             "wechat_group_recent_context_enabled": conf().get("wechat_group_recent_context_enabled"),
             "wechat_group_recent_context_limit": conf().get("wechat_group_recent_context_limit"),
             "wechat_group_recent_context_minutes": conf().get("wechat_group_recent_context_minutes"),
+            "wechat_group_memory_auto_extract": conf().get("wechat_group_memory_auto_extract"),
+            "wechat_group_memory_auto_apply_threshold": conf().get("wechat_group_memory_auto_apply_threshold"),
+            "wechat_group_memory_candidate_threshold": conf().get("wechat_group_memory_candidate_threshold"),
+            "wechat_group_memory_distill_window_minutes": conf().get("wechat_group_memory_distill_window_minutes"),
+            "wechat_group_memory_distill_message_limit": conf().get("wechat_group_memory_distill_message_limit"),
+            "wechat_group_memory_auto_apply_group_enabled": conf().get("wechat_group_memory_auto_apply_group_enabled"),
+            "wechat_group_memory_auto_apply_member_enabled": conf().get("wechat_group_memory_auto_apply_member_enabled"),
         }
 
     def tearDown(self):
@@ -75,6 +82,18 @@ class WechatGroupWebTest(unittest.TestCase):
                 "minutes": 60,
             },
             item["extra"]["recent_context"],
+        )
+        self.assertEqual(
+            {
+                "enabled": False,
+                "auto_apply_threshold": 0.85,
+                "candidate_threshold": 0.55,
+                "window_minutes": 60,
+                "message_limit": 200,
+                "auto_apply_group_enabled": True,
+                "auto_apply_member_enabled": True,
+            },
+            item["extra"]["memory_auto_extract"],
         )
         self.assertEqual("owner-digital-twin", item["extra"]["persona"]["preset_id"])
 
@@ -115,6 +134,13 @@ class WechatGroupWebTest(unittest.TestCase):
                 "wechat_group_recent_context_enabled": False,
                 "wechat_group_recent_context_limit": "12",
                 "wechat_group_recent_context_minutes": "45",
+                "wechat_group_memory_auto_extract": True,
+                "wechat_group_memory_auto_apply_threshold": "0.9",
+                "wechat_group_memory_candidate_threshold": "0.6",
+                "wechat_group_memory_distill_window_minutes": "90",
+                "wechat_group_memory_distill_message_limit": "150",
+                "wechat_group_memory_auto_apply_group_enabled": False,
+                "wechat_group_memory_auto_apply_member_enabled": True,
             },
         }
         with tempfile.TemporaryDirectory() as tmpdir, \
@@ -131,6 +157,13 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertFalse(conf()["wechat_group_recent_context_enabled"])
         self.assertEqual(12, conf()["wechat_group_recent_context_limit"])
         self.assertEqual(45, conf()["wechat_group_recent_context_minutes"])
+        self.assertTrue(conf()["wechat_group_memory_auto_extract"])
+        self.assertEqual(0.9, conf()["wechat_group_memory_auto_apply_threshold"])
+        self.assertEqual(0.6, conf()["wechat_group_memory_candidate_threshold"])
+        self.assertEqual(90, conf()["wechat_group_memory_distill_window_minutes"])
+        self.assertEqual(150, conf()["wechat_group_memory_distill_message_limit"])
+        self.assertFalse(conf()["wechat_group_memory_auto_apply_group_enabled"])
+        self.assertTrue(conf()["wechat_group_memory_auto_apply_member_enabled"])
 
     def test_wechat_group_memory_preview_api_uses_service(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
@@ -192,6 +225,32 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual("room@@abc", fake.room_id)
         self.assertEqual(2, result["summary"]["group_memory_count"])
 
+    def test_wechat_group_memory_members_api_uses_archive(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeArchive:
+            def list_members(self, room_id, query="", limit=20):
+                self.args = (room_id, query, limit)
+                return [{
+                    "sender_id": "wxid_alice",
+                    "sender_nickname": "Alice",
+                    "last_seen_at": 1234,
+                    "message_count": 2,
+                }]
+
+        fake = FakeArchive()
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_archive", return_value=fake), \
+                patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(
+                    room_id="room@@abc", sender_id="", status="active", limit="5", offset="0", q="alice",
+                )):
+            result = json.loads(handler.GET("members"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual("wxid_alice", result["members"][0]["sender_id"])
+        self.assertEqual(("room@@abc", "alice", 5), fake.args)
+
     def test_wechat_group_memory_disable_api_uses_service(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
 
@@ -217,6 +276,115 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertTrue(result["disabled"])
         self.assertEqual("room@@abc", fake.room_id)
         self.assertEqual("chunk-1", fake.memory_id)
+
+    def test_wechat_group_distill_run_api_uses_distiller(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeDistiller:
+            async def run(self, **kwargs):
+                self.kwargs = kwargs
+                return {"status": "success", "run_id": "run-1"}
+
+        fake = FakeDistiller()
+        body = {
+            "room_id": "room@@abc",
+            "window_minutes": 30,
+            "limit": 50,
+            "force": True,
+        }
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_distiller", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")):
+            result = json.loads(handler.POST("distill/run"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual("run-1", result["run"]["run_id"])
+        self.assertEqual("room@@abc", fake.kwargs["room_id"])
+        self.assertEqual(30, fake.kwargs["window_minutes"])
+        self.assertEqual(50, fake.kwargs["limit"])
+        self.assertTrue(fake.kwargs["force"])
+
+    def test_wechat_group_distill_run_api_reports_disabled_status(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeDistiller:
+            async def run(self, **kwargs):
+                return {
+                    "status": "disabled",
+                    "run_id": "",
+                    "discarded_reasons": ["wechat_group_memory_auto_extract disabled"],
+                }
+
+        body = {"room_id": "room@@abc"}
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_distiller", return_value=FakeDistiller()), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")):
+            result = json.loads(handler.POST("distill/run"))
+
+        self.assertEqual("error", result["status"])
+        self.assertIn("auto_extract", result["message"])
+
+    def test_wechat_group_distill_candidates_api_uses_room_filter(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeDistiller:
+            def list_candidates(self, room_id, status=None, candidate_type=None, limit=20, offset=0):
+                self.args = (room_id, status, candidate_type, limit, offset)
+                return [{"candidate_id": "cand-1", "room_id": room_id}]
+
+        fake = FakeDistiller()
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_distiller", return_value=fake), \
+                patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(
+                    room_id="room@@abc", sender_id="", status="pending",
+                    candidate_type="group_memory", limit="5", offset="2", q="",
+                )):
+            result = json.loads(handler.GET("distill/candidates"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual([{"candidate_id": "cand-1", "room_id": "room@@abc"}], result["candidates"])
+        self.assertEqual(("room@@abc", "pending", "group_memory", 5, 2), fake.args)
+
+    def test_wechat_group_distill_approve_and_reject_api_use_distiller(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeDistiller:
+            async def approve_candidate(self, room_id, candidate_id):
+                self.approve_args = (room_id, candidate_id)
+                return {"candidate_id": candidate_id, "status": "approved"}
+
+            def reject_candidate(self, room_id, candidate_id, review_note=""):
+                self.reject_args = (room_id, candidate_id, review_note)
+                return {"candidate_id": candidate_id, "status": "rejected"}
+
+        fake = FakeDistiller()
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_distiller", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps({
+                    "room_id": "room@@abc",
+                    "candidate_id": "cand-1",
+                }).encode("utf-8")):
+            approved = json.loads(handler.POST("distill/candidates/approve"))
+
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_distiller", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps({
+                    "room_id": "room@@abc",
+                    "candidate_id": "cand-2",
+                    "review_note": "证据不足",
+                }).encode("utf-8")):
+            rejected = json.loads(handler.POST("distill/candidates/reject"))
+
+        self.assertEqual("success", approved["status"])
+        self.assertEqual("approved", approved["candidate"]["status"])
+        self.assertEqual(("room@@abc", "cand-1"), fake.approve_args)
+        self.assertEqual("success", rejected["status"])
+        self.assertEqual("rejected", rejected["candidate"]["status"])
+        self.assertEqual(("room@@abc", "cand-2", "证据不足"), fake.reject_args)
 
 
 if __name__ == "__main__":

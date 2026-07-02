@@ -205,6 +205,34 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertIsNotNone(context)
         self.assertEqual("room@@allowed", context["receiver"])
 
+    def test_wechat_group_scheduler_request_sets_scheduler_intent(self):
+        conf()["wechat_group_room_ids"] = ["room@@allowed"]
+        conf()["group_name_white_list"] = []
+        channel = WechatGroupChannel(client=FakeClient())
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot 每天12点在本群里面播报世界杯比赛结果",
+            from_user_id="room@@allowed",
+            other_user_id="room@@allowed",
+            other_user_nickname="Not In Whitelist",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+        )
+
+        context = channel._compose_context(
+            ContextType.TEXT,
+            msg.content,
+            isgroup=True,
+            msg=msg,
+        )
+
+        self.assertIsNotNone(context)
+        self.assertTrue(context["intent_requires_scheduler"])
+
     def test_send_text_reply_to_original_room_with_sender_mention(self):
         client = FakeClient()
         channel = WechatGroupChannel(client=client)

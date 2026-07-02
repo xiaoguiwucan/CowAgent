@@ -197,6 +197,7 @@ class ChatService:
             messages=messages_copy,
             max_context_turns=max_context_turns,
             cancel_event=cancel_event,
+            context=context,
         )
 
         try:

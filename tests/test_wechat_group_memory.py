@@ -71,6 +71,85 @@ class WechatGroupMemoryServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("测试负责人", preview["content"])
         self.assertNotIn('sender_id="wxid_bot"', preview["content"])
 
+    async def test_preview_injects_unique_profile_by_nickname_when_only_bot_is_mentioned(self):
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            role="提问人",
+            evidence="管理员手动维护",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_pink",
+            sender_nickname="粉嘟嘟.",
+            role="资源分享者",
+            preferences="偏好直接说明来意",
+            expertise="账号资源",
+            evidence="管理员手动维护",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="粉嘟嘟. 是什么人",
+            mentioned_sender_ids=["wxid_bot"],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertIn('[mentioned_profile sender_id="wxid_pink" matched_by="nickname"]', preview["content"])
+        self.assertIn("资源分享者", preview["content"])
+        self.assertEqual([], preview["filtered_reasons"])
+
+    async def test_preview_injects_unique_profile_by_nickname_when_at_list_is_empty(self):
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_pink",
+            sender_nickname="粉嘟嘟.",
+            role="资源分享者",
+            expertise="账号资源",
+            evidence="管理员手动维护",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="粉嘟嘟. 是什么人",
+            mentioned_sender_ids=[],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertIn('[mentioned_profile sender_id="wxid_pink" matched_by="nickname"]', preview["content"])
+        self.assertIn("资源分享者", preview["content"])
+
+    async def test_preview_skips_nickname_profile_when_match_is_ambiguous(self):
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_pink_1",
+            sender_nickname="粉嘟嘟.",
+            role="一号画像",
+            evidence="管理员手动维护",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_pink_2",
+            sender_nickname="粉嘟嘟.",
+            role="二号画像",
+            evidence="管理员手动维护",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="粉嘟嘟. 是什么人",
+            mentioned_sender_ids=["wxid_bot"],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertNotIn('[mentioned_profile sender_id="wxid_pink_1"', preview["content"])
+        self.assertNotIn('[mentioned_profile sender_id="wxid_pink_2"', preview["content"])
+        self.assertIn("nickname match ambiguous: 粉嘟嘟.", preview["filtered_reasons"])
+
     async def test_member_profile_update_records_revision_and_replaces_active_profile(self):
         await self.service.upsert_member_profile(
             room_id="room@@a",

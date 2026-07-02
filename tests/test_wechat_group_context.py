@@ -68,6 +68,57 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertEqual("room@@a", rows[0]["room_id"])
         self.assertEqual("A 群消息", rows[0]["text"])
 
+    def test_archive_lists_members_by_room_and_query(self):
+        archive = WechatGroupArchive(self.db_path)
+        archive.record_message(
+            message_id="room-a-1",
+            room_id="room@@a",
+            room_name="room a",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            message_type="text",
+            text="hello",
+            created_at=1000,
+        )
+        archive.record_message(
+            message_id="room-a-2",
+            room_id="room@@a",
+            room_name="room a",
+            sender_id="wxid_alice",
+            sender_nickname="Alice New",
+            message_type="text",
+            text="hello again",
+            created_at=1010,
+        )
+        archive.record_message(
+            message_id="room-a-3",
+            room_id="room@@a",
+            room_name="room a",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            message_type="text",
+            text="hello",
+            created_at=1005,
+        )
+        archive.record_message(
+            message_id="room-b-1",
+            room_id="room@@b",
+            room_name="room b",
+            sender_id="wxid_alice_other",
+            sender_nickname="Alice Other",
+            message_type="text",
+            text="other room",
+            created_at=1020,
+        )
+
+        rows = archive.list_members("room@@a", query="alice", limit=10)
+
+        self.assertEqual(1, len(rows))
+        self.assertEqual("wxid_alice", rows[0]["sender_id"])
+        self.assertEqual("Alice New", rows[0]["sender_nickname"])
+        self.assertEqual(2, rows[0]["message_count"])
+        self.assertEqual(1010, rows[0]["last_seen_at"])
+
     def test_wechat_group_channel_import_does_not_require_audio_converter(self):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")

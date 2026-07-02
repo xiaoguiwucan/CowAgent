@@ -381,7 +381,7 @@ class Agent:
         return action
 
     def run_stream(self, user_message: str, on_event=None, clear_history: bool = False,
-                   skill_filter=None, cancel_event=None) -> str:
+                   skill_filter=None, cancel_event=None, context=None) -> str:
         """
         Execute single agent task with streaming (based on tool-call)
 
@@ -448,6 +448,7 @@ class Agent:
             messages=messages_copy,  # Pass copied message history
             max_context_turns=max_context_turns,
             cancel_event=cancel_event,
+            context=context,
         )
 
         # Execute

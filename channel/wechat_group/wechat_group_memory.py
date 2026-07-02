@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import asyncio
-from typing import Dict, List, Optional
+import json
+from typing import Dict, List, Optional, Tuple
 
 from agent.memory.manager import MemoryManager
 from agent.memory.scope import MemoryScope
@@ -41,12 +41,14 @@ class WechatGroupMemoryService:
         content: str,
         source_message_ids: Optional[List[str]] = None,
         source_summary: str = "",
+        created_by: str = "ui",
     ) -> Dict:
         room_id = self._require_room(room_id)
         content = self._require_text("content", content)
         metadata = {
             "memory_type": "group_memory",
             "source_summary": source_summary,
+            "created_by": created_by,
         }
         await self.memory_manager.add_memory(
             content,
@@ -100,6 +102,8 @@ class WechatGroupMemoryService:
         boundaries: str = "",
         evidence: str = "",
         source_message_ids: Optional[List[str]] = None,
+        created_by: str = "ui",
+        merge_existing_fields: bool = False,
     ) -> Dict:
         room_id = self._require_room(room_id)
         sender_id = self._require_text("sender_id", sender_id)
@@ -111,12 +115,15 @@ class WechatGroupMemoryService:
             "boundaries": boundaries.strip(),
             "evidence": evidence.strip(),
         }
+        if merge_existing_fields:
+            fields = self._merge_existing_profile_fields(room_id, sender_id, fields)
         content = self._format_profile_content(sender_id, sender_nickname, fields)
         metadata = {
             "memory_type": "member_profile",
             "sender_id": sender_id,
             "sender_nickname": sender_nickname,
             "profile_fields": fields,
+            "created_by": created_by,
         }
         scope = MemoryScope.wechat_group_member_profile(room_id, sender_id)
         path = (
@@ -292,11 +299,13 @@ class WechatGroupMemoryService:
                 speaker_profile = speaker_rows[0]
                 sections.append(f"[speaker_profile sender_id=\"{sender_id}\"]\n{speaker_profile['content']}")
 
-            for mentioned_id in self._filtered_mentioned_ids(
+            mentioned_ids = self._filtered_mentioned_ids(
                 mentioned_sender_ids or [],
                 sender_id=sender_id,
                 bot_sender_id=bot_sender_id,
-            ):
+            )
+
+            for mentioned_id in mentioned_ids:
                 rows = await self.list_member_profiles(room_id, sender_id=mentioned_id, limit=1)
                 if rows:
                     profile = rows[0]
@@ -304,6 +313,21 @@ class WechatGroupMemoryService:
                     sections.append(f"[mentioned_profile sender_id=\"{mentioned_id}\"]\n{profile['content']}")
                 else:
                     filtered_reasons.append(f"no active profile: {mentioned_id}")
+
+            if not mentioned_ids:
+                nickname_matches, nickname_reasons = await self._match_profiles_by_query_nickname(
+                    room_id=room_id,
+                    query=query,
+                    excluded_sender_ids=self._excluded_mentioned_ids(sender_id, bot_sender_id),
+                )
+                filtered_reasons.extend(nickname_reasons)
+                for profile in nickname_matches:
+                    mentioned_profiles.append(profile)
+                    mentioned_id = profile["subject_id"]
+                    sections.append(
+                        f"[mentioned_profile sender_id=\"{mentioned_id}\" matched_by=\"nickname\"]\n"
+                        f"{profile['content']}"
+                    )
         else:
             filtered_reasons.append("member profile memory disabled")
 
@@ -369,6 +393,38 @@ class WechatGroupMemoryService:
             json.dumps(source_message_ids or [], ensure_ascii=False),
         ))
         self.memory_manager.storage.conn.commit()
+
+    def _merge_existing_profile_fields(
+        self,
+        room_id: str,
+        sender_id: str,
+        fields: Dict[str, str],
+    ) -> Dict[str, str]:
+        row = self.memory_manager.storage.conn.execute("""
+            SELECT metadata
+            FROM chunks
+            WHERE scope_type = 'wechat_group_member_profile'
+              AND scope_id = ?
+              AND channel_type = 'wechat_group'
+              AND subject_id = ?
+              AND status = 'active'
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """, (room_id, sender_id)).fetchone()
+        if not row:
+            return fields
+        try:
+            metadata = json.loads(row["metadata"] or "{}")
+            existing = metadata.get("profile_fields") or {}
+        except Exception:
+            existing = {}
+        merged = dict(existing)
+        for key, value in fields.items():
+            if value:
+                merged[key] = value
+        for key in ("role", "preferences", "expertise", "interaction_style", "boundaries", "evidence"):
+            merged.setdefault(key, "")
+        return merged
 
     def _count_chunks(self, scope_type: str, room_id: Optional[str], status: str) -> int:
         params = [scope_type, "wechat_group", status]
@@ -438,15 +494,61 @@ class WechatGroupMemoryService:
         bot_sender_id: Optional[str],
     ) -> List[str]:
         result = []
-        excluded = {sender_id}
-        if bot_sender_id:
-            excluded.add(bot_sender_id)
+        excluded = WechatGroupMemoryService._excluded_mentioned_ids(sender_id, bot_sender_id)
         for item in mentioned_sender_ids:
             item = (item or "").strip()
             if not item or item in excluded or item in result:
                 continue
             result.append(item)
         return result
+
+    async def _match_profiles_by_query_nickname(
+        self,
+        room_id: str,
+        query: str,
+        excluded_sender_ids: set,
+    ) -> Tuple[List[Dict], List[str]]:
+        query_text = self._normalize_lookup_text(query)
+        if not query_text:
+            return [], []
+        profiles = await self.list_member_profiles(room_id, limit=200)
+        matched_by_nickname: Dict[str, List[Dict]] = {}
+        for profile in profiles:
+            sender_id = (profile.get("subject_id") or "").strip()
+            if not sender_id or sender_id in excluded_sender_ids:
+                continue
+            nickname = self._profile_nickname(profile)
+            nickname_key = self._normalize_lookup_text(nickname)
+            if len(nickname_key) < 2 or nickname_key not in query_text:
+                continue
+            matched_by_nickname.setdefault(nickname, []).append(profile)
+
+        matches = []
+        reasons = []
+        for nickname, items in matched_by_nickname.items():
+            if len(items) == 1:
+                matches.append(items[0])
+            else:
+                reasons.append(f"nickname match ambiguous: {nickname}")
+        if not matches and not reasons:
+            reasons.append("nickname match not found")
+        return matches, reasons
+
+    @staticmethod
+    def _excluded_mentioned_ids(sender_id: str, bot_sender_id: Optional[str]) -> set:
+        excluded = {(sender_id or "").strip()}
+        if bot_sender_id:
+            excluded.add(bot_sender_id.strip())
+        return {item for item in excluded if item}
+
+    @staticmethod
+    def _profile_nickname(profile: Dict) -> str:
+        metadata = profile.get("metadata") or {}
+        return str(metadata.get("sender_nickname") or "").strip()
+
+    @staticmethod
+    def _normalize_lookup_text(value: str) -> str:
+        return "".join(str(value or "").strip().lower().split())
 
     @staticmethod
     def _result_to_dict(result) -> Dict:

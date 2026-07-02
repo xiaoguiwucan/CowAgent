@@ -19,6 +19,7 @@ from common.expired_dict import ExpiredDict
 from common.log import logger
 from config import conf
 from agent.memory.manager import MemoryManager
+from agent.protocol.agent_stream import looks_like_scheduler_request
 
 
 class WechatGroupChannel(ChatChannel):
@@ -115,6 +116,8 @@ class WechatGroupChannel(ChatChannel):
         msg = context.get("msg")
         if not msg or not getattr(msg, "is_group", False):
             return context
+        if looks_like_scheduler_request(context.content):
+            context["intent_requires_scheduler"] = True
         self._record_inbound_message(msg)
         blocks = []
         if should_skip_persona_for_message(msg):

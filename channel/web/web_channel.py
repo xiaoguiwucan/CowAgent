@@ -3724,6 +3724,15 @@ class ChannelsHandler:
                 "limit": conf().get("wechat_group_recent_context_limit", 20),
                 "minutes": conf().get("wechat_group_recent_context_minutes", 60),
             },
+            "memory_auto_extract": {
+                "enabled": conf().get("wechat_group_memory_auto_extract", False),
+                "auto_apply_threshold": conf().get("wechat_group_memory_auto_apply_threshold", 0.85),
+                "candidate_threshold": conf().get("wechat_group_memory_candidate_threshold", 0.55),
+                "window_minutes": conf().get("wechat_group_memory_distill_window_minutes", 60),
+                "message_limit": conf().get("wechat_group_memory_distill_message_limit", 200),
+                "auto_apply_group_enabled": conf().get("wechat_group_memory_auto_apply_group_enabled", True),
+                "auto_apply_member_enabled": conf().get("wechat_group_memory_auto_apply_member_enabled", True),
+            },
         }
 
     @classmethod
@@ -3736,6 +3745,13 @@ class ChannelsHandler:
             "wechat_group_recent_context_enabled",
             "wechat_group_recent_context_limit",
             "wechat_group_recent_context_minutes",
+            "wechat_group_memory_auto_extract",
+            "wechat_group_memory_auto_apply_threshold",
+            "wechat_group_memory_candidate_threshold",
+            "wechat_group_memory_distill_window_minutes",
+            "wechat_group_memory_distill_message_limit",
+            "wechat_group_memory_auto_apply_group_enabled",
+            "wechat_group_memory_auto_apply_member_enabled",
         }
         local_config = conf()
         applied = {}
@@ -3749,12 +3765,26 @@ class ChannelsHandler:
                 value = normalize_wechat_group_persona_prompt(value)
             elif key == "wechat_group_persona_preset_id":
                 value = str(value or "").strip()
-            elif key == "wechat_group_recent_context_enabled":
+            elif key in (
+                "wechat_group_recent_context_enabled",
+                "wechat_group_memory_auto_extract",
+                "wechat_group_memory_auto_apply_group_enabled",
+                "wechat_group_memory_auto_apply_member_enabled",
+            ):
                 value = cls._normalize_bool(value)
             elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
                 value = max(1, int(value))
+            elif key in ("wechat_group_memory_distill_window_minutes", "wechat_group_memory_distill_message_limit"):
+                value = max(1, int(value))
+            elif key in ("wechat_group_memory_auto_apply_threshold", "wechat_group_memory_candidate_threshold"):
+                value = min(max(float(value), 0.0), 1.0)
             local_config[key] = value
             applied[key] = value
+
+        auto_threshold = local_config.get("wechat_group_memory_auto_apply_threshold", 0.85)
+        candidate_threshold = local_config.get("wechat_group_memory_candidate_threshold", 0.55)
+        if float(auto_threshold) <= float(candidate_threshold):
+            raise ValueError("wechat_group_memory_auto_apply_threshold must be greater than candidate threshold")
 
         if "wechat_group_persona_prompt" in applied:
             preset_id = resolve_wechat_group_persona_preset_id(
@@ -4253,21 +4283,24 @@ class WechatGroupQrHandler:
 
 class WechatGroupMemoriesHandler:
     _service = None
+    _distiller = None
+    _archive = None
 
     def GET(self, action=""):
         _require_auth()
         try:
-            service = self._get_service()
             params = web.input(room_id="", sender_id="", status="active", limit="20", offset="0", q="")
             action = (action or "").strip("/")
             limit = self._to_int(params.limit, 20)
             offset = self._to_int(params.offset, 0)
             if action == "summary":
+                service = self._get_service()
                 return self._json({
                     "status": "success",
                     "summary": service.get_summary(params.room_id or None),
                 })
             if action == "groups":
+                service = self._get_service()
                 selected_ids = conf().get("wechat_group_room_ids", []) or []
                 selected_names = conf().get("wechat_group_names", []) or []
                 rooms = [
@@ -4282,7 +4315,16 @@ class WechatGroupMemoriesHandler:
                     "status": "success",
                     "groups": service.list_group_summaries(rooms),
                 })
+            if action == "members":
+                archive = self._get_archive()
+                data = archive.list_members(
+                    params.room_id,
+                    query=params.q or "",
+                    limit=limit,
+                )
+                return self._json({"status": "success", "members": data})
             if action == "group":
+                service = self._get_service()
                 data = self._run_async(service.list_group_memories(
                     params.room_id,
                     status=params.status,
@@ -4292,6 +4334,7 @@ class WechatGroupMemoriesHandler:
                 ))
                 return self._json({"status": "success", "memories": data})
             if action == "profiles":
+                service = self._get_service()
                 data = self._run_async(service.list_member_profiles(
                     params.room_id,
                     status=params.status,
@@ -4301,6 +4344,7 @@ class WechatGroupMemoriesHandler:
                 ))
                 return self._json({"status": "success", "profiles": data})
             if action == "profiles/revisions":
+                service = self._get_service()
                 data = service.list_profile_revisions(
                     params.room_id,
                     params.sender_id,
@@ -4308,6 +4352,31 @@ class WechatGroupMemoriesHandler:
                     offset=offset,
                 )
                 return self._json({"status": "success", "revisions": data})
+            if action == "distill/runs":
+                distiller = self._get_distiller()
+                data = distiller.list_runs(
+                    params.room_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                return self._json({"status": "success", "runs": data})
+            if action == "distill/candidates":
+                distiller = self._get_distiller()
+                data = distiller.list_candidates(
+                    params.room_id,
+                    status=params.status or None,
+                    candidate_type=getattr(params, "candidate_type", "") or None,
+                    limit=limit,
+                    offset=offset,
+                )
+                return self._json({"status": "success", "candidates": data})
+            if action == "distill/messages":
+                distiller = self._get_distiller()
+                data = distiller.list_candidate_messages(
+                    params.room_id,
+                    getattr(params, "candidate_id", ""),
+                )
+                return self._json({"status": "success", "messages": data})
             return self._json({"status": "error", "message": f"unknown action: {action}"})
         except Exception as e:
             logger.error(f"[WebChannel] WechatGroupMemories GET error: {e}")
@@ -4371,6 +4440,37 @@ class WechatGroupMemoriesHandler:
                 else:
                     raise ValueError(f"unknown memory_type: {memory_type}")
                 return self._json({"status": "success", "disabled": disabled})
+            if action == "distill/run":
+                self._require_body(body, "room_id")
+                distiller = self._get_distiller()
+                run = self._run_async(distiller.run(
+                    room_id=body.get("room_id"),
+                    window_minutes=self._to_int(body.get("window_minutes"), 60),
+                    limit=self._to_int(body.get("limit"), 200),
+                    force=bool(body.get("force", False)),
+                ))
+                if run.get("status") in ("disabled", "failed"):
+                    reasons = run.get("discarded_reasons") or []
+                    message = run.get("failed_reason") or (reasons[0] if reasons else run.get("status"))
+                    return self._json({"status": "error", "message": message, "run": run})
+                return self._json({"status": "success", "run": run})
+            if action == "distill/candidates/approve":
+                self._require_body(body, "room_id", "candidate_id")
+                distiller = self._get_distiller()
+                candidate = self._run_async(distiller.approve_candidate(
+                    body.get("room_id"),
+                    body.get("candidate_id"),
+                ))
+                return self._json({"status": "success", "candidate": candidate})
+            if action == "distill/candidates/reject":
+                self._require_body(body, "room_id", "candidate_id")
+                distiller = self._get_distiller()
+                candidate = distiller.reject_candidate(
+                    body.get("room_id"),
+                    body.get("candidate_id"),
+                    review_note=body.get("review_note") or "",
+                )
+                return self._json({"status": "success", "candidate": candidate})
             return self._json({"status": "error", "message": f"unknown action: {action}"})
         except Exception as e:
             logger.error(f"[WebChannel] WechatGroupMemories POST error: {e}")
@@ -4383,6 +4483,24 @@ class WechatGroupMemoriesHandler:
             from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
             cls._service = WechatGroupMemoryService(MemoryManager())
         return cls._service
+
+    @classmethod
+    def _get_distiller(cls):
+        if cls._distiller is None:
+            from channel.wechat_group.wechat_group_archive import WechatGroupArchive
+            from channel.wechat_group.wechat_group_memory_distiller import WechatGroupMemoryDistiller
+            cls._distiller = WechatGroupMemoryDistiller(
+                archive=WechatGroupArchive(),
+                memory_service=cls._get_service(),
+            )
+        return cls._distiller
+
+    @classmethod
+    def _get_archive(cls):
+        if cls._archive is None:
+            from channel.wechat_group.wechat_group_archive import WechatGroupArchive
+            cls._archive = WechatGroupArchive()
+        return cls._archive
 
     @staticmethod
     def _json(payload):

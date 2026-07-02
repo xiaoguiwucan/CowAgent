@@ -265,6 +265,7 @@ def _build_tooling_section(tools: List[Any], language: str) -> List[str]:
             "- Keep going until the task is done, then report the result to the user",
             "- Always redact secrets, tokens and other sensitive info in replies",
             "- Put URLs directly in the reply text; the system handles and renders them. Don't download and re-send them via the send tool",
+            "- For scheduled tasks, reminders, recurring jobs, or requests like 'every day/week/month' and 'at X o'clock', you must call `scheduler`. Do not verbally confirm a scheduled task unless the scheduler tool successfully created it",
             "",
         ]
     else:
@@ -282,6 +283,14 @@ def _build_tooling_section(tools: List[Any], language: str) -> List[str]:
             "- URL链接直接放在回复文本中即可，系统会自动处理和渲染。无需下载后使用send工具发送",
             "",
         ]
+
+    if "scheduler" in [tool.name if hasattr(tool, 'name') else str(tool) for tool in tools]:
+        scheduler_rule = (
+            "- Scheduled tasks/reminders/recurring jobs must call `scheduler`; "
+            "Do not verbally confirm a scheduled task unless `scheduler` successfully created it"
+        )
+        if not any("must call `scheduler`" in line for line in lines):
+            lines.insert(-1, scheduler_rule)
 
     return lines
 

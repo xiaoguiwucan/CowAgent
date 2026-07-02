@@ -90,6 +90,12 @@ available_setting = {
     "wechat_group_memory_enabled": True,
     "wechat_group_member_memory_enabled": True,
     "wechat_group_memory_auto_extract": False,
+    "wechat_group_memory_auto_apply_threshold": 0.85,
+    "wechat_group_memory_candidate_threshold": 0.55,
+    "wechat_group_memory_distill_window_minutes": 60,
+    "wechat_group_memory_distill_message_limit": 200,
+    "wechat_group_memory_auto_apply_group_enabled": True,
+    "wechat_group_memory_auto_apply_member_enabled": True,
     "wechat_group_voice_reply_enabled": False,
     # chatgpt session params
     "expires_in_seconds": 3600,  # idle session expiry time

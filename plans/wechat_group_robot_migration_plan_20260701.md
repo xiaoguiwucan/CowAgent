@@ -519,6 +519,28 @@ UI 开发计划：
   python -m unittest tests.test_wechat_group_memory tests.test_wechat_group_context
   ```
 
+执行进度（2026-07-02）：
+
+- 状态：已完成 4.3.7 首个手动触发切片；后台定时触发、处理游标复用和来源消息弹窗仍按第二切片保留，未在本次顺手实现。
+- 实际改动：
+  - 扩展 `channel/wechat_group/wechat_group_archive.py`，新增当前 `room_id + 时间窗口` 蒸馏消息读取、蒸馏运行记录表和候选表，候选/运行查询均按 `room_id` 过滤。
+  - 新增 `channel/wechat_group/wechat_group_memory_distiller.py`，封装 `WechatGroupMemoryDistiller`，支持严格 JSON 输出解析、置信度分流、来源消息校验、画像目标 sender_id 可证明校验、高置信度自动写入、低置信度候选、低阈值丢弃、候选批准和驳回。
+  - 扩展 `channel/wechat_group/wechat_group_memory.py`，群记忆和画像写入 metadata 标记 `created_by`；自动画像更新只合并 LLM 明确给出的非空字段，不清空旧画像。
+  - 扩展 `channel/web/web_channel.py` 与配置模板，新增自动蒸馏配置返回/保存和 `/api/wechat-group/memories/distill/*` 手动运行、运行列表、候选列表、批准、驳回、来源消息查询接口。
+  - 更新 Web 控制台 `channel/web/static/js/console.js` 与 `channel/web/chat.html`，在“群聊 -> 永久记忆”当前群详情中新增“自动生成”标签页，包含配置保存、手动运行、运行记录、候选审核和脚本缓存版本更新。
+  - 新增 `tests/test_wechat_group_memory_distiller.py`，扩展 `tests/test_wechat_group_web.py` 覆盖 distill 服务与 Web API。
+- 已验证：
+  ```powershell
+  python -m unittest tests.test_wechat_group_memory_distiller tests.test_wechat_group_web
+  node --check .\channel\web\static\js\console.js
+  python -m unittest tests.test_wechat_group_memory_ui tests.test_wechat_group_web tests.test_wechat_group_memory_distiller
+  python -m py_compile channel\wechat_group\wechat_group_archive.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_memory_distiller.py channel\web\web_channel.py tests\test_wechat_group_memory_distiller.py tests\test_wechat_group_web.py tests\test_wechat_group_memory_ui.py
+  python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_memory tests.test_wechat_group_web tests.test_wechat_group_memory_ui tests.test_wechat_group_memory_distiller
+  ```
+- 剩余事项：
+  - 后台定时触发、每群处理游标、同一 `room_id` 并发运行锁和来源消息弹窗/抽屉仍留到下一切片。
+  - 真实 LLM 蒸馏链路需要在已配置模型、已登录个人微信群并有归档消息的环境中手动验证。
+
 ### 4.4 多模态能力
 
 首轮需要支持文本、图片理解、图片生成、语音识别和语音合成，但实现上应复用 CowAgent 现有能力。

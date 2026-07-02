@@ -203,6 +203,40 @@ def _sanitize_user_message_for_run_log(user_message: str) -> str:
     )
 
 
+def looks_like_scheduler_request(text: str) -> bool:
+    """Best-effort check for user requests that should create a scheduled task."""
+    if not text:
+        return False
+    normalized = re.sub(r"\s+", "", str(text).lower())
+    explicit_patterns = (
+        "定时", "提醒我", "叫我", "闹钟", "计划任务", "定个提醒", "设个提醒",
+        "设置提醒", "创建提醒", "提醒一下",
+    )
+    if any(pattern in normalized for pattern in explicit_patterns):
+        return True
+    has_schedule_time = bool(re.search(
+        r"(每天|每日|每周|每月|每年|工作日|周[一二三四五六日天]|星期[一二三四五六日天]|[0-2]?\d点|\d+分钟后|\d+小时后)",
+        normalized,
+    ))
+    has_action = any(word in normalized for word in ("提醒", "播报", "发送", "推送", "通知", "汇报", "总结"))
+    return has_schedule_time and has_action
+
+
+_looks_like_scheduler_request = looks_like_scheduler_request
+
+
+def _looks_like_scheduler_confirmation(text: str) -> bool:
+    if not text:
+        return False
+    normalized = re.sub(r"\s+", "", str(text).lower())
+    confirmation_patterns = (
+        "已设置", "已经设置", "设置好了", "已创建", "创建成功", "定好了",
+        "已经定好", "已定好", "我会准时", "会准时", "到时候我会",
+        "每天我会", "我会每天", "提醒你", "播报给", "播报世界杯",
+    )
+    return any(pattern in normalized for pattern in confirmation_patterns)
+
+
 def _parse_tool_args(args_str: str, finish_reason: Optional[str]) -> Tuple[dict, Optional[str]]:
     """Parse tool args JSON. Returns (args, error_msg); error_msg is None on success.
 
@@ -249,6 +283,7 @@ class AgentStreamExecutor:
             messages: Optional[List[Dict]] = None,
             max_context_turns: int = 30,
             cancel_event=None,
+            context: Optional[Any] = None,
     ):
         """
         Initialize stream executor
@@ -276,9 +311,11 @@ class AgentStreamExecutor:
         self.on_event = on_event
         self.max_context_turns = max_context_turns
         self.cancel_event = cancel_event
+        self.context = context
 
         # Message history - use provided messages or create new list
         self.messages = messages if messages is not None else []
+        self.scheduler_create_succeeded = False
         
         # Tool failure tracking for retry protection
         self.tool_failure_history = []  # List of (tool_name, args_hash, success) tuples
@@ -829,6 +866,8 @@ class AgentStreamExecutor:
                         self.messages.pop(prompt_insert_idx)
                         logger.debug("[Agent] Removed injected max-steps prompt from message history")
 
+            final_response = self._guard_scheduler_confirmation(user_message, final_response)
+
         except AgentCancelledError:
             # User-initiated stop: wind down message history cleanly so the
             # next turn is unaffected; channels emit a "cancelled" UI event.
@@ -852,6 +891,49 @@ class AgentStreamExecutor:
             self._emit_event("agent_end", {"final_response": final_response, "cancelled": cancelled})
 
         return final_response
+
+    def _guard_scheduler_confirmation(self, user_message: str, final_response: str) -> str:
+        """Prevent false "scheduled" confirmations when scheduler.create did not run."""
+        if self.scheduler_create_succeeded:
+            return final_response
+        if not self._requires_scheduler_create(user_message):
+            return final_response
+        if not _looks_like_scheduler_confirmation(final_response):
+            return final_response
+        guarded = (
+            "我没有成功创建定时任务，所以不能确认已经设置。\n"
+            "请重新发送这条定时请求，或切换到工具调用更稳定的模型后再试。"
+        )
+        if final_response != guarded:
+            logger.warning("[Agent] Blocked scheduler confirmation without successful scheduler.create")
+            self._replace_last_assistant_text(guarded)
+        return guarded
+
+    def _requires_scheduler_create(self, user_message: str) -> bool:
+        context = self.context
+        try:
+            if context and context.get("intent_requires_scheduler"):
+                return True
+        except Exception:
+            if isinstance(context, dict) and context.get("intent_requires_scheduler"):
+                return True
+        return _looks_like_scheduler_request(user_message)
+
+    def _replace_last_assistant_text(self, text: str) -> None:
+        """Keep persisted conversation history aligned with the guarded reply."""
+        for message in reversed(self.messages):
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            content = message.get("content")
+            if isinstance(content, list):
+                for block in reversed(content):
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        block["text"] = text
+                        return
+                content.append({"type": "text", "text": text})
+                return
+            message["content"] = [{"type": "text", "text": text}]
+            return
 
     def _call_llm_stream(self, retry_on_empty=True, retry_count=0, max_retries=3,
                          _overflow_retry: bool = False,
@@ -1360,6 +1442,8 @@ class AgentStreamExecutor:
             # Record tool result for failure tracking
             success = result.status == "success"
             self._record_tool_result(tool_name, arguments, success)
+            if self._is_successful_scheduler_create(tool_name, arguments, result):
+                self.scheduler_create_succeeded = True
 
             # Auto-refresh skills after skill creation
             if tool_name == "bash" and result.status == "success":
@@ -1393,6 +1477,19 @@ class AgentStreamExecutor:
                 **error_result
             })
             return error_result
+
+    @staticmethod
+    def _is_successful_scheduler_create(tool_name: str, arguments: Dict[str, Any], result: ToolResult) -> bool:
+        if tool_name != "scheduler":
+            return False
+        if not isinstance(arguments, dict) or arguments.get("action") != "create":
+            return False
+        if not result or result.status != "success":
+            return False
+        result_text = str(result.result or "")
+        if result_text.startswith("错误") or result_text.startswith("Error"):
+            return False
+        return "定时任务创建成功" in result_text or "created successfully" in result_text.lower()
 
     def _build_tool_not_found_message(self, tool_name: str) -> str:
         """Build a helpful error message when a tool is not found.

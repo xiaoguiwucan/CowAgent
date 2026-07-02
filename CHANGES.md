@@ -2,6 +2,71 @@
 
 ## 2026-07-02
 
+### 微信群运行时群友画像昵称兜底
+- 更新 `channel/wechat_group/wechat_group_memory.py`：在真实 `at_list` 过滤后没有群友 ID 时，按当前群 active 群友画像的 `sender_nickname` 做唯一精确兜底；唯一命中时注入 `matched_by="nickname"`，同名歧义时不注入并返回诊断原因。
+- 更新 `tests/test_wechat_group_memory.py`：覆盖“只 @ 机器人但正文包含群友昵称”可注入画像，以及同昵称多画像时跳过注入。
+- 新增 `plans/wechat_group_runtime_member_profile_lookup_20260702.md`：记录本次运行时昵称兜底方案、边界、验证结果和剩余真实链路手动验证项。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_injects_unique_profile_by_nickname_when_only_bot_is_mentioned tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_skips_nickname_profile_when_match_is_ambiguous`
+- `python -m unittest tests.test_wechat_group_memory`
+- `python -m unittest tests.test_wechat_group_context`
+- `python -m py_compile channel\wechat_group\wechat_group_memory.py tests\test_wechat_group_memory.py`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
+### 微信群群友画像手动录入支持成员检索
+- 更新 `channel/wechat_group/wechat_group_archive.py`：新增按当前 `room_id` 检索归档群成员能力，聚合 `sender_id`、昵称、最近发言时间和消息数，并支持按 `sender_id`、昵称及元数据中的微信 ID 字段过滤。
+- 更新 `channel/web/web_channel.py`：新增 `/api/wechat-group/memories/members` 查询分支，供 Web 控制台在当前群内检索群友并避免跨群返回成员。
+- 更新 `channel/web/static/js/console.js` 与 `channel/web/chat.html`：在群友画像手动表单上方增加“检索群友”输入、结果列表和一键回填 `sender_id` / 昵称；同步更新脚本缓存版本。
+- 修复检索结果点击回填：结果项改用 `data-sender-id` / `data-sender-nickname` 保存值，并由点击元素读取，避免内联 `onclick` 参数转义导致不回填。
+- 更新 `tests/test_wechat_group_context.py`、`tests/test_wechat_group_web.py`、`tests/test_wechat_group_memory_ui.py`：覆盖归档成员检索、Web API 和 UI 入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_context.WechatGroupRecentContextTest.test_archive_lists_members_by_room_and_query`
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_memory_members_api_uses_archive`
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_groups_page_exposes_memory_management_section`
+- `python -m unittest tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m py_compile channel\wechat_group\wechat_group_archive.py channel\web\web_channel.py tests\test_wechat_group_context.py tests\test_wechat_group_web.py tests\test_wechat_group_memory_ui.py`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m py_compile channel\web\web_channel.py`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_memory_ui`
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_groups_page_exposes_memory_management_section`
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `python -m unittest tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_memory_ui`
+- `python -m py_compile tests\test_wechat_group_memory_ui.py`
+
+## 2026-07-02
+
+### Web 定时任务目标群展示
+- 更新 `channel/web/static/js/console.js`：定时任务卡片展示目标群名，使用已有 `action.receiver_name`，不暴露 room ID。
+- 更新 `channel/web/chat.html`：刷新 `console.js` 缓存版本，避免浏览器继续使用旧脚本。
+- 新增 `tests/test_scheduler_ui.py`，并更新 `tests/test_wechat_group_memory_ui.py` 的脚本版本断言。
+验证记录：
+- `python -m unittest tests.test_scheduler_ui`
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_groups_page_cache_buster_changes_for_memory_ui`
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `python -m unittest tests.test_scheduler_ui tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+
+### 定时任务假确认拦截与微信群调度意图标记
+
+- 更新 `agent/protocol/agent_stream.py`：识别定时/提醒/周期任务请求，记录本轮是否成功执行 `scheduler.create`；当模型未成功创建任务却回复“已设置/定好了/会准时”等确认语义时，替换为未创建成功提示，并同步修正会话历史中的最后一条 assistant 文本。
+- 更新 `agent/protocol/agent.py`、`bridge/agent_bridge.py`、`agent/chat/service.py`：将当前 `Context` 透传给 `AgentStreamExecutor`，供执行层读取 `intent_requires_scheduler` 等上下文标记。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：微信群消息去除 @ 后若匹配定时/提醒/每日播报等调度意图，则设置 `intent_requires_scheduler=True`，避免人设和群聊上下文稀释原始任务。
+- 更新 `agent/prompt/builder.py`：当 `scheduler` 工具可用时，在工具调用提示中明确要求定时任务必须调用 `scheduler`，不能只口头确认。
+- 新增 `tests/test_agent_stream_scheduler_guard.py`、`tests/test_prompt_scheduler_guidance.py`，并扩展 `tests/test_wechat_group_channel.py`，覆盖假确认拦截、真实 `scheduler.create` 后允许确认、澄清回复不拦截、微信群调度意图标记和 prompt 规则。
+
+验证记录：
+- `python -m unittest tests.test_agent_stream_scheduler_guard`
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_wechat_group_scheduler_request_sets_scheduler_intent`
+- `python -m unittest tests.test_prompt_scheduler_guidance`
+- `python -m unittest tests.test_agent_stream_scheduler_guard tests.test_prompt_scheduler_guidance tests.test_wechat_group_channel`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m py_compile agent\protocol\agent_stream.py agent\protocol\agent.py agent\chat\service.py bridge\agent_bridge.py channel\wechat_group\wechat_group_channel.py agent\prompt\builder.py tests\test_agent_stream_scheduler_guard.py tests\test_prompt_scheduler_guidance.py tests\test_wechat_group_channel.py`
+
+## 2026-07-02
+
 ### Agent 流式工具调用解析错误降级
 
 - 更新 `agent/protocol/agent_stream.py`：当上游 OpenAI-compatible 流式接口在带 tools 请求下返回 `Value looks like object, but can't find closing '}' symbol` / `bad_response_status_code` 这类 400 解析错误时，仅重试一次不带 tools 的请求，避免整轮 Agent 直接失败。
@@ -12,6 +77,30 @@
 - `python -m unittest tests.test_agent_stream_logging tests.test_wechat_group_channel`
 - `python -m py_compile agent\protocol\agent_stream.py channel\wechat_group\wechat_group_channel.py tests\test_agent_stream_logging.py tests\test_wechat_group_channel.py`
 - `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
+### 个人微信群 4.3.7 聊天记录自动蒸馏
+
+- 修复自动生成结果展示：`distill/run` 返回 `disabled` / `failed` 时 Web API 不再包装成成功；前端在没有自动写入和候选时显示 distiller 返回的原因，避免“自动生成已完成但没有任何记忆”的假阳性。
+- 补充空候选诊断：当 LLM 返回 `group_memories: []` 且 `member_profiles: []` 时，运行结果会显示 `LLM returned no memory candidates`，便于区分“失败”和“模型认为没有稳定记忆可提取”。
+- 修复 `channel/wechat_group/wechat_group_memory_distiller.py` 默认 LLM 调用路径：不再访问不存在的 `AgentBridge.llm_model`，改为直接通过 `AgentLLMModel(Bridge()).call()` 调用当前模型适配层，避免 Web 控制台点击“从最近聊天生成记忆”时报 `'AgentBridge' object has no attribute 'llm_model'`。
+- 新增 `channel/wechat_group/wechat_group_memory_distiller.py`：实现从当前群归档消息手动蒸馏群记忆与群友画像，支持严格 JSON 解析、证据消息校验、画像 `sender_id` 可证明校验、置信度分流、高置信度自动写入、低置信度候选、批准和驳回。
+- 更新 `channel/wechat_group/wechat_group_archive.py`：新增蒸馏消息读取、运行记录表和候选表，运行与候选查询均按 `room_id` 强过滤。
+- 更新 `channel/wechat_group/wechat_group_memory.py`：群记忆/画像写入增加来源标记；自动画像更新只合并非空字段，避免清空旧画像。
+- 更新 `channel/web/web_channel.py`、`config.py`、`config-template.json`：新增自动蒸馏配置返回/保存和 `/api/wechat-group/memories/distill/*` 手动运行、运行列表、候选列表、批准、驳回、来源消息查询接口。
+- 更新 `channel/web/static/js/console.js` 与 `channel/web/chat.html`：在 Web 控制台“群聊 -> 永久记忆”当前群详情中新增“自动生成”标签页，提供配置保存、手动运行、运行记录和候选审核入口，并更新脚本缓存版本。
+- 新增 `tests/test_wechat_group_memory_distiller.py`，扩展 `tests/test_wechat_group_web.py`：覆盖置信度分流、跨群证据拒绝、非法成员拒绝、自动写入、候选审核和 Web API。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.7 首个手动触发切片的完成进度、验证结果和剩余第二切片事项。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_memory_distiller tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_memory_distiller.DefaultLlmClientTest`
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_distill_run_api_reports_disabled_status`
+- `python -m unittest tests.test_wechat_group_memory_distiller.WechatGroupMemoryDistillerTest.test_empty_llm_candidates_return_diagnostic_reason`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_memory_ui tests.test_wechat_group_web tests.test_wechat_group_memory_distiller`
+- `python -m py_compile channel\wechat_group\wechat_group_archive.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_memory_distiller.py channel\web\web_channel.py tests\test_wechat_group_memory_distiller.py tests\test_wechat_group_web.py tests\test_wechat_group_memory_ui.py`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_memory tests.test_wechat_group_web tests.test_wechat_group_memory_ui tests.test_wechat_group_memory_distiller`
 
 ### 微信群人设日志脱敏
 
