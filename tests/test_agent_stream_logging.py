@@ -7,6 +7,47 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class TestAgentStreamLogging(unittest.TestCase):
+    def test_run_stream_logs_wechat_group_persona_as_label_only(self):
+        from agent.protocol.agent_stream import AgentStreamExecutor
+        from agent.protocol.models import LLMModel
+
+        class StreamingModel(LLMModel):
+            def __init__(self):
+                super().__init__(model="unit-test-model")
+
+            def call_stream(self, request):
+                yield {
+                    "choices": [
+                        {
+                            "delta": {"content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                }
+
+        user_message = (
+            "<wechat-group-persona>\n"
+            "SECRET_PERSONA_PROMPT_SHOULD_NOT_BE_LOGGED\n"
+            "</wechat-group-persona>\n\n"
+            "用户真实问题"
+        )
+        executor = AgentStreamExecutor(
+            agent=None,
+            model=StreamingModel(),
+            system_prompt="",
+            tools=[],
+            messages=[],
+        )
+
+        with self.assertLogs("log", level="INFO") as captured:
+            executor.run_stream(user_message)
+
+        logs = "\n".join(captured.output)
+        self.assertIn("微信群聊人设提示词", logs)
+        self.assertIn("用户真实问题", logs)
+        self.assertNotIn("SECRET_PERSONA_PROMPT_SHOULD_NOT_BE_LOGGED", logs)
+        self.assertNotIn("<wechat-group-persona>", logs)
+
     def test_logs_llm_request_sources_and_summary_before_call(self):
         from agent.protocol.agent_stream import AgentStreamExecutor
         from agent.protocol.models import LLMModel

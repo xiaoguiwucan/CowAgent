@@ -4,6 +4,7 @@ Agent Stream Execution Module - Multi-turn reasoning based on tool-call
 Provides streaming output, event system, and complete tool-call loop
 """
 import json
+import re
 import time
 from typing import List, Dict, Any, Optional, Callable, Tuple
 
@@ -178,6 +179,16 @@ def _summarize_tools_for_llm_log(tools_schema: Optional[List[Dict[str, Any]]]) -
         f"count={len(tools)} "
         f"names={_summarize_names(names, limit=20)} "
         f"schemas={schema_summary}"
+    )
+
+
+def _sanitize_user_message_for_run_log(user_message: str) -> str:
+    message = user_message or ""
+    return re.sub(
+        r"<wechat-group-persona>.*?</wechat-group-persona>",
+        "微信群聊人设提示词",
+        message,
+        flags=re.DOTALL,
     )
 
 
@@ -479,8 +490,9 @@ class AgentStreamExecutor:
         # injected transcripts / large prompts) so logs stay readable.
         thinking_enabled = self._is_thinking_enabled()
         thinking_label = " | 💭 thinking" if thinking_enabled else ""
-        _log_msg = user_message if len(user_message) <= 500 else (
-            user_message[:500] + f" …(+{len(user_message) - 500} chars)"
+        log_user_message = _sanitize_user_message_for_run_log(user_message)
+        _log_msg = log_user_message if len(log_user_message) <= 500 else (
+            log_user_message[:500] + f" …(+{len(log_user_message) - 500} chars)"
         )
         logger.info(f"🤖 {self.model.model}{thinking_label} | 👤 {_log_msg}")        
         

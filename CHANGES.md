@@ -2,6 +2,14 @@
 
 ## 2026-07-02
 
+### 微信群人设日志脱敏
+
+- 更新 `agent/protocol/agent_stream.py`：调用 LLM 前的用户消息日志会将 `<wechat-group-persona>...</wechat-group-persona>` 内容替换为 `微信群聊人设提示词`，避免日志打印完整微信群人设提示词；真实传给模型的上下文不变。
+- 更新 `tests/test_agent_stream_logging.py`：覆盖微信群人设块只打印标签、不泄露原始人设内容，同时保留用户真实问题日志。
+
+验证记录：
+- `python -m unittest tests.test_agent_stream_logging`
+
 ### OpenAI 兼容 Agent 消息格式修复
 
 - 更新 `models/openai_compatible_bot.py`：修复 Agent 内部 Claude text blocks 转 OpenAI 兼容消息时，普通 `user` 消息仍保留数组 `content` 的问题，避免严格网关报 `cannot unmarshal array into ... content of type string`。
