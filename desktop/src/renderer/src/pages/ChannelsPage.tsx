@@ -13,11 +13,10 @@ import {
   Headset,
   Hash,
   AtSign,
-  RefreshCw,
 } from 'lucide-react'
 import { t, localizedLabel } from '../i18n'
 import apiClient from '../api/client'
-import type { ChannelInfo, ChannelField, WechatGroupPersonaPreset, WechatGroupRoom } from '../types'
+import type { ChannelInfo, ChannelField } from '../types'
 import { Toggle, Btn } from './settings/primitives'
 import QrLoginModal from '../components/QrLoginModal'
 import { PaperPlaneIcon } from '../components/icons'
@@ -59,7 +58,6 @@ interface ChannelsPageProps {
 
 // A masked secret looks like "abcd****wxyz"; the backend skips such values.
 const MASK_RE = /\*{2,}/
-const WECHAT_GROUP_CUSTOM_PERSONA = 'custom'
 
 const ChannelsPage: React.FC<ChannelsPageProps> = ({ baseUrl }) => {
   const [channels, setChannels] = useState<ChannelInfo[]>([])
@@ -413,10 +411,6 @@ const ChannelCard: React.FC<{ channel: ChannelInfo; onChanged: () => void; defau
         </div>
       )}
 
-      {channel.name === 'wechat_group' && channel.active && (
-        <WechatGroupSettings channel={channel} onChanged={onChanged} />
-      )}
-
       {showQr && qrProvider && (
         <QrLoginModal
           provider={qrProvider}
@@ -427,222 +421,6 @@ const ChannelCard: React.FC<{ channel: ChannelInfo; onChanged: () => void; defau
           }}
         />
       )}
-    </div>
-  )
-}
-
-const splitLines = (value: string): string[] =>
-  value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-const sameSet = (a: string[], b: string[]) => {
-  if (a.length !== b.length) return false
-  const left = [...a].sort()
-  const right = [...b].sort()
-  return left.every((item, idx) => item === right[idx])
-}
-
-const WechatGroupSettings: React.FC<{ channel: ChannelInfo; onChanged: () => void }> = ({ channel, onChanged }) => {
-  const extra = channel.extra
-  const [rooms, setRooms] = useState<WechatGroupRoom[]>(extra?.rooms || [])
-  const [selectedIds, setSelectedIds] = useState<string[]>(extra?.selected_room_ids || [])
-  const [selectedNames, setSelectedNames] = useState<string[]>(extra?.selected_room_names || [])
-  const [personaPrompt, setPersonaPrompt] = useState(extra?.persona.prompt || '')
-  const [savedPrompt, setSavedPrompt] = useState(extra?.persona.prompt || '')
-  const [savedPresetId, setSavedPresetId] = useState(extra?.persona.preset_id || '')
-  const [busy, setBusy] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [status, setStatus] = useState('')
-
-  useEffect(() => {
-    setRooms(extra?.rooms || [])
-    setSelectedIds(extra?.selected_room_ids || [])
-    setSelectedNames(extra?.selected_room_names || [])
-    setPersonaPrompt(extra?.persona.prompt || '')
-    setSavedPrompt(extra?.persona.prompt || '')
-    setSavedPresetId(extra?.persona.preset_id || '')
-  }, [extra])
-
-  const presets = extra?.persona_presets || []
-  const maxLength = extra?.persona.max_length || 6000
-  const activePreset = presets.find((preset) => preset.id === savedPresetId)
-  const draftPreset = presets.find((preset) => preset.prompt === personaPrompt)
-  const draftPresetId = draftPreset?.id || WECHAT_GROUP_CUSTOM_PERSONA
-  const dirty =
-    personaPrompt !== savedPrompt ||
-    !sameSet(selectedIds, extra?.selected_room_ids || []) ||
-    !sameSet(selectedNames, extra?.selected_room_names || [])
-
-  const toggleRoom = (room: WechatGroupRoom) => {
-    setSelectedIds((prev) => {
-      const exists = prev.includes(room.id)
-      return exists ? prev.filter((id) => id !== room.id) : [...prev, room.id]
-    })
-    if (room.name) {
-      setSelectedNames((prev) => prev.filter((name) => name !== room.name))
-    }
-  }
-
-  const refreshRooms = async () => {
-    setRefreshing(true)
-    setStatus('')
-    try {
-      const data = await apiClient.wechatGroupQrAction('refresh')
-      if (data.status === 'success') {
-        const nextRooms = Array.isArray(data.rooms) ? data.rooms as WechatGroupRoom[] : []
-        setRooms(nextRooms)
-        setStatus(t('wechat_group_rooms_refreshed'))
-      } else {
-        setStatus((data.message as string) || t('wechat_group_rooms_refresh_failed'))
-      }
-    } catch {
-      setStatus(t('wechat_group_rooms_refresh_failed'))
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const save = async () => {
-    setBusy(true)
-    setStatus('')
-    try {
-      const res = await apiClient.channelAction('save', 'wechat_group', {
-        wechat_group_room_ids: selectedIds,
-        wechat_group_names: selectedNames,
-        wechat_group_persona_prompt: personaPrompt,
-        wechat_group_persona_preset_id: draftPresetId,
-      })
-      if (res.status === 'success') {
-        setStatus(t('wechat_group_settings_saved'))
-        onChanged()
-      } else {
-        setStatus((res.message as string) || t('channels_save_error'))
-      }
-    } catch {
-      setStatus(t('channels_save_error'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="mt-4 space-y-4 border-t border-default pt-4">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-content">{t('wechat_group_rooms_title')}</h4>
-            <p className="text-xs text-content-tertiary mt-0.5">{t('wechat_group_rooms_hint')}</p>
-          </div>
-          <Btn variant="ghost" onClick={refreshRooms} disabled={refreshing}>
-            <span className="flex items-center gap-1.5">
-              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-              {t('wechat_group_rooms_refresh')}
-            </span>
-          </Btn>
-        </div>
-
-        {rooms.length > 0 ? (
-          <div className="max-h-44 overflow-y-auto rounded-btn border border-default bg-inset p-1.5 space-y-1">
-            {rooms.map((room) => {
-              const checked = selectedIds.includes(room.id)
-              return (
-                <label
-                  key={room.id}
-                  className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-content-secondary hover:bg-surface-2 cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleRoom(room)}
-                    className="mt-0.5 accent-[var(--accent)]"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-content break-words">{room.name || room.id}</span>
-                    <span className="block text-xs text-content-tertiary font-mono break-all">{room.id}</span>
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-        ) : (
-          <p className="rounded-btn border border-default bg-inset px-3 py-2 text-xs text-content-tertiary">
-            {t('wechat_group_rooms_empty')}
-          </p>
-        )}
-
-        <div>
-          <label className="block text-xs font-medium text-content-secondary mb-1.5">{t('wechat_group_room_names_label')}</label>
-          <textarea
-            value={selectedNames.join('\n')}
-            onChange={(event) => setSelectedNames(splitLines(event.target.value))}
-            rows={2}
-            className="w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent font-mono transition-colors resize-y"
-            placeholder={t('wechat_group_room_names_placeholder')}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div>
-          <h4 className="text-sm font-semibold text-content">{t('wechat_group_persona_title')}</h4>
-          <p className="text-xs text-content-tertiary mt-0.5">{t('wechat_group_persona_hint')}</p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {presets.map((preset: WechatGroupPersonaPreset) => {
-            const active = preset.prompt === personaPrompt
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => setPersonaPrompt(preset.prompt)}
-                className={`text-left rounded-btn border px-3 py-2 transition-colors cursor-pointer ${
-                  active ? 'border-accent bg-accent-soft text-accent' : 'border-default bg-inset text-content-secondary hover:border-accent'
-                }`}
-              >
-                <span className="flex items-center gap-1.5 text-sm font-medium">
-                  {preset.name}
-                  {preset.badge && <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-content-tertiary">{preset.badge}</span>}
-                </span>
-                {preset.summary && <span className="block text-xs text-content-tertiary mt-1 line-clamp-2">{preset.summary}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="rounded-btn border border-default bg-inset px-3 py-2 text-xs text-content-tertiary">
-          {t('wechat_group_persona_active')}: <span className="text-content">{activePreset?.name || t('wechat_group_persona_custom')}</span>
-          <span className={dirty ? 'text-amber-500 ml-2' : 'text-accent ml-2'}>
-            {dirty ? t('wechat_group_persona_dirty') : t('wechat_group_persona_clean')}
-          </span>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-content-secondary mb-1.5">{t('wechat_group_persona_prompt_label')}</label>
-          <textarea
-            value={personaPrompt}
-            maxLength={maxLength}
-            onChange={(event) => setPersonaPrompt(event.target.value)}
-            rows={7}
-            className="w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent transition-colors resize-y"
-            placeholder={t('wechat_group_persona_prompt_placeholder')}
-          />
-          <p className="text-xs text-content-tertiary mt-1">
-            {personaPrompt.length}/{maxLength} · {t('wechat_group_persona_boundary')}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-3">
-        <span className={`text-xs ${status === t('channels_save_error') ? 'text-danger' : 'text-accent'} transition-opacity ${status ? 'opacity-100' : 'opacity-0'}`}>
-          {status || '\u00a0'}
-        </span>
-        <Btn variant="primary" onClick={save} disabled={busy || !dirty}>
-          {t('wechat_group_settings_save')}
-        </Btn>
-      </div>
     </div>
   )
 }

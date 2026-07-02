@@ -151,6 +151,53 @@ npm run dev:hot
 8. 修改后至少运行 `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`。涉及桌面二维码、连接状态或通道页时，还要在 `desktop` 目录运行 `npm run build`。
 9. 外部真实链路仍需手动验证：启动后打开通道管理，选择“个人微信群”，扫码登录，在目标群 @ 机器人确认能收到回复，并确认回复真实 @ 到发送者。
 
+### 个人微信群 LLM 请求上下文链路
+
+当前个人微信群通道不是替代 CowAgent 原有 Agent 主链路，而是在通用 `ChatChannel` 上下文构造之后叠加微信群专属上下文，再进入 `Channel.build_reply_content()` 和 `Bridge.fetch_agent_reply()`。
+
+核心路径：
+
+1. `WechatGroupChannel.handle_text()` 把 sidecar 消息包装为 `Context`。
+2. `WechatGroupChannel._compose_context()` 先调用 `super()._compose_context()`，继续执行原 `ChatChannel` 群白名单、触发词、@ 去除、`session_id`、`receiver` 和插件事件逻辑。
+3. 微信群通道随后在 `context.content` 前追加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
+4. `ChatChannel._generate_reply()` 调用 `super().build_reply_content(context.content, context)`。
+5. 当 `agent` 配置为 `true` 时，`Channel.build_reply_content()` 进入 `Bridge.fetch_agent_reply()`，由 Agent 模式请求 LLM。
+
+因此 LLM 最终看到的是“通用 Agent 系统上下文 + Agent 会话历史 + 微信群增强后的当前用户消息”：
+
+```text
+system:
+  Agent 工具、技能、记忆规则、知识库规则、工作空间说明、
+  AGENT.md / USER.md / RULE.md / MEMORY.md、运行时信息等。
+
+messages:
+  同一 session_id 下恢复的历史 user / assistant / tool 消息。
+
+current user message:
+  <wechat-group-persona>
+  当前微信群人设。来自 wechat_group_persona_prompt；
+  为空时使用 wechat_group_persona_preset_id 对应的默认人设。
+  </wechat-group-persona>
+
+  <recent-wechat-group-transcript>
+  当前 room_id 最近群聊归档，默认最近 60 分钟、最多 20 条。
+  </recent-wechat-group-transcript>
+
+  用户本次去掉开头 @ 后的真实问题
+```
+
+通用 CowAgent 能力仍然生效：
+
+- `MEMORY.md` 会作为工作空间上下文自动加载；每日记忆和完整记忆按需通过 `memory_search` / `memory_get` 工具检索。
+- `knowledge` 开启时，知识库规则和 `knowledge/index.md` 会进入系统提示词；具体知识页按需通过 `read` 或 `memory_search` 查询。
+- 技能、工具 schema、运行时信息和上下文压缩逻辑仍由 Agent 主链路处理。
+- 自主进化仍会记录微信群用户轮次并参与 idle evolution；群聊场景通常不设置主动推送 `receiver`，避免进化结果主动打扰群。
+
+当前实现边界：
+
+- `wechat_group_memory_enabled`、`wechat_group_member_memory_enabled` 已存在于配置中，但当前微信群 `_compose_context()` 直接注入链路只明确使用人设块和最近群聊 transcript；不要假设已经有独立的 room/member 长期记忆块被自动拼进当前消息。
+- Agent 模式会预持久化传入的 `query`；微信群增强后的 `context.content` 可能进入 Agent 会话历史。后续如需避免 prompt 块污染长期会话，应单独设计 no-persist 或原文/增强 prompt 分离机制。
+
 新增或修改模型 Provider：
 
 1. 查看相近 Provider 的 Bot 与 Session。

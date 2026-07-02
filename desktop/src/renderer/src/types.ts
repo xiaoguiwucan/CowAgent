@@ -366,6 +366,11 @@ export interface WechatGroupExtra {
     max_length: number
   }
   persona_presets: WechatGroupPersonaPreset[]
+  recent_context: {
+    enabled: boolean
+    limit: number
+    minutes: number
+  }
 }
 
 export interface ChannelInfo {

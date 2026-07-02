@@ -20,6 +20,7 @@ import KnowledgePage from './pages/KnowledgePage'
 import SkillsPage from './pages/SkillsPage'
 import MemoryPage from './pages/MemoryPage'
 import ChannelsPage from './pages/ChannelsPage'
+import GroupsPage from './pages/GroupsPage'
 import TasksPage from './pages/TasksPage'
 import LogsPage from './pages/LogsPage'
 
@@ -128,6 +129,7 @@ const App: React.FC = () => {
             <Route path="/memory" element={<MemoryPage baseUrl={backend.baseUrl} />} />
             <Route path="/skills" element={<SkillsPage baseUrl={backend.baseUrl} />} />
             <Route path="/channels" element={<ChannelsPage baseUrl={backend.baseUrl} />} />
+            <Route path="/groups" element={<GroupsPage baseUrl={backend.baseUrl} />} />
             <Route path="/tasks" element={<TasksPage baseUrl={backend.baseUrl} />} />
             <Route path="/settings" element={<SettingsPage baseUrl={backend.baseUrl} onLangChange={handleLangChange} />} />
             {/* Legacy /models route now lives as a tab inside settings */}

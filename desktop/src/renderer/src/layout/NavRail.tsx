@@ -6,6 +6,7 @@ import {
   Brain,
   Zap,
   Radio,
+  MessagesSquare,
   Clock,
   Settings,
   PanelLeftClose,
@@ -58,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/memory', labelKey: 'menu_memory', icon: Brain },
   { path: '/skills', labelKey: 'menu_skills', icon: Zap },
   { path: '/channels', labelKey: 'menu_channels', icon: Radio },
+  { path: '/groups', labelKey: 'menu_groups', icon: MessagesSquare },
   { path: '/tasks', labelKey: 'menu_tasks', icon: Clock },
   { path: '/settings', labelKey: 'menu_settings', icon: Settings },
 ]

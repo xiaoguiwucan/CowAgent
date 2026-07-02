@@ -2,6 +2,21 @@
 
 ## 2026-07-02
 
+### 桌面端群聊页与 4.3 计划补充
+
+- 新增 `desktop/src/renderer/src/pages/GroupsPage.tsx`：提供桌面端独立“群聊”管理页，支持“基础设置 / 群聊开关 / 人设设定”三段式左侧子菜单、4.2 最近上下文配置、群名检索多选和自定义人设保存。
+- 更新 `desktop/src/renderer/src/App.tsx` 与 `desktop/src/renderer/src/layout/NavRail.tsx`：新增 `/groups` 路由和左侧“群聊”菜单入口。
+- 更新 `desktop/src/renderer/src/pages/ChannelsPage.tsx`：个人微信群通道卡片不再展示群聊细项设置，仅保留接入、扫码、连接和断开入口。
+- 更新 `desktop/src/renderer/src/types.ts` 与 `desktop/src/renderer/src/i18n.ts`：补充微信群最近上下文配置类型和群聊管理页中英文文案。
+- 更新 `AGENTS.md`：补充个人微信群通道请求 LLM 前的实际上下文链路，明确其是在原 `ChatChannel` / Agent 主链路基础上叠加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
+- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：细化 4.3 群永久记忆与群友永久记忆的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `Set-Location -LiteralPath .\desktop`
+- `npm run build`
+
 ### 群聊管理页与 4.2 配置 UI
 
 - 更新 `channel/web/chat.html` 与 `channel/web/static/js/console.js`：在 Web 控制台管理目录新增“群聊”入口和独立群聊管理页，支持“基础设置 / 群聊开关 / 人设设定”三段式左侧子菜单。
