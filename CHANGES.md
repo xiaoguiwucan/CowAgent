@@ -11,7 +11,7 @@
 - 更新 `AGENTS.md`：补充个人微信群通道请求 LLM 前的实际上下文链路，明确其是在原 `ChatChannel` / Agent 主链路基础上叠加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
 - 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：细化 4.3 群永久记忆与群友永久记忆的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
 - 继续补充 4.3 记忆方案：明确微信群群记忆与群友记忆进入 CowAgent 通用作用域记忆体系，通过 `scope_type`、`scope_id`、`channel_type`、`subject_id` 兼容扩展保持旧记忆行为不变。
-- 细化永久记忆 UI 信息架构：要求按群分组展示记忆，选中群后再区分群记忆与按成员分组的群友记忆，并补充对应测试要求。
+- 细化 4.3 UI 展示要求：永久记忆页必须按群分类展示记忆内容；选中某个群后再区分群记忆与按成员分组的群友记忆，并补充对应测试要求。
 
 验证记录：
 
