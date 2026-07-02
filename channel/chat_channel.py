@@ -13,11 +13,6 @@ from common import memory
 from common.i18n import t as _t
 from plugins import *
 
-try:
-    from voice.audio_convert import any_to_wav
-except Exception as e:
-    pass
-
 handler_pool = ThreadPoolExecutor(max_workers=8)  # 处理消息的线程池
 
 
@@ -37,7 +32,7 @@ class ChatChannel(Channel):
         self.sessions = {}
         self.lock = threading.Lock()
         _thread = threading.Thread(target=self.consume)
-        _thread.setDaemon(True)
+        _thread.daemon = True
         _thread.start()
 
     # 根据消息构造context，消息内容相关的触发项写在这里
@@ -223,6 +218,7 @@ class ChatChannel(Channel):
                 file_path = context.content
                 wav_path = os.path.splitext(file_path)[0] + ".wav"
                 try:
+                    from voice.audio_convert import any_to_wav
                     any_to_wav(file_path, wav_path)
                 except Exception as e:  # 转换失败，直接使用mp3，对于某些api，mp3也可以识别
                     logger.warning("[chat_channel]any to wav error, use raw path. " + str(e))

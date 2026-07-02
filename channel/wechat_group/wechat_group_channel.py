@@ -4,7 +4,9 @@ from bridge.context import ContextType
 from bridge.reply import ReplyType
 from channel.chat_channel import ChatChannel
 from channel.wechat_group.protocol import SidecarEvent, SidecarEventType
+from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_client import WechatGroupClient
+from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
 from channel.wechat_group.wechat_group_persona import (
     build_wechat_group_persona_block,
@@ -28,11 +30,12 @@ class WechatGroupChannel(ChatChannel):
     STATUS_CONNECTED = "connected"
     STATUS_ERROR = "error"
 
-    def __init__(self, client=None):
+    def __init__(self, client=None, archive=None):
         super().__init__()
         self.client = client or WechatGroupClient(event_handler=self.consume_sidecar_event)
         if hasattr(self.client, "event_handler"):
             self.client.event_handler = self.consume_sidecar_event
+        self.archive = archive or WechatGroupArchive()
         self.status = self.STATUS_IDLE
         self.qr_code = ""
         self.rooms = []
@@ -88,6 +91,7 @@ class WechatGroupChannel(ChatChannel):
         if not self._is_selected_room(msg):
             logger.debug("[wechat_group] unselected room skipped: {}".format(msg.other_user_id))
             return False
+        self._record_inbound_message(msg)
         self.handle_text(msg)
         return True
 
@@ -108,15 +112,22 @@ class WechatGroupChannel(ChatChannel):
         msg = context.get("msg")
         if not msg or not getattr(msg, "is_group", False):
             return context
+        self._record_inbound_message(msg)
+        blocks = []
         if should_skip_persona_for_message(msg):
             context["wechat_group_persona_skipped"] = True
-            return context
-        persona = get_wechat_group_persona_config()
-        block = build_wechat_group_persona_block(persona["prompt"])
-        if not block:
-            return context
-        context["wechat_group_persona_preset_id"] = persona["preset_id"]
-        context.content = "{}\n\n{}".format(block, context.content).strip()
+        else:
+            persona = get_wechat_group_persona_config()
+            block = build_wechat_group_persona_block(persona["prompt"])
+            if block:
+                context["wechat_group_persona_preset_id"] = persona["preset_id"]
+                blocks.append(block)
+        recent_block = self._build_recent_context_block(msg)
+        if recent_block:
+            blocks.append(recent_block)
+            context["wechat_group_recent_context_injected"] = True
+        if blocks:
+            context.content = "{}\n\n{}".format("\n\n".join(blocks), context.content).strip()
         return context
 
     def _decorate_reply(self, context, reply):
@@ -132,14 +143,67 @@ class WechatGroupChannel(ChatChannel):
         if reply.type == ReplyType.TEXT:
             mention_ids = self._build_reply_mentions(context)
             self.client.send_text(receiver, reply.content, mention_ids=mention_ids)
+            self._record_assistant_reply(context, reply, mention_ids)
         elif reply.type in (ReplyType.IMAGE, ReplyType.IMAGE_URL):
             self.client.send_image(receiver, reply.content)
+            self._record_assistant_reply(context, reply, [])
         elif reply.type == ReplyType.VOICE:
             self.client.send_audio(receiver, reply.content)
+            self._record_assistant_reply(context, reply, [])
         elif reply.type in (ReplyType.FILE, ReplyType.VIDEO):
             self.client.send_file(receiver, reply.content)
+            self._record_assistant_reply(context, reply, [])
         else:
             logger.warning("[wechat_group] unsupported reply type: {}".format(reply.type))
+
+    def _record_inbound_message(self, msg: WechatGroupMessage):
+        if not conf().get("wechat_group_record_messages", True):
+            return
+        try:
+            self.archive.record_message(
+                message_id=msg.msg_id,
+                room_id=msg.other_user_id,
+                room_name=msg.other_user_nickname,
+                sender_id=msg.actual_user_id,
+                sender_nickname=msg.actual_user_nickname,
+                message_type=msg.message_type,
+                text=msg.text,
+                media_path=msg.media_path,
+                is_at=msg.is_at,
+                created_at=msg.create_time,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to archive inbound message: {}".format(e))
+
+    def _record_assistant_reply(self, context, reply, mention_ids):
+        if not conf().get("wechat_group_record_messages", True):
+            return
+        msg = context.get("msg")
+        try:
+            self.archive.record_assistant_reply(
+                room_id=context.get("receiver") or "",
+                room_name=getattr(msg, "other_user_nickname", "") if msg else "",
+                reply_type=str(reply.type),
+                content=reply.content,
+                mention_ids=mention_ids,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to archive assistant reply: {}".format(e))
+
+    def _build_recent_context_block(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_recent_context_enabled", True):
+            return ""
+        try:
+            return build_wechat_group_recent_context_block(
+                self.archive,
+                msg.other_user_id,
+                limit=conf().get("wechat_group_recent_context_limit", 20),
+                minutes=conf().get("wechat_group_recent_context_minutes", 60),
+                now=msg.create_time,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to build recent context: {}".format(e))
+            return ""
 
     @staticmethod
     def _is_selected_room(msg: WechatGroupMessage) -> bool:

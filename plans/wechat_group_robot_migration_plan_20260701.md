@@ -103,6 +103,10 @@ BaiLongmaPro 的微信群助手主要集中在 `src/social/`：
 
 ### 4.2 当前群最近上下文
 
+状态：已完成 4.2 最小闭环。当前实现新增微信群专用 SQLite 归档与最近上下文格式化服务，按 `room_id` 隔离记录入站群消息，并在微信群文本请求进入 CowAgent 回复链路前注入 `<recent-wechat-group-transcript>`。注入窗口受 `wechat_group_recent_context_enabled`、`wechat_group_recent_context_limit`、`wechat_group_recent_context_minutes` 控制；最近上下文只作为本轮提示词素材，不写入 CowAgent 全局长期记忆。出站助手回复已进入 `wechat_group_assistant_replies` 表，为后续记忆与审计阶段保留基础数据。
+
+架构论证：4.2 的“最近上下文”不是长期记忆，而是微信群通道的短期事件归档与提示词素材。它需要按时间窗口读取当前 `room_id` 的原始聊天流水，写入频率高、语义价值不稳定、生命周期短；如果直接塞进 CowAgent 现有 `MemoryManager`，会把普通闲聊提升为全局/用户/会话记忆，增加 embedding 与检索噪声，并且现有 `shared` / `user` / `session` scope 不能天然表达 `room_id` 和 `room_id + sender_id` 隔离。当前专用归档表的定位是低风险地复用 BaiLongmaPro 的 recent transcript 思路，先保证群隔离、时间窗查询和可审计流水。CowAgent 的长期记忆能力保留到 4.3 通过 `WechatGroupMemoryService` 复用：可以复用 embedding、chunker、FTS 和摘要提取思路，但写入与召回入口必须显式携带 `room_id` / `sender_id`，避免污染 Web、CLI、私聊和 Agent 全局记忆。后续如多渠道都需要作用域记忆，再统一规划 `scope_type + scope_id + channel_type` 的通用记忆模型升级，而不是在 4.2 为最近上下文提前改动全局 schema。
+
 回复前注入当前群最近上下文，让模型知道群里刚刚发生了什么。
 
 设计要求：

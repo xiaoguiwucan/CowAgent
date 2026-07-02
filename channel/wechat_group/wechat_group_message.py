@@ -23,10 +23,13 @@ class WechatGroupMessage(ChatMessage):
         payload = event.payload
 
         message_type = payload.get("message_type") or "text"
+        self.message_type = message_type
         self.msg_id = payload.get("message_id") or payload.get("id")
         self.create_time = payload.get("timestamp") or int(time.time())
         self.ctype = _MESSAGE_TYPE_TO_CONTEXT.get(message_type, ContextType.TEXT)
-        self.content = payload.get("file_path") or payload.get("text") or ""
+        self.text = payload.get("text") or ""
+        self.media_path = payload.get("file_path") or ""
+        self.content = self.media_path or self.text
 
         room_id = payload.get("room_id") or ""
         room_name = payload.get("room_name") or room_id
