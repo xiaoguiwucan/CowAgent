@@ -225,6 +225,26 @@ class WechatGroupChannelTest(unittest.TestCase):
             client.commands,
         )
 
+    def test_send_error_reply_to_original_room_with_sender_mention(self):
+        client = FakeClient()
+        channel = WechatGroupChannel(client=client)
+        context = {
+            "type": ContextType.TEXT,
+            "receiver": "room@@abc",
+            "msg": Mock(
+                is_group=True,
+                actual_user_id="wxid_alice",
+                actual_user_nickname="Alice",
+            ),
+        }
+
+        channel.send(Reply(ReplyType.ERROR, "Agent error"), context)
+
+        self.assertEqual(
+            [("send_text", "room@@abc", "Agent error", ["wxid_alice"])],
+            client.commands,
+        )
+
     def test_decorated_group_reply_does_not_prefix_plain_text_at(self):
         client = FakeClient()
         channel = WechatGroupChannel(client=client)

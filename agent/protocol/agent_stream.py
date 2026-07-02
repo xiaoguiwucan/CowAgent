@@ -182,6 +182,17 @@ def _summarize_tools_for_llm_log(tools_schema: Optional[List[Dict[str, Any]]]) -
     )
 
 
+def _is_upstream_object_parse_error(error_str_lower: str) -> bool:
+    return (
+        "value looks like object" in error_str_lower
+        and "can't find closing" in error_str_lower
+        and (
+            "400" in error_str_lower
+            or "bad_response_status_code" in error_str_lower
+        )
+    )
+
+
 def _sanitize_user_message_for_run_log(user_message: str) -> str:
     message = user_message or ""
     return re.sub(
@@ -843,7 +854,8 @@ class AgentStreamExecutor:
         return final_response
 
     def _call_llm_stream(self, retry_on_empty=True, retry_count=0, max_retries=3,
-                         _overflow_retry: bool = False) -> Tuple[str, List[Dict]]:
+                         _overflow_retry: bool = False,
+                         _tools_disabled_retry: bool = False) -> Tuple[str, List[Dict]]:
         """
         Call LLM with streaming and automatic retry on errors
         
@@ -852,6 +864,7 @@ class AgentStreamExecutor:
             retry_count: Current retry attempt (internal use)
             max_retries: Maximum number of retries for API errors
             _overflow_retry: Internal flag indicating this is a retry after context overflow
+            _tools_disabled_retry: Internal flag indicating this is a retry without tools
         
         Returns:
             (response_text, tool_calls)
@@ -880,7 +893,7 @@ class AgentStreamExecutor:
         # real properties (lets tools augment schema at runtime), otherwise
         # fall back to the static `tool.params` (MCP tools rely on this).
         tools_schema = None
-        if self.tools:
+        if self.tools and not _tools_disabled_retry:
             tools_schema = []
             for tool in self.tools.values():
                 input_schema = tool.params
@@ -1119,6 +1132,22 @@ class AgentStreamExecutor:
                         "Sorry, something went wrong with the earlier conversation. I've cleared the history — please send your message again.",
                     ))
             
+            if (
+                    tools_schema
+                    and not _tools_disabled_retry
+                    and _is_upstream_object_parse_error(error_str_lower)):
+                logger.warning(
+                    "[Agent] Upstream rejected tool-enabled stream with object parse error; "
+                    "retrying once without tools"
+                )
+                return self._call_llm_stream(
+                    retry_on_empty=retry_on_empty,
+                    retry_count=retry_count,
+                    max_retries=max_retries,
+                    _overflow_retry=_overflow_retry,
+                    _tools_disabled_retry=True,
+                )
+
             # Check if error is rate limit (429)
             is_rate_limit = '429' in error_str_lower or 'rate limit' in error_str_lower
             

@@ -128,7 +128,7 @@ npm run dev:hot
 ## 编码与风格
 
 - Python 代码保持现有风格，优先小函数、明确异常处理和 `common.log.logger` 日志。
-- 仓库贡献规范要求 issue、PR、代码注释和 commit message 尽量使用英文；新增代码注释也应优先英文。
+- 仓库贡献规范要求 issue、PR 和代码注释尽量使用英文；新增代码注释也应优先英文。Git 提交说明（commit message）必须使用简体中文，清晰概括本次变更。
 - 用户对话可以使用中文，但写入项目代码和面向国际社区的文档时遵循仓库既有语言策略。
 - 避免引入新的全局依赖；确需新增依赖时，同步更新 `requirements.txt`、`requirements-optional.txt` 或 `desktop/package.json`，并说明原因。
 - README 或文档中如出现编码异常，先确认文件实际编码，不要盲目整体重写。

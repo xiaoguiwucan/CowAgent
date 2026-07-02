@@ -2,6 +2,17 @@
 
 ## 2026-07-02
 
+### Agent 流式工具调用解析错误降级
+
+- 更新 `agent/protocol/agent_stream.py`：当上游 OpenAI-compatible 流式接口在带 tools 请求下返回 `Value looks like object, but can't find closing '}' symbol` / `bad_response_status_code` 这类 400 解析错误时，仅重试一次不带 tools 的请求，避免整轮 Agent 直接失败。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：微信群通道将 `ReplyType.INFO` / `ReplyType.ERROR` 按文本消息发送，并沿用真实 `mention_ids` @ 触发用户，避免 Agent 错误回复落入 `unsupported reply type: ERROR`。
+- 更新 `tests/test_agent_stream_logging.py` 与 `tests/test_wechat_group_channel.py`：补充上游 object 解析错误无工具降级、微信群错误回复发送的回归测试。
+
+验证记录：
+- `python -m unittest tests.test_agent_stream_logging tests.test_wechat_group_channel`
+- `python -m py_compile agent\protocol\agent_stream.py channel\wechat_group\wechat_group_channel.py tests\test_agent_stream_logging.py tests\test_wechat_group_channel.py`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
 ### 微信群人设日志脱敏
 
 - 更新 `agent/protocol/agent_stream.py`：调用 LLM 前的用户消息日志会将 `<wechat-group-persona>...</wechat-group-persona>` 内容替换为 `微信群聊人设提示词`，避免日志打印完整微信群人设提示词；真实传给模型的上下文不变。

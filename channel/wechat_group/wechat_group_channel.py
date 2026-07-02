@@ -147,7 +147,7 @@ class WechatGroupChannel(ChatChannel):
         if not receiver:
             logger.warning("[wechat_group] missing receiver, skip send")
             return
-        if reply.type == ReplyType.TEXT:
+        if reply.type in (ReplyType.TEXT, ReplyType.INFO, ReplyType.ERROR):
             mention_ids = self._build_reply_mentions(context)
             self.client.send_text(receiver, reply.content, mention_ids=mention_ids)
             self._record_assistant_reply(context, reply, mention_ids)

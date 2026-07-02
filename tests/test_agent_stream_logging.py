@@ -120,6 +120,66 @@ class TestAgentStreamLogging(unittest.TestCase):
         self.assertNotIn("HISTORY_SHOULD_NOT_BE_LOGGED", logs)
         self.assertNotIn(long_tail, logs)
 
+    def test_retries_without_tools_on_upstream_object_parse_error(self):
+        from agent.protocol.agent_stream import AgentStreamExecutor
+        from agent.protocol.models import LLMModel
+
+        class StreamingModel(LLMModel):
+            def __init__(self):
+                super().__init__(model="unit-test-model")
+                self.seen_tools = []
+
+            def call_stream(self, request):
+                self.seen_tools.append(request.tools)
+                if request.tools:
+                    yield {
+                        "error": {
+                            "message": "Value looks like object, but can't find closing '}' symbol",
+                            "code": "bad_response_status_code",
+                            "type": "bad_response_status_code",
+                        },
+                        "message": "Value looks like object, but can't find closing '}' symbol",
+                        "status_code": 400,
+                    }
+                    return
+                yield {
+                    "choices": [
+                        {
+                            "delta": {"content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                }
+
+        class Tool:
+            name = "read"
+            description = "Read file content"
+            params = {"type": "object", "properties": {"path": {"type": "string"}}}
+
+            def get_json_schema(self):
+                return {
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    }
+                }
+
+        model = StreamingModel()
+        executor = AgentStreamExecutor(
+            agent=None,
+            model=model,
+            system_prompt="",
+            tools=[Tool()],
+            messages=[],
+        )
+
+        content, tool_calls = executor._call_llm_stream(retry_on_empty=False)
+
+        self.assertEqual("ok", content)
+        self.assertEqual([], tool_calls)
+        self.assertIsNotNone(model.seen_tools[0])
+        self.assertIsNone(model.seen_tools[1])
+
 
 if __name__ == "__main__":
     unittest.main()
