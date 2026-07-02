@@ -6718,7 +6718,7 @@ function renderGroupsView() {
                 </div>
             </div>
         </aside>
-        <main class="flex-1 min-w-0 h-full overflow-hidden p-5">
+        <main class="flex-1 min-w-0 h-full overflow-y-auto p-5">
             ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
             ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
             ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
@@ -6757,9 +6757,9 @@ function buildGroupsBasicPanel(extra) {
     const enabled = recent.enabled !== false;
     const limit = Number(recent.limit || 20);
     const minutes = Number(recent.minutes || 60);
-    return `<div class="h-full max-w-4xl">
+    return `<div class="h-full w-full">
         ${buildGroupsPanelTitle('fa-sliders', 'groups_basic_title', 'groups_basic_desc')}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(220px,0.7fr)_minmax(220px,0.7fr)] gap-4">
             <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
                 <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0">
@@ -6793,19 +6793,19 @@ function buildGroupsRoomsPanel(extra) {
     const selectedNames = Array.isArray(extra.selected_room_names) ? extra.selected_room_names : [];
     const roomNameById = new Map(rooms.map(room => [String(room.id || ''), String(room.name || t('groups_room_unnamed'))]));
     const selectedLabels = selectedIds.map((id, idx) => roomNameById.get(String(id)) || t('groups_room_saved').replace('{n}', String(idx + 1)));
-    return `<div class="h-full max-w-5xl">
-        <div class="flex items-start justify-between gap-4 mb-5">
+    return `<div class="h-full w-full flex flex-col min-h-0">
+        <div class="flex items-start justify-between gap-4 mb-5 flex-shrink-0">
             ${buildGroupsPanelTitle('fa-comments', 'groups_rooms_title', 'groups_rooms_desc')}
             <button type="button" onclick="refreshWechatGroupRooms()"
                 class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
                 <i class="fas fa-rotate-right mr-1"></i>${t('wechat_group_rooms_refresh')}
             </button>
         </div>
-        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] gap-4">
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+        <div class="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 flex flex-col gap-3 min-h-0">
                 <label class="block text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_rooms_select_label')}</label>
                 ${buildGroupsRoomDropdown(rooms, selectedIds)}
-                <div id="groups-room-selected-list" class="min-h-[72px] rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-2">
+                <div id="groups-room-selected-list" class="flex-1 min-h-[160px] max-h-[420px] overflow-y-auto rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-2">
                     ${selectedLabels.length ? `<div class="flex flex-wrap gap-1.5">${selectedLabels.map((label, idx) => `
                         <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-white/10 px-2 py-1 text-xs text-slate-600 dark:text-slate-300 max-w-full">
                             <span class="truncate">${escapeHtml(label)}</span>
@@ -6815,10 +6815,10 @@ function buildGroupsRoomsPanel(extra) {
                         </span>`).join('')}</div>` : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_rooms_none_selected')}</p>`}
                 </div>
             </div>
-            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 flex flex-col min-h-0">
                 <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_room_names_label')}</label>
-                <textarea id="groups-room-names" rows="7"
-                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors resize-none"
+                <textarea id="groups-room-names" rows="10"
+                    class="flex-1 min-h-[220px] w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors resize-none"
                     placeholder="${escapeHtml(t('wechat_group_room_names_placeholder'))}">${escapeHtml(selectedNames.join('\n'))}</textarea>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">${t('groups_rooms_fallback_hint')}</p>
             </div>
@@ -6858,12 +6858,12 @@ function buildGroupsPersonaPanel(extra) {
     const persona = extra.persona || {};
     const prompt = String(persona.prompt || '');
     const maxLength = Number(persona.max_length || 6000);
-    return `<div class="h-full max-w-4xl">
+    return `<div class="h-full w-full flex flex-col min-h-0">
         ${buildGroupsPanelTitle('fa-user-pen', 'groups_persona_title', 'groups_persona_desc')}
-        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 flex flex-col flex-1 min-h-0">
             <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_persona_prompt_label')}</label>
-            <textarea id="groups-persona-prompt" rows="13" maxlength="${maxLength}" oninput="updateGroupsPersonaCount()"
-                class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-none"
+            <textarea id="groups-persona-prompt" rows="16" maxlength="${maxLength}" oninput="updateGroupsPersonaCount()"
+                class="flex-1 min-h-[360px] w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-none"
                 placeholder="${escapeHtml(t('wechat_group_persona_prompt_placeholder'))}">${escapeHtml(prompt)}</textarea>
             <div class="flex items-center justify-between gap-3 mt-2">
                 <p class="text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_persona_boundary')}</p>

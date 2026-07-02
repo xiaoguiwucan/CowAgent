@@ -212,7 +212,7 @@ const GroupsPage: React.FC<GroupsPageProps> = ({ baseUrl }) => {
               </div>
             </aside>
 
-            <main className="flex-1 min-w-0 h-full overflow-hidden px-6 py-5">
+            <main className="flex-1 min-w-0 h-full overflow-y-auto px-6 py-5">
               {section === 'basic' && (
                 <BasicSettings
                   enabled={recentEnabled}
@@ -291,9 +291,9 @@ const BasicSettings: React.FC<{
   onLimit: (v: number) => void
   onMinutes: (v: number) => void
 }> = ({ enabled, limit, minutes, onEnabled, onLimit, onMinutes }) => (
-  <div className="h-full max-w-4xl">
+  <div className="h-full w-full">
     <PanelTitle icon={Settings2} title={t('groups_basic_title')} desc={t('groups_basic_desc')} />
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(220px,0.7fr)_minmax(220px,0.7fr)] gap-4">
       <div className="rounded-card border border-default bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -354,8 +354,8 @@ const RoomSettings: React.FC<{
   const selectedLabels = selectedIds.map((id, index) => roomNameById.get(id) || t('groups_room_saved').replace('{n}', String(index + 1)))
 
   return (
-    <div className="h-full max-w-5xl">
-      <div className="flex items-start justify-between gap-4 mb-5">
+    <div className="h-full w-full flex flex-col min-h-0">
+      <div className="flex items-start justify-between gap-4 mb-5 flex-shrink-0">
         <PanelTitle icon={MessageCircle} title={t('groups_rooms_title')} desc={t('groups_rooms_desc')} />
         <Btn variant="ghost" onClick={onRefresh} disabled={refreshing}>
           <span className="flex items-center gap-1.5">
@@ -365,11 +365,11 @@ const RoomSettings: React.FC<{
         </Btn>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] gap-4">
-        <div className="rounded-card border border-default bg-surface p-4 space-y-3">
+      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-4">
+        <div className="rounded-card border border-default bg-surface p-4 flex flex-col gap-3 min-h-0">
           <label className="block text-sm font-medium text-content">{t('groups_rooms_select_label')}</label>
           <RoomMultiSelect rooms={rooms} selectedIds={selectedIds} onChange={onSelectedIds} />
-          <div className="min-h-[72px] rounded-btn border border-default bg-inset p-2">
+          <div className="flex-1 min-h-[160px] max-h-[420px] overflow-y-auto rounded-btn border border-default bg-inset p-2">
             {selectedLabels.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {selectedLabels.map((label, idx) => (
@@ -395,13 +395,13 @@ const RoomSettings: React.FC<{
           </div>
         </div>
 
-        <div className="rounded-card border border-default bg-surface p-4">
+        <div className="rounded-card border border-default bg-surface p-4 flex flex-col min-h-0">
           <label className="block text-sm font-medium text-content mb-1.5">{t('wechat_group_room_names_label')}</label>
           <textarea
             value={selectedNames.join('\n')}
             onChange={(event) => onSelectedNames(splitLines(event.target.value))}
-            rows={7}
-            className="w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent font-mono transition-colors resize-none"
+            rows={10}
+            className="flex-1 min-h-[220px] w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent font-mono transition-colors resize-none"
             placeholder={t('wechat_group_room_names_placeholder')}
           />
           <p className="text-xs text-content-tertiary mt-2">{t('groups_rooms_fallback_hint')}</p>
@@ -497,16 +497,16 @@ const PersonaSettings: React.FC<{
   maxLength: number
   onPrompt: (v: string) => void
 }> = ({ prompt, maxLength, onPrompt }) => (
-  <div className="h-full max-w-4xl">
+  <div className="h-full w-full flex flex-col min-h-0">
     <PanelTitle icon={UserRound} title={t('groups_persona_title')} desc={t('groups_persona_desc')} />
-    <div className="rounded-card border border-default bg-surface p-4">
+    <div className="rounded-card border border-default bg-surface p-4 flex flex-col flex-1 min-h-0">
       <label className="block text-sm font-medium text-content mb-1.5">{t('wechat_group_persona_prompt_label')}</label>
       <textarea
         value={prompt}
         maxLength={maxLength}
         onChange={(event) => onPrompt(event.target.value)}
-        rows={13}
-        className="w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
+        rows={16}
+        className="flex-1 min-h-[360px] w-full px-3 py-2 rounded-btn border border-strong bg-inset text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent transition-colors resize-none"
         placeholder={t('wechat_group_persona_prompt_placeholder')}
       />
       <div className="flex items-center justify-between gap-3 mt-2">

@@ -102,8 +102,10 @@ npm run dev:hot
 - 修改前先读当前文件，禁止凭记忆改代码。
 - 遵守最小修改原则：只改让当前需求成立的必要文件。
 - 不顺手重构无关代码；发现无关问题时在回复里单独说明。
+- 用户要求修改 UI、页面、布局、交互或样式但未明确指定端时，默认只修改 Web 控制台（`channel/web/chat.html`、`channel/web/static/js/console.js`、`channel/web/static/css/console.css` 等）；不要同时修改桌面端 `desktop/`。只有用户明确要求“桌面端”“Electron”“桌面应用”或指定 `desktop/` 文件时，才修改桌面端 UI。
 - 每次代码、配置或文档修改后，必须同步更新根目录 `CHANGES.md`，记录本次修改日期、任务背景、关键改动文件和验证结果；不得只在最终回复中描述而不落文档。
 - 面向本项目的开发计划、迁移计划、实施方案和阶段性任务文档必须使用简体中文编写；如需引用英文 API、命令、路径或错误信息，保留原文即可。
+- 跟进开发计划文档进行开发时，开发完成后必须回写对应开发计划文档，更新已完成进度、实际改动、验证结果与剩余事项，确保计划状态与代码交付一致。
 - 优先沿用现有工厂、单例、配置读取和日志模式。
 - 不要把真实密钥、token、cookie、部署 ID 写入仓库。
 - 修改跨渠道逻辑时，评估 Web、IM、CLI、桌面端是否都会受影响。
@@ -227,6 +229,8 @@ current user message:
 4. 修改后至少运行 `npm run build`。
 
 ## 前端 UI 开发规则
+
+默认界面修改目标是 Web 控制台。除非用户明确指定桌面端，所有 UI 需求优先落在 `channel/web/chat.html`、`channel/web/static/js/console.js` 与 `channel/web/static/css/console.css`；桌面端规则仅在任务明确涉及 Electron / `desktop/` 时适用。
 
 本项目桌面端当前技术栈是 Electron + Vite + React 18 + TypeScript + Tailwind CSS + Zustand + `lucide-react`。新增或修改 UI 时必须优先贴合现有实现，不要引入新的 UI 框架、组件库或设计系统，除非需求明确且已说明必要性。
 

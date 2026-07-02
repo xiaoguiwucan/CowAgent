@@ -2,14 +2,33 @@
 
 ## 2026-07-02
 
+### AGENTS UI 默认修改目标规则
+
+- 更新 `AGENTS.md`：补充 UI 修改默认目标规则，明确用户要求修改 UI、页面、布局、交互或样式但未指定端时，只修改 Web 控制台相关文件，不默认联动修改桌面端；仅在用户明确指定桌面端、Electron 或 `desktop/` 时才修改桌面端 UI。
+
+验证记录：
+
+- 文档变更，已检查 `AGENTS.md` 包含 UI 默认修改 Web 控制台规则。
+
+### AGENTS 开发计划回写规则
+
+- 更新 `AGENTS.md`：在“修改原则”中补充跟进开发计划文档开发时的收尾要求，明确开发完成后必须回写对应计划文档，更新已完成进度、实际改动、验证结果与剩余事项。
+
+验证记录：
+
+- 文档变更，已检查 `AGENTS.md` 包含开发计划回写规则，`CHANGES.md` 已记录本次修改。
+
 ### 桌面端群聊页宽度调整
 
 - 更新 `desktop/src/renderer/src/pages/GroupsPage.tsx`：移除右侧详情面板的 `max-w-4xl` / `max-w-5xl` 宽度限制，使群聊页主内容区与知识库页一样覆盖可用窗口宽度。
 - 调整群聊页内部布局：基础设置改为更适合宽屏的三列比例；群聊开关页扩大已选群列表和群名兜底编辑区；人设设定编辑器改为随右侧空间撑开并保留内部滚动。
+- 更新 `channel/web/chat.html` 与 `channel/web/static/js/console.js`：同步 Web 控制台群聊页宽度，外层对齐知识库页 `max-w-[1600px]`，并扩大动态渲染的群聊开关、人设编辑内部空间。
 
 验证记录：
 
 - 静态布局断言：确认 `GroupsPage.tsx` 不再包含 `max-w-4xl` / `max-w-5xl` 详情宽度限制，并包含新的宽屏群聊布局。
+- 静态布局断言：确认 Web 控制台 `view-groups` 外层已对齐知识库页 `max-w-[1600px]`，且动态群聊详情面板不再包含窄宽度限制。
+- `node --check .\channel\web\static\js\console.js`
 - `Set-Location -LiteralPath .\desktop`
 - `npm run build`
 
