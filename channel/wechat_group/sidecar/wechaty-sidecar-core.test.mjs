@@ -1,7 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { extractQuotedMessageFromRawPayload, sendText, sendWechat4uRawTextWithMsgSource } from './wechaty-sidecar-core.mjs'
+import {
+  buildMediaFilePath,
+  detectMessageMediaType,
+  extractQuotedMessageFromRawPayload,
+  sanitizeMediaFilePart,
+  sendText,
+  sendWechat4uRawTextWithMsgSource,
+} from './wechaty-sidecar-core.mjs'
 
 function buildReferMsgContent({ fromusr = '@bot', displayname = 'CowBot', content = 'previous answer', title = 'current reply' } = {}) {
   return `<msg><appmsg><title>${title}</title><des></des><type>57</type><url></url><appattach></appattach><thumburl></thumburl><md5></md5><refermsg><type>1</type><svrid>123456</svrid><fromusr>${fromusr}</fromusr><chatusr>@@room</chatusr><displayname>${displayname}</displayname><content>${content}</content></refermsg></appmsg><fromusername>@@room</fromusername><appinfo><appname></appname></appinfo></msg>`
@@ -297,4 +304,26 @@ test('sendWechat4uRawTextWithMsgSource accepts wxid member ids for real group me
 
   assert.equal(requests.length, 1)
   assert.equal(requests[0].data.Msg.MsgSource, '<msgsource><atuserlist>wxid_alice</atuserlist></msgsource>')
+})
+
+test('detectMessageMediaType identifies image messages from numeric or string message type', () => {
+  assert.equal(detectMessageMediaType({ type: () => 6 }), 'image')
+  assert.equal(detectMessageMediaType({ type: () => 'Image' }), 'image')
+  assert.equal(detectMessageMediaType({ type: () => 2 }), 'audio')
+  assert.equal(detectMessageMediaType({ type: () => 'Text' }), 'text')
+})
+
+test('detectMessageMediaType treats numeric text messages as text', () => {
+  assert.equal(detectMessageMediaType({ type: () => 7 }), 'text')
+})
+
+test('sanitizeMediaFilePart removes path separators and unsafe characters', () => {
+  assert.equal(sanitizeMediaFilePart('../room@@abc/hello world'), 'room@@abc_hello_world')
+  assert.equal(sanitizeMediaFilePart(''), 'unknown')
+})
+
+test('buildMediaFilePath keeps media files under the configured media directory', () => {
+  const path = buildMediaFilePath('D:/cow/media', '../room@@abc', '../../msg-1', 'photo.large.JPG')
+
+  assert.equal(path.replaceAll('\\', '/'), 'D:/cow/media/room@@abc/msg-1.jpg')
 })

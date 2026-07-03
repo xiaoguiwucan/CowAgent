@@ -1,6 +1,14 @@
+import path from 'node:path'
 import xmlParser from 'fast-xml-parser'
 
 const APP_MESSAGE_TYPE_REFER = 57
+const MESSAGE_TYPE_NAMES = {
+  1: 'file',
+  2: 'audio',
+  6: 'image',
+  7: 'text',
+  15: 'video',
+}
 
 function stringValue(value = '') {
   if (value === null || value === undefined) return ''
@@ -9,6 +17,50 @@ function stringValue(value = '') {
 
 function emptyQuoteResult() {
   return { is_quote_self: false, quote: {} }
+}
+
+export function detectMessageMediaType(message) {
+  let rawType = ''
+  try {
+    rawType = message?.type?.()
+  } catch {
+    rawType = ''
+  }
+  if (typeof rawType === 'number') {
+    return MESSAGE_TYPE_NAMES[rawType] || 'text'
+  }
+  const normalized = String(rawType || '').trim().toLowerCase()
+  if (normalized.includes('image')) return 'image'
+  if (normalized.includes('audio') || normalized.includes('voice')) return 'audio'
+  if (normalized.includes('video')) return 'video'
+  if (normalized.includes('attachment') || normalized.includes('file')) return 'file'
+  return 'text'
+}
+
+export function sanitizeMediaFilePart(value = '') {
+  const cleaned = String(value || '')
+    .replace(/[\\/]+/g, '_')
+    .replace(/\.\.+/g, '')
+    .replace(/[^\w@.-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120)
+  return cleaned || 'unknown'
+}
+
+function mediaExtension(fileName = '', mediaType = '') {
+  const ext = path.extname(String(fileName || '')).toLowerCase().replace('.', '')
+  if (ext) return ext
+  if (mediaType === 'image') return 'jpg'
+  if (mediaType === 'audio') return 'mp3'
+  if (mediaType === 'video') return 'mp4'
+  return 'dat'
+}
+
+export function buildMediaFilePath(mediaDir, roomId, messageId, fileName = '', mediaType = 'image') {
+  const dir = path.join(String(mediaDir || ''), sanitizeMediaFilePart(roomId))
+  const baseName = sanitizeMediaFilePart(messageId)
+  const ext = mediaExtension(fileName, mediaType)
+  return path.join(dir, `${baseName}.${ext}`)
 }
 
 export function extractQuotedMessageFromRawPayload(rawPayload = {}, selfId = '') {

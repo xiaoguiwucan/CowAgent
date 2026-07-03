@@ -3782,6 +3782,16 @@ class ChannelsHandler:
                 "auto_apply_group_enabled": conf().get("wechat_group_memory_auto_apply_group_enabled", True),
                 "auto_apply_member_enabled": conf().get("wechat_group_memory_auto_apply_member_enabled", True),
             },
+            "image": {
+                "understanding_enabled": conf().get("wechat_group_image_understanding_enabled", True),
+                "comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled", True),
+                "understanding_prompt": conf().get(
+                    "wechat_group_image_understanding_prompt",
+                    "请简洁描述这张图片中的关键信息，并指出可能需要回复的内容。",
+                ),
+                "cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes", 30),
+                "create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit", 5),
+            },
             "free_reply": free_reply,
         }
 
@@ -3802,6 +3812,11 @@ class ChannelsHandler:
             "wechat_group_memory_distill_message_limit",
             "wechat_group_memory_auto_apply_group_enabled",
             "wechat_group_memory_auto_apply_member_enabled",
+            "wechat_group_image_understanding_enabled",
+            "wechat_group_image_understanding_comment_enabled",
+            "wechat_group_image_understanding_prompt",
+            "wechat_group_image_understanding_cache_minutes",
+            "wechat_group_image_create_hourly_limit",
             "wechat_group_free_reply_enabled",
             "wechat_group_free_reply_room_ids",
             "wechat_group_free_reply_names",
@@ -3831,10 +3846,21 @@ class ChannelsHandler:
                 "wechat_group_memory_auto_extract",
                 "wechat_group_memory_auto_apply_group_enabled",
                 "wechat_group_memory_auto_apply_member_enabled",
+                "wechat_group_image_understanding_enabled",
+                "wechat_group_image_understanding_comment_enabled",
                 "wechat_group_free_reply_enabled",
                 "wechat_group_free_reply_llm_judge_enabled",
             ):
                 value = cls._normalize_bool(value)
+            elif key == "wechat_group_image_understanding_prompt":
+                value = "\n".join(
+                    line.strip()
+                    for line in str(value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+                ).strip()
+            elif key == "wechat_group_image_understanding_cache_minutes":
+                value = cls._clamp_int(value, 1, 120, 30)
+            elif key == "wechat_group_image_create_hourly_limit":
+                value = cls._clamp_int(value, 0, 100, 5)
             elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
                 value = max(1, int(value))
             elif key in ("wechat_group_memory_distill_window_minutes", "wechat_group_memory_distill_message_limit"):

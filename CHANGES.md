@@ -2,6 +2,25 @@
 
 ## 2026-07-03
 
+### 微信群图片理解与生图限流
+- 新增 `plans/wechat_group_image_multimodal_plan_20260703.md`，记录微信群图片理解、生图限流和 Web 配置方案，并在开发完成后回写实际改动、验证结果和剩余事项。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`、`wechaty-sidecar.mjs` 与 sidecar 测试：识别图片消息、规整媒体文件名、下载媒体到外部目录，并向 Python 上报 `message_type` 与 `file_path`。
+- 修复真实 wechat4u 链路中文本消息 `MessageType.Text = 7` 被误判为文件的问题，避免普通文本消息触发 `toFileBox()` 并报 `text message no file`。
+- 修复“回复引用图片并 @ 机器人识别这张图”的实际群聊链路：直接触发的文本识图请求会优先使用引用消息指向的图片；引用 ID 查不到时按引用发送者匹配当前群最近图片，最后才回退到当前群 10 分钟内最近图片。
+- 更新 `channel/wechat_group/wechat_group_channel.py` 与 `wechat_group_archive.py`：直接触发的图片消息复用既有 `Vision` 工具生成视觉摘要并注入 `<wechat-group-image>` 上下文，增加摘要缓存；微信群生图请求按群统计最近 1 小时成功受理次数并超额拒绝。
+- 更新 `config.py`、`config-template.json`、`channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：新增图片理解开关、纯图片评论开关、视觉摘要缓存分钟数、生图每小时上限，并在 Web 控制台“群聊 -> 图片与生图”中配置。
+- 扩展 `tests/test_wechat_group_channel.py`、`tests/test_wechat_group_web.py` 和 sidecar Node 测试，覆盖图片理解上下文注入、非 @ 图片跳过回复、摘要缓存、生图限流记录、配置保存和媒体路径安全。
+验证记录：
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_channel`
+- `python -m unittest tests.test_wechat_group_context`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `npm test`（在 `channel/wechat_group/sidecar` 目录）
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_at_text_image_request_uses_recent_group_image`
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_at_text_image_request_prefers_quoted_image`
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_at_text_image_request_uses_quoted_sender_when_quote_id_missing`
+- 未执行真实微信群手动验证；仍需扫码登录后在目标群验证 @ 图片评论、生图返回和超额拒绝。
+
 ### 微信群引用机器人消息触发
 - 新增 `plans/wechat_group_quote_self_trigger_20260703.md`，记录引用机器人消息按被 @ 处理的实现方案、风险与验证结果。
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：通过 wechat4u raw `appmsg type=57` 解析 `refermsg.fromusr`，当引用发送者等于当前机器人 ID 时上报 `is_quote_self` 和引用摘要。

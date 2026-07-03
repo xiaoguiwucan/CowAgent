@@ -68,6 +68,39 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertEqual("room@@a", rows[0]["room_id"])
         self.assertEqual("A 群消息", rows[0]["text"])
 
+    def test_archive_get_message_by_id_scopes_to_room(self):
+        archive = WechatGroupArchive(self.db_path)
+        archive.record_message(
+            message_id="quoted-image",
+            room_id="room@@a",
+            room_name="A群",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            message_type="image",
+            text="[图片]",
+            media_path="D:/tmp/quoted.jpg",
+            created_at=1000,
+        )
+        archive.record_message(
+            message_id="quoted-image",
+            room_id="room@@b",
+            room_name="B群",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            message_type="image",
+            text="[图片]",
+            media_path="D:/tmp/other.jpg",
+            created_at=1001,
+        )
+
+        row = archive.get_message_by_id("room@@a", "quoted-image")
+
+        self.assertIsNotNone(row)
+        self.assertEqual("room@@a", row["room_id"])
+        self.assertEqual("image", row["message_type"])
+        self.assertEqual("D:/tmp/quoted.jpg", row["media_path"])
+        self.assertIsNone(archive.get_message_by_id("room@@missing", "quoted-image"))
+
     def test_archive_lists_members_by_room_and_query(self):
         archive = WechatGroupArchive(self.db_path)
         archive.record_message(

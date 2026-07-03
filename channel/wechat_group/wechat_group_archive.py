@@ -96,6 +96,56 @@ class WechatGroupArchive:
                     ),
                 )
 
+    def record_image_create_usage(
+        self,
+        room_id: str,
+        sender_id: str = "",
+        prompt: str = "",
+        status: str = "accepted",
+        created_at: Optional[int] = None,
+    ) -> None:
+        if not room_id:
+            return
+        ts = _coerce_timestamp(created_at)
+        with self._lock, closing(self._connect()) as conn:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO wechat_group_image_create_usage (
+                        room_id, sender_id, prompt, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(room_id),
+                        str(sender_id or ""),
+                        str(prompt or "")[:2000],
+                        str(status or "accepted"),
+                        ts,
+                    ),
+                )
+
+    def count_image_create_usage(
+        self,
+        room_id: str,
+        window_seconds: int = 3600,
+        now: Optional[int] = None,
+    ) -> int:
+        if not room_id:
+            return 0
+        cutoff = _coerce_timestamp(now) - max(int(window_seconds or 3600), 1)
+        with self._lock, closing(self._connect()) as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM wechat_group_image_create_usage
+                WHERE room_id = ?
+                  AND status = 'accepted'
+                  AND created_at >= ?
+                """,
+                (str(room_id), cutoff),
+            ).fetchone()
+        return int(row[0] or 0) if row else 0
+
     def get_recent_messages(
         self,
         room_id: str,
@@ -122,6 +172,23 @@ class WechatGroupArchive:
                 (str(room_id), cutoff, max_limit),
             ).fetchall()
         return [dict(row) for row in reversed(rows)]
+
+    def get_message_by_id(self, room_id: str, message_id: str) -> Optional[Dict[str, Any]]:
+        if not room_id or not message_id:
+            return None
+        with self._lock, closing(self._connect()) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT id, message_id, room_id, room_name, sender_id, sender_nickname,
+                       message_type, text, media_path, is_at, metadata, created_at
+                FROM wechat_group_messages
+                WHERE room_id = ? AND message_id = ?
+                LIMIT 1
+                """,
+                (str(room_id), str(message_id)),
+            ).fetchone()
+        return self._message_row_to_dict(row) if row else None
 
     def get_messages_for_distill(
         self,
@@ -432,6 +499,24 @@ class WechatGroupArchive:
                     """
                     CREATE INDEX IF NOT EXISTS idx_wechat_group_replies_room_time
                     ON wechat_group_assistant_replies(room_id, created_at, id)
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS wechat_group_image_create_usage (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        room_id TEXT NOT NULL,
+                        sender_id TEXT,
+                        prompt TEXT,
+                        status TEXT NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_wechat_group_image_create_usage_room_time
+                    ON wechat_group_image_create_usage(room_id, status, created_at)
                     """
                 )
                 conn.execute(

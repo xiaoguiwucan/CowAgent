@@ -2,9 +2,10 @@
 
 import re
 import time
+from types import SimpleNamespace
 
 from bridge.context import ContextType
-from bridge.reply import ReplyType
+from bridge.reply import Reply, ReplyType
 from channel.chat_channel import ChatChannel
 from channel.wechat_group.protocol import SidecarEvent, SidecarEventType
 from channel.wechat_group.wechat_group_archive import WechatGroupArchive
@@ -71,6 +72,21 @@ def _format_free_reply_items(items) -> str:
     )
 
 
+def _looks_like_image_understanding_request(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    return bool(re.search(r"(识别|看看|看下|看一下|分析|描述|总结|解释).{0,20}(图|图片|照片|截图|这张|这个)|这张(图|图片|照片|截图)|图里|图上|图片里|图片上", value))
+
+
+def _is_archived_image_message(item) -> bool:
+    return bool(
+        item
+        and str(item.get("message_type") or "").lower() == "image"
+        and str(item.get("media_path") or "").strip()
+    )
+
+
 class WechatGroupChannel(ChatChannel):
     channel_type = const.WECHAT_GROUP
     NOT_SUPPORT_REPLYTYPE = []
@@ -93,6 +109,8 @@ class WechatGroupChannel(ChatChannel):
         self.qr_code = ""
         self.rooms = []
         self._received_msgs = ExpiredDict(60 * 60 * 8)
+        self._image_understanding_cache = None
+        self._image_understanding_cache_seconds = 0
         self.free_reply_state = WechatGroupFreeReplyStateStore()
         self.free_reply_judge = WechatGroupFreeReplyJudge()
         self.free_reply_worker = self._create_free_reply_worker()
@@ -159,6 +177,23 @@ class WechatGroupChannel(ChatChannel):
     def handle_text(self, msg: WechatGroupMessage):
         self._log_inbound_message(msg)
         direct_reply = getattr(msg, "is_at", False) is True or getattr(msg, "is_quote_self", False) is True
+        if msg.ctype == ContextType.IMAGE:
+            if not direct_reply:
+                return
+            content = self._build_image_understanding_content(msg)
+            if not content:
+                return
+            context = self._compose_context(
+                ContextType.TEXT,
+                content,
+                isgroup=True,
+                msg=msg,
+                wechat_group_force_reply=True,
+            )
+            if context:
+                context["wechat_group_image_understanding_triggered"] = True
+                self.produce(context)
+            return
         if msg.ctype == ContextType.TEXT and not direct_reply:
             should_enqueue, decision = self._should_enqueue_free_reply_message(msg)
             if not should_enqueue:
@@ -171,6 +206,20 @@ class WechatGroupChannel(ChatChannel):
             else:
                 self._log_free_reply_decision(decision, "queue_full")
             return
+        if msg.ctype == ContextType.TEXT and direct_reply:
+            image_content = self._build_recent_image_understanding_content(msg)
+            if image_content:
+                context = self._compose_context(
+                    ContextType.TEXT,
+                    image_content,
+                    isgroup=True,
+                    msg=msg,
+                    wechat_group_force_reply=True,
+                )
+                if context:
+                    context["wechat_group_image_understanding_triggered"] = True
+                    self.produce(context)
+                return
         force_reply = getattr(msg, "is_quote_self", False) is True
         context = self._compose_context(
             msg.ctype,
@@ -183,6 +232,189 @@ class WechatGroupChannel(ChatChannel):
             if force_reply:
                 context["wechat_group_quote_self_triggered"] = True
             self.produce(context)
+
+    def _build_recent_image_understanding_content(self, msg: WechatGroupMessage) -> str:
+        text = (getattr(msg, "text", "") or getattr(msg, "content", "") or "").strip()
+        if not _looks_like_image_understanding_request(text):
+            return ""
+        quoted_image = self._find_quoted_image_message(msg)
+        if quoted_image:
+            return self._build_image_understanding_content(self._image_message_from_archive_item(quoted_image, text))
+        try:
+            recent_messages = self.archive.get_recent_messages(
+                msg.other_user_id,
+                limit=10,
+                minutes=10,
+                now=getattr(msg, "create_time", None),
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to load recent image for understanding: {}".format(e))
+            return ""
+        for item in reversed(recent_messages or []):
+            if str(item.get("message_type") or "").lower() != "image":
+                continue
+            image_path = str(item.get("media_path") or "").strip()
+            if not image_path:
+                continue
+            return self._build_image_understanding_content(self._image_message_from_archive_item(item, text))
+        return ""
+
+    def _find_quoted_image_message(self, msg: WechatGroupMessage):
+        quote = getattr(msg, "quote", {}) or {}
+        if not isinstance(quote, dict):
+            return None
+        quote_message_id = str(quote.get("message_id") or "").strip()
+        if quote_message_id:
+            getter = getattr(self.archive, "get_message_by_id", None)
+            if getter:
+                try:
+                    item = getter(msg.other_user_id, quote_message_id)
+                    if _is_archived_image_message(item):
+                        return item
+                except Exception as e:
+                    logger.warning("[wechat_group] failed to load quoted image for understanding: {}".format(e))
+        quote_sender_id = str(quote.get("sender_id") or "").strip()
+        quote_sender_name = str(quote.get("sender_name") or "").strip()
+        if not quote_sender_id and not quote_sender_name:
+            return None
+        try:
+            recent_messages = self.archive.get_recent_messages(
+                msg.other_user_id,
+                limit=20,
+                minutes=30,
+                now=getattr(msg, "create_time", None),
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to load quoted sender image for understanding: {}".format(e))
+            return None
+        for item in reversed(recent_messages or []):
+            if not _is_archived_image_message(item):
+                continue
+            sender_id = str(item.get("sender_id") or "").strip()
+            sender_name = str(item.get("sender_nickname") or "").strip()
+            if (quote_sender_id and sender_id == quote_sender_id) or (quote_sender_name and sender_name == quote_sender_name):
+                return item
+        return None
+
+    @staticmethod
+    def _image_message_from_archive_item(item: dict, text: str):
+        image_path = str(item.get("media_path") or "").strip()
+        return SimpleNamespace(
+            media_path=image_path,
+            content=image_path,
+            text=text,
+            actual_user_nickname=item.get("sender_nickname") or "",
+            actual_user_id=item.get("sender_id") or "",
+        )
+
+    def _build_image_understanding_content(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_image_understanding_enabled", True):
+            return ""
+        if not getattr(msg, "text", "") and not conf().get("wechat_group_image_understanding_comment_enabled", True):
+            return ""
+        image_path = getattr(msg, "media_path", "") or getattr(msg, "content", "")
+        if not image_path:
+            return ""
+        question = (
+            conf().get("wechat_group_image_understanding_prompt")
+            or "请简洁描述这张图片中的关键信息，并指出可能需要回复的内容。"
+        )
+        cache = self._get_image_understanding_cache()
+        cache_key = "{}\n{}".format(image_path, question)
+        summary = cache.get(cache_key, "")
+        try:
+            if not summary:
+                from agent.tools.vision.vision import Vision
+
+                result = Vision().execute({
+                    "image": image_path,
+                    "question": question,
+                })
+                if getattr(result, "status", "") == "success":
+                    payload = getattr(result, "result", None)
+                    if isinstance(payload, dict):
+                        summary = str(payload.get("content") or "").strip()
+                    else:
+                        summary = str(payload or "").strip()
+                    if summary:
+                        cache[cache_key] = summary
+                else:
+                    summary = "图片理解失败：{}".format(getattr(result, "result", "") or "unknown error")
+        except Exception as e:
+            logger.warning("[wechat_group] image understanding failed: {}".format(e))
+            summary = "图片理解失败：{}".format(e)
+        if not summary:
+            summary = "图片理解未返回内容。"
+        sender = "{} ({})".format(
+            getattr(msg, "actual_user_nickname", "") or "",
+            getattr(msg, "actual_user_id", "") or "",
+        ).strip()
+        user_text = (getattr(msg, "text", "") or "").strip()
+        fallback_text = "请根据这张图片作出简短回应。"
+        return (
+            "<wechat-group-image>\n"
+            "图片文件: {image_path}\n"
+            "发送者: {sender}\n"
+            "视觉摘要: {summary}\n"
+            "</wechat-group-image>\n\n"
+            "{text}"
+        ).format(
+            image_path=image_path,
+            sender=sender,
+            summary=summary,
+            text=user_text or fallback_text,
+        )
+
+    def _get_image_understanding_cache(self):
+        try:
+            minutes = int(conf().get("wechat_group_image_understanding_cache_minutes", 30))
+        except Exception:
+            minutes = 30
+        seconds = max(60, min(minutes, 120) * 60)
+        if self._image_understanding_cache is None or self._image_understanding_cache_seconds != seconds:
+            self._image_understanding_cache = ExpiredDict(seconds)
+            self._image_understanding_cache_seconds = seconds
+        return self._image_understanding_cache
+
+    def _generate_reply(self, context, reply=Reply()):
+        if context and context.type == ContextType.IMAGE_CREATE:
+            blocked = self._check_image_create_limit(context)
+            if blocked:
+                return blocked
+            reply = super()._generate_reply(context, reply)
+            if reply and reply.type in (ReplyType.IMAGE, ReplyType.IMAGE_URL):
+                self._record_image_create_usage(context, "accepted")
+            return reply
+        return super()._generate_reply(context, reply)
+
+    def _check_image_create_limit(self, context) -> Reply:
+        try:
+            limit = int(conf().get("wechat_group_image_create_hourly_limit", 5))
+        except Exception:
+            limit = 5
+        room_id = context.get("receiver") or context.get("wechat_group_room_id") or ""
+        if limit <= 0:
+            return Reply(ReplyType.ERROR, "当前微信群生图额度已关闭，请在控制台调整生图额度。")
+        try:
+            used = self.archive.count_image_create_usage(room_id=room_id, window_seconds=3600)
+        except Exception as e:
+            logger.warning("[wechat_group] failed to count image create usage: {}".format(e))
+            used = 0
+        if used >= limit:
+            return Reply(ReplyType.ERROR, "当前群本小时生图额度已用完（{}/{}），请稍后再试。".format(used, limit))
+        return None
+
+    def _record_image_create_usage(self, context, status: str):
+        msg = context.get("msg")
+        try:
+            self.archive.record_image_create_usage(
+                room_id=context.get("receiver") or context.get("wechat_group_room_id") or "",
+                sender_id=getattr(msg, "actual_user_id", "") if msg else "",
+                prompt=context.content or "",
+                status=status,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to record image create usage: {}".format(e))
 
     def _log_inbound_message(self, msg: WechatGroupMessage):
         try:

@@ -1,8 +1,9 @@
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call, patch
 
-from bridge.context import ContextType
+from agent.tools.base_tool import ToolResult
+from bridge.context import Context, ContextType
 from bridge.reply import Reply, ReplyType
 from channel.channel_factory import create_channel
 from channel.wechat_group.protocol import SidecarEventType, parse_sidecar_event
@@ -59,6 +60,11 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_free_reply_room_ids": conf().get("wechat_group_free_reply_room_ids"),
             "wechat_group_free_reply_names": conf().get("wechat_group_free_reply_names"),
             "wechat_group_free_reply_activity_level": conf().get("wechat_group_free_reply_activity_level"),
+            "wechat_group_image_understanding_enabled": conf().get("wechat_group_image_understanding_enabled"),
+            "wechat_group_image_understanding_comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled"),
+            "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
+            "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
+            "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
         }
 
     def tearDown(self):
@@ -331,6 +337,46 @@ class WechatGroupChannelTest(unittest.TestCase):
             client.commands,
         )
 
+    def test_image_create_limit_zero_blocks_wechat_group_generation(self):
+        conf()["wechat_group_image_create_hourly_limit"] = 0
+        channel = WechatGroupChannel(client=FakeClient())
+        context = Context(ContextType.IMAGE_CREATE, "a cat")
+        context["receiver"] = "room@@abc"
+        context["msg"] = Mock(actual_user_id="wxid_alice")
+
+        with patch("channel.channel.Channel.build_reply_content") as build_reply:
+            reply = channel._generate_reply(context)
+
+        build_reply.assert_not_called()
+        self.assertEqual(ReplyType.ERROR, reply.type)
+        self.assertIn("生图额度", reply.content)
+
+    def test_image_create_success_records_hourly_usage(self):
+        conf()["wechat_group_image_create_hourly_limit"] = 5
+        archive = Mock(
+            count_image_create_usage=Mock(return_value=0),
+            record_image_create_usage=Mock(),
+        )
+        channel = WechatGroupChannel(client=FakeClient(), archive=archive)
+        context = Context(ContextType.IMAGE_CREATE, "a cat")
+        context["receiver"] = "room@@abc"
+        context["msg"] = Mock(actual_user_id="wxid_alice")
+
+        with patch(
+            "channel.chat_channel.ChatChannel._generate_reply",
+            return_value=Reply(ReplyType.IMAGE_URL, "D:/tmp/out.png"),
+        ) as generate:
+            reply = channel._generate_reply(context)
+
+        generate.assert_called_once()
+        self.assertEqual(ReplyType.IMAGE_URL, reply.type)
+        archive.record_image_create_usage.assert_called_once_with(
+            room_id="room@@abc",
+            sender_id="wxid_alice",
+            prompt="a cat",
+            status="accepted",
+        )
+
     def test_non_at_message_without_free_reply_enabled_is_ignored(self):
         conf()["wechat_group_free_reply_enabled"] = False
         channel = WechatGroupChannel(client=FakeClient())
@@ -421,6 +467,322 @@ class WechatGroupChannelTest(unittest.TestCase):
 
         channel.free_reply_worker.submit.assert_not_called()
         channel.produce.assert_called_once()
+
+    def test_at_image_message_injects_vision_summary_as_text_context(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.IMAGE,
+            content="D:/tmp/cat.jpg",
+            text="",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-image",
+            message_type="image",
+            media_path="D:/tmp/cat.jpg",
+        )
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "A cat sitting on a desk."}),
+        ) as execute:
+            channel.handle_text(msg)
+
+        execute.assert_called_once_with({
+            "image": "D:/tmp/cat.jpg",
+            "question": "Describe this image",
+        })
+        channel.produce.assert_called_once()
+        context = channel.produce.call_args.args[0]
+        self.assertEqual(ContextType.TEXT, context.type)
+        self.assertIn("<wechat-group-image>", context.content)
+        self.assertIn("D:/tmp/cat.jpg", context.content)
+        self.assertIn("A cat sitting on a desk.", context.content)
+
+    def test_image_understanding_reuses_cached_summary_for_same_image(self):
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        conf()["wechat_group_image_understanding_cache_minutes"] = 30
+        channel = WechatGroupChannel(client=FakeClient())
+        msg = Mock(
+            content="D:/tmp/cat.jpg",
+            text="",
+            media_path="D:/tmp/cat.jpg",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            msg_id="msg-image",
+        )
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "Cached cat summary."}),
+        ) as execute:
+            first = channel._build_image_understanding_content(msg)
+            second = channel._build_image_understanding_content(msg)
+
+        execute.assert_called_once()
+        self.assertIn("Cached cat summary.", first)
+        self.assertIn("Cached cat summary.", second)
+
+    def test_non_at_image_message_is_archived_without_reply_context(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_image_understanding_enabled"] = True
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock()
+        msg = Mock(
+            ctype=ContextType.IMAGE,
+            content="D:/tmp/cat.jpg",
+            text="",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=False,
+            is_quote_self=False,
+            is_group=True,
+            at_list=[],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-image-2",
+            message_type="image",
+            media_path="D:/tmp/cat.jpg",
+        )
+
+        channel.handle_text(msg)
+
+        channel.produce.assert_not_called()
+        channel.free_reply_worker.submit.assert_not_called()
+
+    def test_at_text_image_request_uses_recent_group_image(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        archive = Mock(
+            get_recent_messages=Mock(return_value=[
+                {
+                    "message_type": "image",
+                    "media_path": "D:/tmp/recent.jpg",
+                    "sender_nickname": "Alice",
+                    "sender_id": "wxid_alice",
+                    "created_at": 100000,
+                }
+            ])
+        )
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            archive=archive,
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot 识别这张图",
+            text="@CowBot 识别这张图",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_bob",
+            actual_user_nickname="Bob",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100030,
+            msg_id="msg-text-image-request",
+            message_type="text",
+            media_path="",
+        )
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "A chart about revenue."}),
+        ) as execute:
+            channel.handle_text(msg)
+
+        archive.get_recent_messages.assert_any_call(
+            "room@@abc",
+            limit=10,
+            minutes=10,
+            now=100030,
+        )
+        execute.assert_called_once_with({
+            "image": "D:/tmp/recent.jpg",
+            "question": "Describe this image",
+        })
+        channel.produce.assert_called_once()
+        context = channel.produce.call_args.args[0]
+        self.assertEqual(ContextType.TEXT, context.type)
+        self.assertIn("<wechat-group-image>", context.content)
+        self.assertIn("D:/tmp/recent.jpg", context.content)
+        self.assertIn("A chart about revenue.", context.content)
+        self.assertIn("识别这张图", context.content)
+
+    def test_at_text_image_request_prefers_quoted_image(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        archive = Mock(
+            get_message_by_id=Mock(return_value={
+                "message_id": "quoted-image",
+                "message_type": "image",
+                "media_path": "D:/tmp/quoted.jpg",
+                "sender_nickname": "Alice",
+                "sender_id": "wxid_alice",
+                "created_at": 100000,
+            }),
+            get_recent_messages=Mock(return_value=[
+                {
+                    "message_type": "image",
+                    "media_path": "D:/tmp/recent.jpg",
+                    "sender_nickname": "Carol",
+                    "sender_id": "wxid_carol",
+                    "created_at": 100020,
+                }
+            ]),
+        )
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            archive=archive,
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot 识别这张图",
+            text="@CowBot 识别这张图",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_bob",
+            actual_user_nickname="Bob",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            quote={"message_id": "quoted-image", "type": "3", "content": "[图片]"},
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100030,
+            msg_id="msg-text-image-request",
+            message_type="text",
+            media_path="",
+        )
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "Quoted image summary."}),
+        ) as execute:
+            channel.handle_text(msg)
+
+        archive.get_message_by_id.assert_called_once_with("room@@abc", "quoted-image")
+        self.assertNotIn(
+            call("room@@abc", limit=10, minutes=10, now=100030),
+            archive.get_recent_messages.call_args_list,
+        )
+        execute.assert_called_once_with({
+            "image": "D:/tmp/quoted.jpg",
+            "question": "Describe this image",
+        })
+        context = channel.produce.call_args.args[0]
+        self.assertIn("D:/tmp/quoted.jpg", context.content)
+
+    def test_at_text_image_request_uses_quoted_sender_when_quote_id_missing(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        archive = Mock(
+            get_message_by_id=Mock(return_value=None),
+            get_recent_messages=Mock(return_value=[
+                {
+                    "message_type": "image",
+                    "media_path": "D:/tmp/quoted-sender.jpg",
+                    "sender_nickname": "Alice",
+                    "sender_id": "wxid_alice",
+                    "created_at": 100000,
+                },
+                {
+                    "message_type": "image",
+                    "media_path": "D:/tmp/newer-other.jpg",
+                    "sender_nickname": "Carol",
+                    "sender_id": "wxid_carol",
+                    "created_at": 100020,
+                },
+            ]),
+        )
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            archive=archive,
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot 识别这张图",
+            text="@CowBot 识别这张图",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_bob",
+            actual_user_nickname="Bob",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            quote={"message_id": "missing-id", "sender_id": "wxid_alice", "sender_name": "Alice", "type": "3", "content": "[图片]"},
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100030,
+            msg_id="msg-text-image-request",
+            message_type="text",
+            media_path="",
+        )
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "Quoted sender image summary."}),
+        ) as execute:
+            channel.handle_text(msg)
+
+        execute.assert_called_once_with({
+            "image": "D:/tmp/quoted-sender.jpg",
+            "question": "Describe this image",
+        })
+        self.assertIn("D:/tmp/quoted-sender.jpg", channel.produce.call_args.args[0].content)
 
     def test_quote_self_message_does_not_enter_free_reply_worker(self):
         channel = WechatGroupChannel(client=FakeClient())

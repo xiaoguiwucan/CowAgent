@@ -1,7 +1,11 @@
 import readline from 'node:readline'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { WechatyBuilder } from 'wechaty'
 import { FileBox } from 'file-box'
 import {
+  buildMediaFilePath,
+  detectMessageMediaType,
   extractQuotedMessageFromRawPayload,
   findContactById,
   findRoomById,
@@ -40,6 +44,22 @@ async function contactPayload(contact) {
   }
 }
 
+async function downloadMessageMedia(message, roomId, mediaType) {
+  if (mediaType === 'text') return ''
+  if (!message?.toFileBox) return ''
+  const fileBox = await message.toFileBox()
+  const target = buildMediaFilePath(
+    config.media_dir || config.memory_path || '.',
+    roomId,
+    message.id || String(Date.now()),
+    fileBox?.name || '',
+    mediaType,
+  )
+  await fs.mkdir(path.dirname(target), { recursive: true })
+  await fileBox.toFile(target, true)
+  return target
+}
+
 async function handleMessage(message) {
   const room = message.room()
   if (!room) return
@@ -50,6 +70,17 @@ async function handleMessage(message) {
   const roomName = await room.topic()
   const talkerInfo = await contactPayload(talker)
   const selfInfo = self ? await contactPayload(self) : { id: '', name: '' }
+  const mediaType = detectMessageMediaType(message)
+  let filePath = ''
+  if (mediaType !== 'text') {
+    try {
+      filePath = await downloadMessageMedia(message, room.id, mediaType)
+    } catch (error) {
+      emit('error', {
+        message: `failed to download ${mediaType} message ${message.id || ''}: ${error.message || String(error)}`,
+      })
+    }
+  }
   let quoteInfo = { is_quote_self: false, quote: {} }
   if (selfInfo.id && message.id && state.bot?.puppet?.messageRawPayload) {
     try {
@@ -68,7 +99,8 @@ async function handleMessage(message) {
     self_id: selfInfo.id,
     self_name: selfInfo.name,
     text: message.text(),
-    message_type: 'text',
+    message_type: mediaType,
+    file_path: filePath,
     is_at: self ? mentions.some(contact => contact.id === self.id) : false,
     at_list: mentions.map(contact => contact.id),
     is_quote_self: quoteInfo.is_quote_self,

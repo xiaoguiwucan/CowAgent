@@ -214,6 +214,8 @@ const I18N = {
         groups_nav_persona_hint: '自定义回复风格',
         groups_nav_memory: '永久记忆',
         groups_nav_memory_hint: '群记忆与画像',
+        groups_nav_image: '图片与生图',
+        groups_nav_image_hint: '图片理解和额度',
         groups_basic_title: '基础设置',
         groups_basic_desc: '控制 4.2 当前群最近上下文注入窗口。',
         groups_recent_enabled: '启用最近上下文',
@@ -259,6 +261,18 @@ const I18N = {
         wechat_group_free_reply_running: '运行中',
         wechat_group_free_reply_stopped: '未运行',
         wechat_group_free_reply_room_access: '需先属于目标群范围',
+        groups_image_title: '图片与生图',
+        groups_image_desc: '控制微信群图片理解，以及每个群每小时可受理的生图次数。',
+        groups_image_understanding_enabled: '启用图片理解',
+        groups_image_understanding_enabled_hint: '仅在图片直接 @ 或引用机器人时调用既有视觉工具。',
+        groups_image_comment_enabled: '允许纯图片评论',
+        groups_image_comment_enabled_hint: '用户只发图片也可基于视觉摘要生成简短回复。',
+        groups_image_prompt: '图片理解提示词',
+        groups_image_prompt_hint: '发送给既有 vision 工具的图片理解问题。',
+        groups_image_cache_minutes: '摘要缓存分钟数',
+        groups_image_cache_minutes_hint: '同一图片摘要的缓存时间，范围 1-120。',
+        groups_image_create_hourly_limit: '生图每小时上限',
+        groups_image_create_hourly_limit_hint: '每个微信群每小时成功受理的生图次数；0 表示关闭微信群生图。',
         groups_persona_title: '人设设定',
         groups_persona_desc: '只保留一份自定义人设，保存后对微信群回复生效。',
         groups_memory_title: '永久记忆',
@@ -619,6 +633,8 @@ const I18N = {
         groups_nav_persona_hint: 'Custom reply style',
         groups_nav_memory: 'Long-term memory',
         groups_nav_memory_hint: 'Group memory and profiles',
+        groups_nav_image: 'Images',
+        groups_nav_image_hint: 'Vision and quota',
         groups_basic_title: 'Basic settings',
         groups_basic_desc: 'Controls the 4.2 recent context window for the current group.',
         groups_recent_enabled: 'Enable recent context',
@@ -664,6 +680,18 @@ const I18N = {
         wechat_group_free_reply_running: 'Running',
         wechat_group_free_reply_stopped: 'Stopped',
         wechat_group_free_reply_room_access: 'Must also be in target group scope',
+        groups_image_title: 'Images',
+        groups_image_desc: 'Control WeChat group image understanding and per-group hourly image generation quota.',
+        groups_image_understanding_enabled: 'Enable image understanding',
+        groups_image_understanding_enabled_hint: 'Calls the existing vision tool only when an image directly mentions or quotes the bot.',
+        groups_image_comment_enabled: 'Allow image-only comments',
+        groups_image_comment_enabled_hint: 'Let the bot produce a short reply from the vision summary when the user sends only an image.',
+        groups_image_prompt: 'Image understanding prompt',
+        groups_image_prompt_hint: 'Question sent to the existing vision tool.',
+        groups_image_cache_minutes: 'Summary cache minutes',
+        groups_image_cache_minutes_hint: 'Cache time for the same image summary, from 1 to 120.',
+        groups_image_create_hourly_limit: 'Hourly image generation limit',
+        groups_image_create_hourly_limit_hint: 'Successful image generation requests per WeChat group per hour; 0 disables group image generation.',
         groups_persona_title: 'Persona',
         groups_persona_desc: 'Only one custom persona is kept. It applies to WeChat group replies after saving.',
         groups_memory_title: 'Long-term memory',
@@ -6971,6 +6999,7 @@ function renderGroupsView() {
             ${buildGroupsSectionButton('basic', 'fa-sliders', 'groups_nav_basic', 'groups_nav_basic_hint')}
             ${buildGroupsSectionButton('rooms', 'fa-comments', 'groups_nav_rooms', 'groups_nav_rooms_hint')}
             ${buildGroupsSectionButton('free_reply', 'fa-comment-dots', 'groups_nav_free_reply', 'groups_nav_free_reply_hint')}
+            ${buildGroupsSectionButton('image', 'fa-image', 'groups_nav_image', 'groups_nav_image_hint')}
             ${buildGroupsSectionButton('persona', 'fa-user-pen', 'groups_nav_persona', 'groups_nav_persona_hint')}
             ${buildGroupsSectionButton('memory', 'fa-brain', 'groups_nav_memory', 'groups_nav_memory_hint')}
             <div class="pt-3 mt-3 border-t border-slate-200 dark:border-white/10">
@@ -6987,6 +7016,7 @@ function renderGroupsView() {
             ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
             ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
             ${groupsActiveSection === 'free_reply' ? renderWechatGroupFreeReplySettings(extra) : ''}
+            ${groupsActiveSection === 'image' ? buildGroupsImagePanel(extra) : ''}
             ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
             ${groupsActiveSection === 'memory' ? buildGroupsMemoryPanel(extra) : ''}
         </main>
@@ -7056,6 +7086,56 @@ function buildGroupsNumberField(id, labelKey, hintKey, value) {
         <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t(labelKey)}</span>
         <span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">${t(hintKey)}</span>
         <input id="${id}" type="number" min="1" value="${Number(value || 1)}"
+            class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
+    </label>`;
+}
+
+function buildGroupsImagePanel(extra) {
+    const image = extra.image || {};
+    const understandingEnabled = image.understanding_enabled !== false;
+    const commentEnabled = image.comment_enabled !== false;
+    const prompt = String(image.understanding_prompt || '');
+    const cacheMinutes = Number(image.cache_minutes || 30);
+    const createHourlyLimit = Number(image.create_hourly_limit ?? 5);
+    return `<div class="h-full w-full space-y-4">
+        ${buildGroupsPanelTitle('fa-image', 'groups_image_title', 'groups_image_desc')}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            ${buildGroupsImageToggle('groups-image-understanding-enabled', 'groups_image_understanding_enabled', 'groups_image_understanding_enabled_hint', understandingEnabled)}
+            ${buildGroupsImageToggle('groups-image-comment-enabled', 'groups_image_comment_enabled', 'groups_image_comment_enabled_hint', commentEnabled)}
+        </div>
+        <label class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 block">
+            <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_image_prompt')}</span>
+            <span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_image_prompt_hint')}</span>
+            <textarea id="groups-image-understanding-prompt" rows="4"
+                class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors resize-y">${escapeHtml(prompt)}</textarea>
+        </label>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            ${buildGroupsImageNumberField('groups-image-cache-minutes', 'groups_image_cache_minutes', 'groups_image_cache_minutes_hint', cacheMinutes, 1, 120)}
+            ${buildGroupsImageNumberField('groups-image-create-hourly-limit', 'groups_image_create_hourly_limit', 'groups_image_create_hourly_limit_hint', createHourlyLimit, 0, 100)}
+        </div>
+    </div>`;
+}
+
+function buildGroupsImageToggle(id, labelKey, hintKey, checked) {
+    return `<div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+        <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+                <h4 class="text-sm font-medium text-slate-800 dark:text-slate-100">${t(labelKey)}</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t(hintKey)}</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input id="${id}" type="checkbox" class="sr-only peer" ${checked ? 'checked' : ''}>
+                <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:h-4 after:w-4 after:rounded-full after:transition-all peer-checked:after:translate-x-5"></div>
+            </label>
+        </div>
+    </div>`;
+}
+
+function buildGroupsImageNumberField(id, labelKey, hintKey, value, min, max) {
+    return `<label class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 block">
+        <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t(labelKey)}</span>
+        <span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">${t(hintKey)}</span>
+        <input id="${id}" type="number" min="${min}" max="${max}" step="1" value="${Number(value)}"
             class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
     </label>`;
 }
@@ -8421,6 +8501,7 @@ function saveWechatGroupSettings() {
         ? Math.max(1, Number(document.getElementById('groups-recent-minutes').value || 1))
         : Number(recent.minutes || 60);
     const freeReply = readWechatGroupFreeReplySettings(extra.free_reply || {});
+    const image = readWechatGroupImageSettings(extra.image || {});
     if (btn) btn.disabled = true;
     fetch('/api/channels', {
         method: 'POST',
@@ -8447,6 +8528,11 @@ function saveWechatGroupSettings() {
                 wechat_group_free_reply_llm_judge_timeout_seconds: freeReply.llm_judge_timeout_seconds,
                 wechat_group_free_reply_llm_judge_min_confidence: freeReply.llm_judge_min_confidence,
                 wechat_group_free_reply_profiles: freeReply.profiles,
+                wechat_group_image_understanding_enabled: image.understanding_enabled,
+                wechat_group_image_understanding_comment_enabled: image.comment_enabled,
+                wechat_group_image_understanding_prompt: image.understanding_prompt,
+                wechat_group_image_understanding_cache_minutes: image.cache_minutes,
+                wechat_group_image_create_hourly_limit: image.create_hourly_limit,
             },
         })
     })
@@ -8476,6 +8562,22 @@ function clampNumber(value, min, max, fallback) {
     const n = Number(value);
     if (!Number.isFinite(n)) return fallback;
     return Math.min(Math.max(n, min), max);
+}
+
+function readWechatGroupImageSettings(saved = {}) {
+    return {
+        understanding_enabled: document.getElementById('groups-image-understanding-enabled')
+            ? !!document.getElementById('groups-image-understanding-enabled').checked
+            : saved.understanding_enabled !== false,
+        comment_enabled: document.getElementById('groups-image-comment-enabled')
+            ? !!document.getElementById('groups-image-comment-enabled').checked
+            : saved.comment_enabled !== false,
+        understanding_prompt: document.getElementById('groups-image-understanding-prompt')
+            ? String(document.getElementById('groups-image-understanding-prompt').value || '').trim()
+            : String(saved.understanding_prompt || '').trim(),
+        cache_minutes: clampNumber(document.getElementById('groups-image-cache-minutes')?.value, 1, 120, saved.cache_minutes ?? 30),
+        create_hourly_limit: clampNumber(document.getElementById('groups-image-create-hourly-limit')?.value, 0, 100, saved.create_hourly_limit ?? 5),
+    };
 }
 
 function readWechatGroupFreeReplySettings(saved = {}) {

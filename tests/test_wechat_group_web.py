@@ -59,6 +59,11 @@ class WechatGroupWebTest(unittest.TestCase):
             "wechat_group_free_reply_llm_judge_timeout_seconds": conf().get("wechat_group_free_reply_llm_judge_timeout_seconds"),
             "wechat_group_free_reply_llm_judge_min_confidence": conf().get("wechat_group_free_reply_llm_judge_min_confidence"),
             "wechat_group_free_reply_profiles": conf().get("wechat_group_free_reply_profiles"),
+            "wechat_group_image_understanding_enabled": conf().get("wechat_group_image_understanding_enabled"),
+            "wechat_group_image_understanding_comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled"),
+            "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
+            "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
+            "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
         }
 
     def tearDown(self):
@@ -111,6 +116,16 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("rules", item["extra"]["free_reply"])
         self.assertIn("last_decision", item["extra"]["free_reply"])
         self.assertIn("worker", item["extra"]["free_reply"])
+        self.assertEqual(
+            {
+                "understanding_enabled": True,
+                "comment_enabled": True,
+                "understanding_prompt": "请简洁描述这张图片中的关键信息，并指出可能需要回复的内容。",
+                "cache_minutes": 30,
+                "create_hourly_limit": 5,
+            },
+            item["extra"]["image"],
+        )
 
     def test_wechat_group_qr_handler_returns_running_channel_qr(self):
         from channel.web.web_channel import WechatGroupQrHandler
@@ -228,6 +243,35 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual(1.0, conf()["wechat_group_free_reply_llm_judge_min_confidence"])
         self.assertEqual(25, conf()["wechat_group_free_reply_profiles"]["active"]["min_score"])
 
+    def test_channels_save_wechat_group_image_config(self):
+        from channel.web.web_channel import ChannelsHandler
+        from config import conf
+
+        handler = ChannelsHandler()
+        body = {
+            "action": "save",
+            "channel": "wechat_group",
+            "config": {
+                "wechat_group_image_understanding_enabled": False,
+                "wechat_group_image_understanding_comment_enabled": False,
+                "wechat_group_image_understanding_prompt": "  describe\nbriefly  ",
+                "wechat_group_image_understanding_cache_minutes": "999",
+                "wechat_group_image_create_hourly_limit": "999",
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir, \
+                patch("channel.web.web_channel._require_auth"), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")), \
+                patch("channel.web.web_channel.get_data_root", return_value=tmpdir):
+            result = json.loads(handler.POST())
+
+        self.assertEqual("success", result["status"])
+        self.assertFalse(conf()["wechat_group_image_understanding_enabled"])
+        self.assertFalse(conf()["wechat_group_image_understanding_comment_enabled"])
+        self.assertEqual("describe\nbriefly", conf()["wechat_group_image_understanding_prompt"])
+        self.assertEqual(120, conf()["wechat_group_image_understanding_cache_minutes"])
+        self.assertEqual(100, conf()["wechat_group_image_create_hourly_limit"])
+
     def test_console_updates_free_reply_profile_fields_when_level_changes(self):
         with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
             console_js = f.read()
@@ -235,6 +279,15 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("function syncFreeReplyProfileFields", console_js)
         self.assertIn("free-reply-activity-level", console_js)
         self.assertIn("syncFreeReplyProfileFields(extra.free_reply || {})", console_js)
+
+    def test_console_contains_wechat_group_image_settings(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("function readWechatGroupImageSettings", console_js)
+        self.assertIn("groups-image-understanding-enabled", console_js)
+        self.assertIn("groups-image-create-hourly-limit", console_js)
+        self.assertIn("wechat_group_image_create_hourly_limit", console_js)
 
     def test_wechat_group_extra_returns_running_free_reply_status(self):
         from channel.web.web_channel import ChannelsHandler
