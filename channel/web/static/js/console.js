@@ -256,6 +256,7 @@ const I18N = {
         groups_memory_member_lookup_select: '选择',
         groups_memory_sender_id: 'sender ID',
         groups_memory_sender_name: '昵称',
+        groups_memory_aliases: '别名',
         groups_memory_role: '身份/角色',
         groups_memory_preferences: '长期偏好',
         groups_memory_expertise: '专业背景',
@@ -628,6 +629,7 @@ const I18N = {
         groups_memory_member_lookup_select: 'Select',
         groups_memory_sender_id: 'sender ID',
         groups_memory_sender_name: 'Nickname',
+        groups_memory_aliases: 'Aliases',
         groups_memory_role: 'Role',
         groups_memory_preferences: 'Preferences',
         groups_memory_expertise: 'Expertise',
@@ -7191,10 +7193,13 @@ function buildGroupsMemoryProfilesPanel(roomId) {
             ? profiles.map(item => {
                 const senderId = item.subject_id || item.metadata?.sender_id || '';
                 const nickname = item.metadata?.sender_nickname || senderId;
+                const aliases = item.metadata?.profile_fields?.aliases || [];
+                const aliasText = Array.isArray(aliases) ? aliases.join(' / ') : String(aliases || '');
                 return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
                     <button type="button" onclick="editGroupsMemberProfile('${escapeHtml(senderId)}')"
                         class="w-full text-left cursor-pointer">
                         <span class="block text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(nickname)}</span>
+                        ${aliasText ? `<span class="block text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(aliasText)}</span>` : ''}
                         <span class="block text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(senderId)}</span>
                         <span class="block mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">${escapeHtml(item.content || '')}</span>
                     </button>
@@ -7216,6 +7221,7 @@ function buildGroupsMemoryProfilesPanel(roomId) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             ${buildGroupsMemoryInput('groups-memory-profile-sender-id', 'groups_memory_sender_id', '', 'font-mono')}
             ${buildGroupsMemoryInput('groups-memory-profile-nickname', 'groups_memory_sender_name')}
+            ${buildGroupsMemoryInput('groups-memory-profile-aliases', 'groups_memory_aliases')}
             ${buildGroupsMemoryInput('groups-memory-profile-role', 'groups_memory_role')}
             ${buildGroupsMemoryInput('groups-memory-profile-preferences', 'groups_memory_preferences')}
             ${buildGroupsMemoryInput('groups-memory-profile-expertise', 'groups_memory_expertise')}
@@ -7579,6 +7585,7 @@ function saveGroupsMemberProfile() {
         room_id: roomId,
         sender_id: senderId,
         sender_nickname: document.getElementById('groups-memory-profile-nickname')?.value || '',
+        aliases: document.getElementById('groups-memory-profile-aliases')?.value || '',
         role: document.getElementById('groups-memory-profile-role')?.value || '',
         preferences: document.getElementById('groups-memory-profile-preferences')?.value || '',
         expertise: document.getElementById('groups-memory-profile-expertise')?.value || '',
@@ -7610,6 +7617,7 @@ function editGroupsMemberProfile(senderId) {
     };
     setValue('groups-memory-profile-sender-id', senderId);
     setValue('groups-memory-profile-nickname', profile.metadata?.sender_nickname || '');
+    setValue('groups-memory-profile-aliases', Array.isArray(fields.aliases) ? fields.aliases.join(', ') : fields.aliases);
     setValue('groups-memory-profile-role', fields.role);
     setValue('groups-memory-profile-preferences', fields.preferences);
     setValue('groups-memory-profile-expertise', fields.expertise);

@@ -122,6 +122,60 @@ class WechatGroupMemoryServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('[mentioned_profile sender_id="wxid_pink" matched_by="nickname"]', preview["content"])
         self.assertIn("资源分享者", preview["content"])
 
+    async def test_preview_injects_unique_profile_by_alias(self):
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_dali",
+            sender_nickname="Dali Wang",
+            aliases=["大力", "力佬"],
+            role="资源协调人",
+            expertise="账号资源",
+            evidence="管理员手动维护",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="大力是谁",
+            mentioned_sender_ids=["wxid_bot"],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertIn('[mentioned_profile sender_id="wxid_dali" matched_by="alias"]', preview["content"])
+        self.assertIn("aliases: 大力, 力佬", preview["content"])
+        self.assertIn("资源协调人", preview["content"])
+        self.assertEqual([], preview["filtered_reasons"])
+
+    async def test_preview_skips_alias_profile_when_match_is_ambiguous(self):
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_dali_1",
+            sender_nickname="Dali One",
+            aliases=["大力"],
+            role="一号画像",
+            evidence="管理员手动维护",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_dali_2",
+            sender_nickname="Dali Two",
+            aliases=["大力"],
+            role="二号画像",
+            evidence="管理员手动维护",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="大力是谁",
+            mentioned_sender_ids=["wxid_bot"],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertNotIn('[mentioned_profile sender_id="wxid_dali_1"', preview["content"])
+        self.assertNotIn('[mentioned_profile sender_id="wxid_dali_2"', preview["content"])
+        self.assertIn("alias match ambiguous: 大力", preview["filtered_reasons"])
+
     async def test_preview_skips_nickname_profile_when_match_is_ambiguous(self):
         await self.service.upsert_member_profile(
             room_id="room@@a",

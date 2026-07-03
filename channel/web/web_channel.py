@@ -4413,6 +4413,7 @@ class WechatGroupMemoriesHandler:
                     room_id=body.get("room_id"),
                     sender_id=body.get("sender_id"),
                     sender_nickname=body.get("sender_nickname") or "",
+                    aliases=body.get("aliases") or [],
                     role=body.get("role") or "",
                     preferences=body.get("preferences") or "",
                     expertise=body.get("expertise") or "",

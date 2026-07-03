@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent.memory.manager import MemoryManager
 from agent.memory.scope import MemoryScope
@@ -101,6 +101,7 @@ class WechatGroupMemoryService:
         interaction_style: str = "",
         boundaries: str = "",
         evidence: str = "",
+        aliases: Optional[Any] = None,
         source_message_ids: Optional[List[str]] = None,
         created_by: str = "ui",
         merge_existing_fields: bool = False,
@@ -114,6 +115,7 @@ class WechatGroupMemoryService:
             "interaction_style": interaction_style.strip(),
             "boundaries": boundaries.strip(),
             "evidence": evidence.strip(),
+            "aliases": self._normalize_aliases(aliases),
         }
         if merge_existing_fields:
             fields = self._merge_existing_profile_fields(room_id, sender_id, fields)
@@ -315,17 +317,17 @@ class WechatGroupMemoryService:
                     filtered_reasons.append(f"no active profile: {mentioned_id}")
 
             if not mentioned_ids:
-                nickname_matches, nickname_reasons = await self._match_profiles_by_query_nickname(
+                name_matches, nickname_reasons = await self._match_profiles_by_query_nickname(
                     room_id=room_id,
                     query=query,
                     excluded_sender_ids=self._excluded_mentioned_ids(sender_id, bot_sender_id),
                 )
                 filtered_reasons.extend(nickname_reasons)
-                for profile in nickname_matches:
+                for profile, matched_by in name_matches:
                     mentioned_profiles.append(profile)
                     mentioned_id = profile["subject_id"]
                     sections.append(
-                        f"[mentioned_profile sender_id=\"{mentioned_id}\" matched_by=\"nickname\"]\n"
+                        f"[mentioned_profile sender_id=\"{mentioned_id}\" matched_by=\"{matched_by}\"]\n"
                         f"{profile['content']}"
                     )
         else:
@@ -424,6 +426,7 @@ class WechatGroupMemoryService:
                 merged[key] = value
         for key in ("role", "preferences", "expertise", "interaction_style", "boundaries", "evidence"):
             merged.setdefault(key, "")
+        merged["aliases"] = WechatGroupMemoryService._normalize_aliases(merged.get("aliases"))
         return merged
 
     def _count_chunks(self, scope_type: str, room_id: Optional[str], status: str) -> int:
@@ -475,9 +478,11 @@ class WechatGroupMemoryService:
 
     @staticmethod
     def _format_profile_content(sender_id: str, sender_nickname: str, fields: Dict[str, str]) -> str:
+        aliases = WechatGroupMemoryService._normalize_aliases(fields.get("aliases"))
         lines = [
             f"sender_id: {sender_id}",
             f"sender_nickname: {sender_nickname or sender_id}",
+            f"aliases: {', '.join(aliases)}",
             f"role: {fields['role']}",
             f"preferences: {fields['preferences']}",
             f"expertise: {fields['expertise']}",
@@ -512,24 +517,41 @@ class WechatGroupMemoryService:
         if not query_text:
             return [], []
         profiles = await self.list_member_profiles(room_id, limit=200)
-        matched_by_nickname: Dict[str, List[Dict]] = {}
+        matched_by_name: Dict[Tuple[str, str], List[Dict]] = {}
         for profile in profiles:
             sender_id = (profile.get("subject_id") or "").strip()
             if not sender_id or sender_id in excluded_sender_ids:
                 continue
-            nickname = self._profile_nickname(profile)
-            nickname_key = self._normalize_lookup_text(nickname)
-            if len(nickname_key) < 2 or nickname_key not in query_text:
-                continue
-            matched_by_nickname.setdefault(nickname, []).append(profile)
+            seen_profile_candidates = set()
+            for match_type, name in self._profile_lookup_names(profile):
+                name_key = self._normalize_lookup_text(name)
+                if len(name_key) < 2 or name_key not in query_text:
+                    continue
+                match_key = (match_type, name)
+                if match_key in seen_profile_candidates:
+                    continue
+                seen_profile_candidates.add(match_key)
+                matched_by_name.setdefault(match_key, []).append(profile)
 
         matches = []
         reasons = []
-        for nickname, items in matched_by_nickname.items():
-            if len(items) == 1:
-                matches.append(items[0])
+        matched_sender_ids = set()
+        for (match_type, name), items in matched_by_name.items():
+            unique_items = []
+            seen_sender_ids = set()
+            for item in items:
+                item_sender_id = (item.get("subject_id") or "").strip()
+                if not item_sender_id or item_sender_id in seen_sender_ids:
+                    continue
+                seen_sender_ids.add(item_sender_id)
+                unique_items.append(item)
+            if len(unique_items) == 1:
+                sender_id = (unique_items[0].get("subject_id") or "").strip()
+                if sender_id not in matched_sender_ids:
+                    matched_sender_ids.add(sender_id)
+                    matches.append((unique_items[0], match_type))
             else:
-                reasons.append(f"nickname match ambiguous: {nickname}")
+                reasons.append(f"{match_type} match ambiguous: {name}")
         if not matches and not reasons:
             reasons.append("nickname match not found")
         return matches, reasons
@@ -545,6 +567,40 @@ class WechatGroupMemoryService:
     def _profile_nickname(profile: Dict) -> str:
         metadata = profile.get("metadata") or {}
         return str(metadata.get("sender_nickname") or "").strip()
+
+    @staticmethod
+    def _profile_aliases(profile: Dict) -> List[str]:
+        metadata = profile.get("metadata") or {}
+        fields = metadata.get("profile_fields") or {}
+        aliases = fields.get("aliases")
+        if aliases is None:
+            aliases = metadata.get("aliases")
+        return WechatGroupMemoryService._normalize_aliases(aliases)
+
+    @staticmethod
+    def _profile_lookup_names(profile: Dict) -> List[Tuple[str, str]]:
+        result = []
+        nickname = WechatGroupMemoryService._profile_nickname(profile)
+        if nickname:
+            result.append(("nickname", nickname))
+        for alias in WechatGroupMemoryService._profile_aliases(profile):
+            result.append(("alias", alias))
+        return result
+
+    @staticmethod
+    def _normalize_aliases(value: Any) -> List[str]:
+        if value is None:
+            raw_items = []
+        elif isinstance(value, list):
+            raw_items = value
+        else:
+            raw_items = str(value).replace("\n", ",").split(",")
+        result = []
+        for item in raw_items:
+            alias = str(item or "").strip()
+            if alias and alias not in result:
+                result.append(alias)
+        return result
 
     @staticmethod
     def _normalize_lookup_text(value: str) -> str:

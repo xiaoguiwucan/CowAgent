@@ -14,6 +14,7 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
         self.assertIn("groups-memory-room-list", console_js)
         self.assertIn("groups-memory-group-content", console_js)
         self.assertIn("groups-memory-profile-sender-id", console_js)
+        self.assertIn("groups-memory-profile-aliases", console_js)
         self.assertIn("groups-memory-profile-member-query", console_js)
         self.assertIn("searchGroupsMemberProfiles", console_js)
         self.assertIn("selectGroupsMemberProfile", console_js)
@@ -47,7 +48,7 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
     def test_groups_page_cache_buster_changes_for_memory_ui(self):
         chat_html = (ROOT / "channel/web/chat.html").read_text(encoding="utf-8")
 
-        self.assertIn("console.js?v=20260702-member-lookup-scheduler-target", chat_html)
+        self.assertIn("console.js?v=20260703-profile-aliases", chat_html)
 
 
 if __name__ == "__main__":

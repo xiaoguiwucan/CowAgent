@@ -292,6 +292,7 @@ class WechatGroupMemoryDistiller:
             room_id=room_id,
             sender_id=candidate["target_sender_id"],
             sender_nickname=candidate.get("target_sender_nickname", ""),
+            aliases=candidate.get("aliases", []),
             role=candidate.get("role", ""),
             preferences=candidate.get("preferences", ""),
             expertise=candidate.get("expertise", ""),
@@ -346,7 +347,7 @@ class WechatGroupMemoryDistiller:
             "JSON schema: {\"group_memories\": [{\"content\": string, \"confidence\": number, "
             "\"evidence_message_ids\": string[], \"evidence_text\": string}], "
             "\"member_profiles\": [{\"target_sender_id\": string, \"target_sender_nickname\": string, "
-            "\"role\": string, \"preferences\": string, \"expertise\": string, "
+            "\"aliases\": string[], \"role\": string, \"preferences\": string, \"expertise\": string, "
             "\"interaction_style\": string, \"boundaries\": string, \"confidence\": number, "
             "\"evidence_message_ids\": string[], \"evidence_text\": string}]}。\n"
             f"room_id: {room_id}\nmessages:\n"
@@ -377,6 +378,7 @@ class WechatGroupMemoryDistiller:
         candidate = {
             "target_sender_id": _require_text(item.get("target_sender_id"), "target_sender_id"),
             "target_sender_nickname": str(item.get("target_sender_nickname") or "").strip(),
+            "aliases": _alias_list(item.get("aliases")),
             "role": str(item.get("role") or "").strip(),
             "preferences": str(item.get("preferences") or "").strip(),
             "expertise": str(item.get("expertise") or "").strip(),
@@ -387,7 +389,7 @@ class WechatGroupMemoryDistiller:
             "evidence_text": str(item.get("evidence_text") or "").strip(),
         }
         if not any(candidate.get(key) for key in (
-            "role", "preferences", "expertise", "interaction_style", "boundaries", "evidence_text"
+            "aliases", "role", "preferences", "expertise", "interaction_style", "boundaries", "evidence_text"
         )):
             raise ValueError("member profile candidate has no content")
         return candidate
@@ -465,6 +467,21 @@ def _string_list(value: Any) -> List[str]:
     if not isinstance(value, list):
         raise ValueError("evidence_message_ids must be a list")
     return [str(item).strip() for item in value if str(item or "").strip()]
+
+
+def _alias_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        raw_items = value
+    else:
+        raw_items = str(value).replace("\n", ",").split(",")
+    result = []
+    for item in raw_items:
+        alias = str(item or "").strip()
+        if alias and alias not in result:
+            result.append(alias)
+    return result
 
 
 def _compact(text: str) -> str:

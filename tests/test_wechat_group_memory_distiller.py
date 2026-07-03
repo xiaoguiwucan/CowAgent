@@ -155,6 +155,35 @@ class WechatGroupMemoryDistillerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, result["candidate_count"])
         self.assertIn("LLM returned no memory candidates", result["discarded_reasons"])
 
+    async def test_member_profile_aliases_are_auto_applied(self):
+        distiller = self._distiller({
+            "group_memories": [],
+            "member_profiles": [{
+                "target_sender_id": "wxid_bob",
+                "target_sender_nickname": "Bob",
+                "aliases": ["大力", "力佬"],
+                "role": "资源协调人",
+                "confidence": 0.9,
+                "evidence_message_ids": ["msg-1"],
+                "evidence_text": "Alice 提到 Bob 负责协调资源",
+            }],
+        })
+
+        result = await distiller.run(room_id="room@@a", now=1100, window_minutes=10, limit=20)
+        profiles = await self.memory_service.list_member_profiles("room@@a", sender_id="wxid_bob")
+        preview = await self.memory_service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="大力是谁",
+            mentioned_sender_ids=["wxid_bot"],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual(1, result["auto_applied_count"])
+        self.assertEqual(["大力", "力佬"], profiles[0]["metadata"]["profile_fields"]["aliases"])
+        self.assertIn('[mentioned_profile sender_id="wxid_bob" matched_by="alias"]', preview["content"])
+
     async def test_member_profile_target_sender_must_be_verifiable(self):
         distiller = self._distiller({
             "group_memories": [],

@@ -204,6 +204,32 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual("error", result["status"])
         self.assertIn("room_id", result["message"])
 
+    def test_wechat_group_memory_profile_api_passes_aliases(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeMemoryService:
+            async def upsert_member_profile(self, **kwargs):
+                self.kwargs = kwargs
+                return {"id": "profile-1", "metadata": {"profile_fields": {"aliases": kwargs["aliases"]}}}
+
+        fake = FakeMemoryService()
+        body = {
+            "room_id": "room@@abc",
+            "sender_id": "wxid_dali",
+            "sender_nickname": "Dali Wang",
+            "aliases": "大力, 力佬",
+            "role": "资源协调人",
+        }
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch.object(WechatGroupMemoriesHandler, "_get_service", return_value=fake), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")):
+            result = json.loads(handler.POST("profiles"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual("大力, 力佬", fake.kwargs["aliases"])
+        self.assertEqual("wxid_dali", fake.kwargs["sender_id"])
+
     def test_wechat_group_memory_summary_api_uses_service(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
 

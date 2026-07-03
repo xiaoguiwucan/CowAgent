@@ -1,5 +1,18 @@
 # CHANGES
 
+## 2026-07-03
+
+### 微信群群友画像别名匹配
+- 更新 `channel/wechat_group/wechat_group_memory.py`：群友画像新增 `aliases` 字段，写入 metadata 和画像正文；运行时画像召回从只匹配 `sender_nickname` 扩展为匹配 `sender_nickname + aliases`，命中别名时注入 `matched_by="alias"`，同别名命中多个 `sender_id` 时跳过注入并返回歧义诊断，保持当前群作用域隔离。
+- 更新 `channel/wechat_group/wechat_group_memory_distiller.py`：自动蒸馏候选 schema 支持 `aliases`，自动应用群友画像时保留别名。
+- 更新 `channel/web/web_channel.py`、`channel/web/static/js/console.js` 与 `channel/web/chat.html`：Web 控制台群友画像表单增加“别名”字段，保存画像时透传到服务层，画像列表展示已维护别名，并刷新控制台脚本缓存版本。
+- 更新 `tests/test_wechat_group_memory.py`、`tests/test_wechat_group_memory_distiller.py`、`tests/test_wechat_group_web.py`、`tests/test_wechat_group_memory_ui.py`：覆盖“大力是谁”通过别名命中群友画像、别名歧义不注入、蒸馏保存别名、Web API 与 UI 入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory tests.test_wechat_group_memory_distiller tests.test_wechat_group_web tests.test_wechat_group_memory_ui tests.test_wechat_group_message tests.test_wechat_group_channel`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m py_compile channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_memory_distiller.py channel\web\web_channel.py tests\test_wechat_group_memory.py tests\test_wechat_group_memory_distiller.py tests\test_wechat_group_web.py tests\test_wechat_group_memory_ui.py`
+
 ## 2026-07-02
 
 ### 微信群运行时群友画像昵称兜底
