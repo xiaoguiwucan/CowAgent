@@ -3,7 +3,7 @@ title: web_search - Web Search
 description: Search the internet for real-time information, with support for multiple search providers
 ---
 
-Search the internet for real-time information, news, research, and more. Supports four backends — Bocha, ERNIE, GLM, and LinkAI — and works once any one of them is configured.
+Search the internet for real-time information, news, research, and more. Supports Bocha, ERNIE, GLM, LinkAI, Serper, and Jina, and works once any one of them is configured.
 
 <Tip>
   It is recommended to configure providers and routing strategy visually from the "Model Management → Search" panel in the [Web console](/channels/web), without manually editing the configuration file.
@@ -17,8 +17,10 @@ Search the internet for real-time information, news, research, and more. Support
 | ERNIE | Reuses `qianfan_api_key` | [Qianfan Console](https://cloud.baidu.com/doc/qianfan/s/2mh4su4uy) |
 | Zhipu | Reuses `zhipu_ai_api_key` | [Zhipu Open Platform](https://docs.bigmodel.cn/cn/guide/tools/web-search) |
 | LinkAI | Reuses `linkai_api_key` | [LinkAI Console](https://link-ai.tech/console/interface) |
+| Serper | `tools.web_search.serper_api_key` | [Serper](https://serper.dev/) |
+| Jina | `tools.web_search.jina_api_key` | [Jina](https://jina.ai/) |
 
-Except for Bocha which requires a dedicated `bocha_api_key`, the other three reuse the corresponding model's API key — configuring the model automatically grants search capability.
+Bocha, Serper, and Jina use dedicated keys under `tools.web_search`; ERNIE, Zhipu, and LinkAI reuse the corresponding model provider API key.
 
 ## Routing Strategy
 
@@ -27,13 +29,16 @@ Except for Bocha which requires a dedicated `bocha_api_key`, the other three reu
   "tools": {
     "web_search": {
       "strategy": "auto",
-      "provider": ""
+      "provider": "",
+      "bocha_api_key": "",
+      "serper_api_key": "",
+      "jina_api_key": ""
     }
   }
 }
 ```
 
-- `auto` (default): the Agent intelligently picks among configured providers and may call multiple providers in a single task to gather more comprehensive results; when none is specified, falls back through `bocha → qianfan → zhipu → linkai`.
+- `auto` (default): the Agent intelligently picks among configured providers and may call multiple providers in a single task to gather more comprehensive results; when none is specified, falls back through `bocha → qianfan → zhipu → linkai → serper → jina`.
 - `fixed`: always use the provider specified in `provider`; falls back to the auto order if that provider's credentials are missing.
 
 ## Tool Parameters
@@ -47,5 +52,5 @@ Except for Bocha which requires a dedicated `bocha_api_key`, the other three reu
 | `provider` | string | No | Available when multiple providers are configured under the `auto` strategy; used to switch provider for a single call |
 
 <Note>
-  If none of the four credentials are configured, this tool is not registered with the Agent.
+  If none of the provider credentials are configured, this tool is not registered with the Agent.
 </Note>

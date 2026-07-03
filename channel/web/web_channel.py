@@ -2812,13 +2812,15 @@ class ModelsHandler:
 
     # Canonical search provider order. Mirrors PROVIDER_ORDER in
     # agent/tools/web_search/web_search.py — keep them in sync.
-    _SEARCH_PROVIDERS = ("bocha", "qianfan", "zhipu", "linkai")
+    _SEARCH_PROVIDERS = ("bocha", "qianfan", "zhipu", "linkai", "serper", "jina")
 
     _SEARCH_PROVIDER_LABELS = {
         "bocha":   {"zh": "博查", "en": "Bocha"},
         "zhipu":   {"zh": "智谱", "en": "GLM"},
         "qianfan": {"zh": "百度千帆", "en": "ERNIE"},
         "linkai":  {"zh": "LinkAI", "en": "LinkAI"},
+        "serper":  {"zh": "Serper", "en": "Serper"},
+        "jina":    {"zh": "Jina", "en": "Jina"},
     }
 
     @classmethod
@@ -2834,6 +2836,14 @@ class ModelsHandler:
             return local_config.get("qianfan_api_key") or os.environ.get("QIANFAN_API_KEY", "")
         if provider == "linkai":
             return local_config.get("linkai_api_key") or os.environ.get("LINKAI_API_KEY", "")
+        if provider == "serper":
+            tools_cfg = local_config.get("tools") or {}
+            block = tools_cfg.get("web_search") or {} if isinstance(tools_cfg, dict) else {}
+            return (block.get("serper_api_key") if isinstance(block, dict) else "") or os.environ.get("SERPER_API_KEY", "")
+        if provider == "jina":
+            tools_cfg = local_config.get("tools") or {}
+            block = tools_cfg.get("web_search") or {} if isinstance(tools_cfg, dict) else {}
+            return (block.get("jina_api_key") if isinstance(block, dict) else "") or os.environ.get("JINA_API_KEY", "")
         return ""
 
     @classmethod
@@ -2856,10 +2866,9 @@ class ModelsHandler:
                 "id": pid,
                 "label": cls._SEARCH_PROVIDER_LABELS.get(pid, pid),
                 "configured": ok,
-                # bocha owns its key under tools.web_search; the other three
-                # piggy-back on a model-vendor credential. Frontend uses
-                # this hint to decide which credential editor to surface.
-                "needs_dedicated_key": pid == "bocha",
+                # Bocha/Serper/Jina own keys under tools.web_search; the
+                # remaining providers piggy-back on model-vendor credentials.
+                "needs_dedicated_key": pid in ("bocha", "serper", "jina"),
                 "api_key_masked": ConfigHandler._mask_key(raw_key) if raw_key else "",
             })
             if ok:
@@ -3495,20 +3504,24 @@ class ModelsHandler:
         return json.dumps({"status": "success", "strategy": strategy, "provider": provider})
 
     def _handle_set_search_credential(self, data: dict) -> str:
-        """Persist the bocha API key under tools.web_search.bocha_api_key.
+        """Persist dedicated search-provider API keys under tools.web_search.
 
-        The other three providers (zhipu/qianfan/linkai) reuse model-vendor
+        Providers zhipu/qianfan/linkai reuse model-vendor
         credentials, so they go through set_provider with the standard
         model-vendor flow.
         """
+        provider = (data.get("provider") or "bocha").strip().lower()
+        if provider not in ("bocha", "serper", "jina"):
+            return json.dumps({"status": "error", "message": f"unsupported search credential provider: {provider}"})
         api_key = (data.get("api_key") or "").strip() if isinstance(data.get("api_key"), str) else ""
         local_config = conf()
         file_cfg = self._read_file_config()
-        self._set_nested_namespace_value(local_config, "tools", "web_search", "bocha_api_key", api_key)
-        self._set_nested_namespace_value(file_cfg,     "tools", "web_search", "bocha_api_key", api_key)
+        key_name = f"{provider}_api_key"
+        self._set_nested_namespace_value(local_config, "tools", "web_search", key_name, api_key)
+        self._set_nested_namespace_value(file_cfg,     "tools", "web_search", key_name, api_key)
         self._write_file_config(file_cfg)
-        logger.info(f"[ModelsHandler] search credential set: bocha_api_key={'***' if api_key else ''}")
-        return json.dumps({"status": "success", "provider": "bocha"})
+        logger.info(f"[ModelsHandler] search credential set: {key_name}={'***' if api_key else ''}")
+        return json.dumps({"status": "success", "provider": provider})
 
     @staticmethod
     def _reset_bridge() -> None:

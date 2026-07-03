@@ -310,6 +310,15 @@ available_setting = {
     "self_evolution_enabled": False,        # switch to enable/disable self-evolution
     "self_evolution_idle_minutes": 10,      # idle time before a session is reviewed
     "self_evolution_min_turns": 6,          # min user turns (or context pressure) to trigger
+    "tools": {
+        "web_search": {
+            "strategy": "auto",
+            "provider": "",
+            "bocha_api_key": "",
+            "serper_api_key": "",
+            "jina_api_key": "",
+        }
+    },  # Per-tool runtime config
     "skill": {},  # Per-skill runtime config; nested keys flatten to SKILL_<NAME>_<KEY> env vars at startup
     "mcp_servers": [],  # MCP server list; each entry supports type "stdio" (local process) or "sse" (remote URL)
 }

@@ -1,12 +1,14 @@
-"""Web Search tool. Supports four backends with a unified response format:
+"""Web Search tool. Supports multiple backends with a unified response format:
   - bocha   (https://open.bochaai.com)
   - zhipu   (https://docs.bigmodel.cn/cn/guide/tools/web-search)
   - qianfan (https://cloud.baidu.com/doc/qianfan/s/2mh4su4uy)
   - linkai  (https://link-ai.tech, fallback)
+  - serper  (https://serper.dev)
+  - jina    (https://jina.ai)
 
 Provider selection
   - strategy 'auto' (default): pick the first configured provider in the
-    canonical order [bocha, zhipu, qianfan, linkai]. When the caller passes
+    canonical order [bocha, qianfan, zhipu, linkai, serper, jina]. When the caller passes
     an explicit `provider` it overrides the pick; an invalid/unconfigured
     one silently falls back to the auto order.
   - strategy 'fixed': use the configured provider; if its credential is
@@ -17,11 +19,15 @@ Credentials
   - zhipu   : conf.zhipu_ai_api_key            ->  env ZHIPUAI_API_KEY
   - qianfan : conf.qianfan_api_key             ->  env QIANFAN_API_KEY
   - linkai  : conf.linkai_api_key              ->  env LINKAI_API_KEY
+  - serper  : tools.web_search.serper_api_key ->  env SERPER_API_KEY
+  - jina    : tools.web_search.jina_api_key   ->  env JINA_API_KEY
 """
 
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import requests
 
@@ -36,13 +42,15 @@ DEFAULT_TIMEOUT = 30
 # quality + relevance: bocha (best overall), qianfan (best for hot news),
 # zhipu (strong on long-form articles), linkai (cloud aggregator, last
 # resort).
-PROVIDER_ORDER = ("bocha", "qianfan", "zhipu", "linkai")
+PROVIDER_ORDER = ("bocha", "qianfan", "zhipu", "linkai", "serper", "jina")
 
 PROVIDER_LABELS = {
     "bocha":   "Bocha",
     "zhipu":   "Zhipu",
     "qianfan": "Baidu Qianfan",
     "linkai":  "LinkAI",
+    "serper":  "Serper",
+    "jina":    "Jina",
 }
 
 
@@ -69,6 +77,12 @@ def _get_api_key(provider: str) -> str:
     if provider == "linkai":
         key = (conf().get("linkai_api_key") or "").strip()
         return key or os.environ.get("LINKAI_API_KEY", "").strip()
+    if provider == "serper":
+        key = (_tools_web_search_conf().get("serper_api_key") or "").strip()
+        return key or os.environ.get("SERPER_API_KEY", "").strip()
+    if provider == "jina":
+        key = (_tools_web_search_conf().get("jina_api_key") or "").strip()
+        return key or os.environ.get("JINA_API_KEY", "").strip()
     return ""
 
 
@@ -210,7 +224,8 @@ class WebSearch(BaseTool):
         if not provider:
             return ToolResult.fail(
                 "Error: No search provider configured. "
-                "Configure one of BOCHA_API_KEY / zhipu_ai_api_key / qianfan_api_key / linkai_api_key."
+                "Configure one of BOCHA_API_KEY / zhipu_ai_api_key / qianfan_api_key / "
+                "linkai_api_key / SERPER_API_KEY / JINA_API_KEY."
             )
 
         # Always log the routing decision so multi-provider deployments can
@@ -232,6 +247,10 @@ class WebSearch(BaseTool):
                 return self._search_qianfan(query, count, freshness)
             if provider == "linkai":
                 return self._search_linkai(query, count, freshness)
+            if provider == "serper":
+                return self._search_serper(query, count)
+            if provider == "jina":
+                return self._search_jina(query, count)
             return ToolResult.fail(f"Error: Unknown provider '{provider}'")
         except requests.Timeout:
             return ToolResult.fail(f"Error: Search request timed out after {DEFAULT_TIMEOUT}s")
@@ -484,4 +503,106 @@ class WebSearch(BaseTool):
         return ToolResult.success({
             "query": query, "backend": "linkai",
             "total": 1, "count": 1, "results": [{"content": str(raw)}],
+        })
+
+    # ------------------------------------------------------------------
+    # Serper
+    # ------------------------------------------------------------------
+
+    def _search_serper(self, query: str, count: int) -> ToolResult:
+        api_key = _get_api_key("serper")
+        url = "https://google.serper.dev/search"
+        headers = {
+            "X-API-KEY": api_key,
+            "Content-Type": "application/json",
+        }
+        count = max(1, min(int(count or 10), 50))
+        has_cjk = bool(re.search(r"[\u3400-\u9fff]", query or ""))
+        payload = {
+            "q": query,
+            "num": count,
+            "hl": "zh-cn" if has_cjk else "en",
+            "gl": "cn" if has_cjk else "us",
+        }
+
+        logger.debug(f"[WebSearch] serper: query='{query}', count={count}")
+        resp = requests.post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
+
+        if resp.status_code in (401, 403):
+            return ToolResult.fail("Error: Invalid Serper API key.")
+        if resp.status_code == 429:
+            return ToolResult.fail("Error: Serper API rate limit reached.")
+        if resp.status_code != 200:
+            return ToolResult.fail(f"Error: Serper API returned HTTP {resp.status_code}: {resp.text[:200]}")
+
+        data = resp.json()
+        pages = data.get("organic") or []
+        results = []
+        for p in pages:
+            results.append({
+                "title": p.get("title", ""),
+                "url": p.get("link") or p.get("url", ""),
+                "snippet": p.get("snippet", ""),
+                "siteName": p.get("source") or p.get("siteName", ""),
+                "datePublished": p.get("date", ""),
+            })
+        return ToolResult.success({
+            "query": query, "backend": "serper",
+            "total": len(results), "count": len(results), "results": results,
+        })
+
+    # ------------------------------------------------------------------
+    # Jina Search
+    # ------------------------------------------------------------------
+
+    def _search_jina(self, query: str, count: int) -> ToolResult:
+        api_key = _get_api_key("jina")
+        url = f"https://s.jina.ai/{quote(query, safe='')}"
+        headers = {
+            "Accept": "text/plain",
+            "X-Respond-With": "no-references",
+            "User-Agent": "CowAgent/1.0",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        logger.debug(f"[WebSearch] jina: query='{query}', count={count}")
+        resp = requests.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
+
+        if resp.status_code in (401, 403):
+            return ToolResult.fail("Error: Invalid Jina API key.")
+        if resp.status_code == 429:
+            return ToolResult.fail("Error: Jina API rate limit reached.")
+        if resp.status_code != 200:
+            return ToolResult.fail(f"Error: Jina API returned HTTP {resp.status_code}: {resp.text[:200]}")
+
+        text = (resp.text or "").strip()
+        if not text:
+            return ToolResult.fail("Error: Jina search returned an empty response.")
+
+        count = max(1, min(int(count or 10), 50))
+        results = []
+        blocks = re.split(r"\n(?=\[\d+\]\s*)", text)
+        for block in blocks:
+            title_match = re.search(r"^\[\d+\]\s*(.+)", block)
+            url_match = re.search(r"^URL:\s*(\S+)", block, re.MULTILINE)
+            desc_match = re.search(r"^Description:\s*(.+)", block, re.MULTILINE)
+            if not title_match or not url_match:
+                continue
+            results.append({
+                "title": title_match.group(1).strip(),
+                "url": url_match.group(1).strip(),
+                "snippet": desc_match.group(1).strip() if desc_match else "",
+                "siteName": "",
+                "datePublished": "",
+            })
+            if len(results) >= count:
+                break
+
+        if not results:
+            return ToolResult.fail("Error: Jina search returned no parseable results.")
+
+        return ToolResult.success({
+            "query": query, "backend": "jina",
+            "total": len(results), "count": len(results), "results": results,
         })

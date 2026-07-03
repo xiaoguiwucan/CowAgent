@@ -94,6 +94,47 @@ class TestModelsHandler(unittest.TestCase):
         self.assertIn("provider_models", cap)
         self.assertIn("dashscope", cap["provider_models"])
 
+    def test_search_capability_exposes_serper_and_jina_as_dedicated_key_providers(self):
+        from channel.web.web_channel import ModelsHandler
+
+        cap = ModelsHandler._search_capability({
+            "tools": {
+                "web_search": {
+                    "serper_api_key": "serper-key",
+                    "jina_api_key": "jina-key",
+                }
+            }
+        })
+
+        provider_map = {item["id"]: item for item in cap["providers"]}
+        self.assertIn("serper", provider_map)
+        self.assertIn("jina", provider_map)
+        self.assertTrue(provider_map["serper"]["configured"])
+        self.assertTrue(provider_map["jina"]["configured"])
+        self.assertTrue(provider_map["serper"]["needs_dedicated_key"])
+        self.assertTrue(provider_map["jina"]["needs_dedicated_key"])
+
+    def test_set_search_credential_persists_selected_provider_key(self):
+        from channel.web.web_channel import ModelsHandler
+
+        local_config = {"tools": {"web_search": {}}}
+        file_config = {"tools": {"web_search": {}}}
+        handler = ModelsHandler()
+
+        with patch("channel.web.web_channel.conf", return_value=local_config):
+            with patch.object(ModelsHandler, "_read_file_config", return_value=file_config):
+                with patch.object(ModelsHandler, "_write_file_config") as write_file:
+                    result = json.loads(handler._handle_set_search_credential({
+                        "provider": "serper",
+                        "api_key": "serper-key",
+                    }))
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["provider"], "serper")
+        self.assertEqual(local_config["tools"]["web_search"]["serper_api_key"], "serper-key")
+        self.assertEqual(file_config["tools"]["web_search"]["serper_api_key"], "serper-key")
+        write_file.assert_called_once_with(file_config)
+
 
 if __name__ == "__main__":
     unittest.main()

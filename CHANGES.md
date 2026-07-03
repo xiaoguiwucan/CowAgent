@@ -2,6 +2,18 @@
 
 ## 2026-07-03
 
+### 联网搜索支持 Serper 与 Jina
+- 更新 `agent/tools/web_search/web_search.py`：新增 `serper` 与 `jina` 搜索 Provider，分别读取 `tools.web_search.serper_api_key` / `SERPER_API_KEY` 与 `tools.web_search.jina_api_key` / `JINA_API_KEY`，并按统一结果格式返回标题、链接和摘要。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：在「模型管理 -> 联网搜索 -> 添加厂商」中加入 Serper、Jina；Bocha/Serper/Jina 复用搜索专用 API Key 弹窗，并在弹窗中展示对应申请链接。
+- 更新 `config.py`、`config-template.json` 与 `docs/*/tools/web-search.mdx`：补充 `tools.web_search` 默认结构、Serper/Jina 配置键、申请入口和自动路由顺序说明。
+- 新增 `tests/test_web_search_providers.py` 并扩展 `tests/test_models_handler.py`：覆盖 Serper/Jina Provider 识别、专用凭证保存、Serper 请求归一化和 Jina 文本结果解析。
+
+验证记录：
+- `python -m unittest tests.test_models_handler tests.test_web_search_providers`
+- `node --check D:\JiangShuai\SourceCode\CowAgent\channel\web\static\js\console.js`
+- `python -m py_compile agent\tools\web_search\web_search.py channel\web\web_channel.py config.py tests\test_models_handler.py tests\test_web_search_providers.py`
+- `python -m json.tool config-template.json`
+
 ### Agent turn start 日志摘要优化
 - 更新 `agent/protocol/agent_stream.py`：Agent 入口日志改为 `[Agent] turn start` 结构化摘要，只展示模型、thinking 状态、真实用户问题预览和微信群增强块规模。
 - 微信群增强上下文只记录块类型和统计信息，例如 `wechat_context=persona, recent_transcript, memory`、`recent_transcript_messages`、`recent_transcript_window`、`memory_chars`，不再打印最近群聊逐条内容、人设正文或群记忆正文。

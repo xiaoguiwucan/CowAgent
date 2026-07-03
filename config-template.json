@@ -85,5 +85,14 @@
   "enable_thinking": false,
   "reasoning_effort": "high",
   "knowledge": true,
-  "self_evolution_enabled": true
+  "self_evolution_enabled": true,
+  "tools": {
+    "web_search": {
+      "strategy": "auto",
+      "provider": "",
+      "bocha_api_key": "",
+      "serper_api_key": "",
+      "jina_api_key": ""
+    }
+  }
 }
