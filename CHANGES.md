@@ -2,6 +2,15 @@
 
 ## 2026-07-03
 
+### 微信群定时任务投递复用运行通道
+- 更新 `agent/tools/scheduler/integration.py`：调度器投递到 `wechat_group` 时优先复用 `ChannelManager` 中已启动的微信群通道实例，避免新建未 `startup()` 的通道导致 `wechat group sidecar is not started`；其它渠道仍保持原有创建通道逻辑。
+- 新增 `tests/test_scheduler_wechat_group_delivery.py`：覆盖 Agent 定时任务结果发送到微信群时必须使用运行中的微信群 sidecar 通道。
+
+验证记录：
+- `python -m unittest tests.test_scheduler_wechat_group_delivery`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_scheduler_wechat_group_delivery`
+- `python -m unittest tests.test_agent_stream_scheduler_guard tests.test_prompt_scheduler_guidance tests.test_scheduler_ui`
+
 ### 微信群当前群记忆工具
 - 新增 `channel/wechat_group/wechat_group_memory_tools.py`：提供 `wechat_group_memory_search` 与 `wechat_group_profile_get` 两个只绑定当前微信群的 Agent 工具，工具参数不暴露 `room_id`，避免模型或用户跨群指定作用域。
 - 更新 `channel/wechat_group/wechat_group_channel.py`：在微信群上下文中写入 `wechat_group_room_id`、`wechat_group_sender_id`、`wechat_group_bot_sender_id`，供 AgentBridge 安全创建当前 turn 的 scoped 工具。
