@@ -2,6 +2,14 @@
 
 ## 2026-07-03
 
+### web_fetch 代理配置透传
+- 更新 `agent/tools/web_fetch/web_fetch.py`：`web_fetch` 请求优先读取 `tools.web_fetch.proxy`，未配置时复用全局 `proxy`，并将代理透传给 `requests.get`；未配置代理时保留 `requests` 默认环境变量代理行为。
+- 扩展 `tests/test_security_ssrf_web_fetch.py`：覆盖工具专用代理和全局代理都会传入请求，同时保留 SSRF 跳转校验路径。
+
+验证记录：
+- `python -m unittest tests.test_security_ssrf_web_fetch.TestWebFetchProxy`
+- `python -m unittest tests.test_security_ssrf_web_fetch`
+
 ### 微信群群友画像向量检索
 - 更新 `agent/memory/manager.py`：修复混合检索合并结果时丢失 `id`、`scope_type`、`scope_id`、`channel_type`、`subject_id`、metadata 和来源消息的问题，保证向量命中后的作用域信息可继续用于安全过滤。
 - 更新 `agent/memory/scope.py` 与 `agent/memory/storage.py`：新增当前微信群所有群友画像的作用域检索能力，允许按 `room_id` 强过滤后跨 `subject_id` 做语义召回，不放宽跨群边界。

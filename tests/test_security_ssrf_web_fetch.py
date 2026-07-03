@@ -220,5 +220,35 @@ class TestWebFetchSSRFDisabledByDefault(unittest.TestCase):
         mock_get.assert_called_once()
 
 
+class TestWebFetchProxy(unittest.TestCase):
+    """web_fetch should honor configured proxy settings."""
+
+    def test_tool_proxy_config_is_passed_to_requests(self):
+        from agent.tools.web_fetch.web_fetch import WebFetch
+
+        proxy = "http://127.0.0.1:7890"
+        tool = WebFetch(config={"proxy": proxy})
+
+        with patch("requests.get", return_value=_fake_ok_response()) as mock_get:
+            result = tool.execute({"url": "http://example.com/page"})
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(mock_get.call_args.kwargs.get("proxies"), {"http": proxy, "https": proxy})
+
+    def test_global_proxy_config_is_passed_to_requests(self):
+        from agent.tools.web_fetch.web_fetch import WebFetch
+
+        proxy = "http://127.0.0.1:7890"
+        fake_conf = MagicMock()
+        fake_conf.get.side_effect = lambda key, default=None: proxy if key == "proxy" else default
+
+        with patch("config.conf", return_value=fake_conf), \
+                patch("requests.get", return_value=_fake_ok_response()) as mock_get:
+            result = WebFetch().execute({"url": "http://example.com/page"})
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(mock_get.call_args.kwargs.get("proxies"), {"http": proxy, "https": proxy})
+
+
 if __name__ == "__main__":
     unittest.main()

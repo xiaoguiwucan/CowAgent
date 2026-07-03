@@ -125,8 +125,31 @@ class WebFetch(BaseTool):
 
     # ---- Safe request helper ----
 
-    @staticmethod
-    def _safe_get(url: str, **kwargs) -> requests.Response:
+    def _configured_proxy(self) -> Optional[str]:
+        """Resolve proxy for web_fetch requests.
+
+        Priority:
+        1. tools.web_fetch.proxy
+        2. global proxy
+        3. requests' default environment proxy handling
+        """
+        if isinstance(self.config, dict):
+            proxy = (self.config.get("proxy") or "").strip()
+            if proxy:
+                return proxy
+
+        try:
+            from config import conf
+            proxy = (conf().get("proxy") or "").strip()
+            return proxy or None
+        except Exception:
+            return None
+
+    def _request_proxies(self) -> Optional[Dict[str, str]]:
+        proxy = self._configured_proxy()
+        return {"http": proxy, "https": proxy} if proxy else None
+
+    def _safe_get(self, url: str, **kwargs) -> requests.Response:
         """Issue a GET request while re-validating every redirect hop (SSRF guard).
 
         Auto-redirect is disabled and each hop is followed manually so the
@@ -140,13 +163,17 @@ class WebFetch(BaseTool):
         """
         kwargs.pop("allow_redirects", None)
         current = url
+        proxies = self._request_proxies()
         for _ in range(MAX_REDIRECTS + 1):
+            request_kwargs = dict(kwargs)
+            if proxies:
+                request_kwargs["proxies"] = proxies
             response = requests.get(
                 current,
                 headers=DEFAULT_HEADERS,
                 timeout=DEFAULT_TIMEOUT,
                 allow_redirects=False,
-                **kwargs,
+                **request_kwargs,
             )
             if not response.is_redirect and not response.is_permanent_redirect:
                 return response
