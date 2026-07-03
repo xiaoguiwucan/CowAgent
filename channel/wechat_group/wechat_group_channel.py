@@ -402,6 +402,16 @@ class WechatGroupChannel(ChatChannel):
             }
         else:
             state = self.free_reply_state.get(msg.other_user_id)
+            recent_messages = []
+            try:
+                recent_messages = self.archive.get_recent_messages(
+                    msg.other_user_id,
+                    limit=18,
+                    minutes=120,
+                    now=getattr(msg, "create_time", None),
+                )
+            except Exception as e:
+                logger.debug("[wechat_group] failed to load free reply recent messages: {}".format(e))
             decision = evaluate_wechat_group_free_reply(
                 cfg,
                 room_id=msg.other_user_id,
@@ -409,11 +419,13 @@ class WechatGroupChannel(ChatChannel):
                 sender_id=msg.actual_user_id,
                 sender_name=msg.actual_user_nickname,
                 text=getattr(msg, "text", None) or msg.content,
+                recent_messages=recent_messages,
                 state=state,
                 now=time.time(),
                 is_self=getattr(msg, "my_msg", False) is True,
                 blocked_sender_ids=conf().get("wechat_group_blocked_sender_ids", []) or [],
                 bot_names=[getattr(msg, "self_display_name", ""), getattr(msg, "to_user_nickname", ""), self.name],
+                message_type=getattr(msg, "message_type", None),
             )
         self.free_reply_state.remember_decision(decision)
         if not decision.get("triggered"):
@@ -437,7 +449,13 @@ class WechatGroupChannel(ChatChannel):
 
     def _submit_free_reply_after_judge(self, task, llm_decision):
         msg = task["msg"]
-        context = self._compose_context(msg.ctype, msg.content, isgroup=True, msg=msg)
+        context = self._compose_context(
+            msg.ctype,
+            msg.content,
+            isgroup=True,
+            msg=msg,
+            wechat_group_force_reply=True,
+        )
         if not context:
             return
         context["wechat_group_free_reply_triggered"] = True

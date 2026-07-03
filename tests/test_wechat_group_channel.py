@@ -444,6 +444,43 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertTrue(context["suppress_mention"])
         self.assertTrue(context["no_need_at"])
 
+    def test_worker_approved_free_reply_bypasses_group_at_filter(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_enabled"] = True
+        conf()["wechat_group_free_reply_room_ids"] = ["room@@abc"]
+        channel = WechatGroupChannel(client=FakeClient(), memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})))
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="哪里的用户名",
+            text="哪里的用户名",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="测试群",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=False,
+            is_group=True,
+            at_list=[],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-free-reply",
+            message_type="text",
+            media_path="",
+        )
+        task = {"msg": msg, "local_decision": {"triggered": True, "score": 55}}
+
+        channel._submit_free_reply_after_judge(task, {"approved": True, "confidence": 0.9})
+
+        channel.produce.assert_called_once()
+        context = channel.produce.call_args.args[0]
+        self.assertEqual("room@@abc", context["receiver"])
+        self.assertEqual("room@@abc", context["session_id"])
+        self.assertTrue(context.content.endswith("哪里的用户名"))
+        self.assertTrue(context["wechat_group_free_reply_triggered"])
+
     def test_free_reply_does_not_mention_sender(self):
         mentions = WechatGroupChannel._build_reply_mentions({
             "suppress_mention": True,

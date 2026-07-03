@@ -6994,6 +6994,9 @@ function renderGroupsView() {
     if (groupsActiveSection === 'memory') {
         ensureGroupsMemoryLoaded(extra);
     }
+    if (groupsActiveSection === 'free_reply') {
+        syncFreeReplyProfileFields(extra.free_reply || {});
+    }
 }
 
 function buildGroupsSectionButton(section, icon, labelKey, hintKey) {
@@ -8189,7 +8192,7 @@ function renderWechatGroupFreeReplySettings(extra = {}) {
         </div>
         <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
             <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_free_reply_level')}</label>
-            <select id="free-reply-activity-level"
+            <select id="free-reply-activity-level" onchange="syncFreeReplyProfileFields((getWechatGroupChannel() || {}).extra?.free_reply || {})"
                 class="w-full md:w-64 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
                 ${['quiet', 'normal', 'active', 'crazy'].map(item => `<option value="${item}" ${item === level ? 'selected' : ''}>${item}</option>`).join('')}
             </select>
@@ -8239,6 +8242,28 @@ function buildFreeReplyNumberField(id, labelKey, value, min, max, step) {
         <input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${Number(value)}"
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
     </label>`;
+}
+
+function syncFreeReplyProfileFields(saved = {}) {
+    const free = saved.free_reply ? saved.free_reply : saved;
+    const level = document.getElementById('free-reply-activity-level')?.value || free.activity_level || 'normal';
+    const defaults = {
+        quiet: { min_score: 65, min_interval_seconds: 30, hourly_limit: 0, consecutive_limit: 0 },
+        normal: { min_score: 50, min_interval_seconds: 10, hourly_limit: 0, consecutive_limit: 0 },
+        active: { min_score: 35, min_interval_seconds: 3, hourly_limit: 0, consecutive_limit: 0 },
+        crazy: { min_score: 20, min_interval_seconds: 0, hourly_limit: 0, consecutive_limit: 0 },
+    };
+    const profile = { ...(defaults[level] || defaults.normal), ...((free.profiles || {})[level] || {}) };
+    const fields = {
+        'free-reply-min-score': profile.min_score,
+        'free-reply-min-interval': profile.min_interval_seconds,
+        'free-reply-hourly-limit': profile.hourly_limit,
+        'free-reply-consecutive-limit': profile.consecutive_limit,
+    };
+    Object.entries(fields).forEach(([id, value]) => {
+        const input = document.getElementById(id);
+        if (input) input.value = Number(value ?? 0);
+    });
 }
 
 function buildWechatGroupSettingsPanel(ch) {

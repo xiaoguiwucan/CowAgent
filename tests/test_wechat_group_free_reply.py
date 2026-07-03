@@ -106,6 +106,48 @@ class WechatGroupFreeReplyDecisionTest(unittest.TestCase):
         self.assertIn("group_question", decision["reasons"])
         self.assertIn("bot_capability_match", decision["reasons"])
 
+    def test_short_group_question_with_recent_context_triggers_at_active_level(self):
+        cfg = self.enabled_cfg()
+        cfg["activity_level"] = "active"
+
+        decision = evaluate_wechat_group_free_reply(
+            cfg,
+            room_id="room@@abc",
+            room_name="测试群",
+            sender_id="wxid_alice",
+            sender_name="Alice",
+            text="哪里的用户名",
+            recent_messages=[
+                {"sender_nickname": "Bob", "text": "你点击用户名后看链接"},
+                {"sender_nickname": "Alice", "text": "哪里的用户名"},
+            ],
+            state={},
+            now=100000,
+        )
+
+        self.assertTrue(decision["triggered"])
+        self.assertGreaterEqual(decision["score"], decision["threshold"])
+        self.assertIn("group_question", decision["reasons"])
+        self.assertIn("unanswered_question", decision["reasons"])
+
+    def test_xml_payload_is_suppressed_before_scoring(self):
+        decision = evaluate_wechat_group_free_reply(
+            self.enabled_cfg(),
+            room_id="room@@abc",
+            room_name="测试群",
+            sender_id="wxid_alice",
+            sender_name="Alice",
+            text='<?xml version="1.0"?><msg><img aeskey="abc" /></msg>',
+            recent_messages=[],
+            state={},
+            now=100000,
+            message_type="text",
+        )
+
+        self.assertFalse(decision["triggered"])
+        self.assertIn("media_payload", decision["suppressions"])
+        self.assertNotIn("group_question", decision["reasons"])
+
     def test_low_information_is_suppressed(self):
         decision = evaluate_wechat_group_free_reply(
             self.enabled_cfg(),

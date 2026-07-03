@@ -228,6 +228,14 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual(1.0, conf()["wechat_group_free_reply_llm_judge_min_confidence"])
         self.assertEqual(25, conf()["wechat_group_free_reply_profiles"]["active"]["min_score"])
 
+    def test_console_updates_free_reply_profile_fields_when_level_changes(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("function syncFreeReplyProfileFields", console_js)
+        self.assertIn("free-reply-activity-level", console_js)
+        self.assertIn("syncFreeReplyProfileFields(extra.free_reply || {})", console_js)
+
     def test_wechat_group_extra_returns_running_free_reply_status(self):
         from channel.web.web_channel import ChannelsHandler
 

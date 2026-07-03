@@ -14,6 +14,18 @@
 - `python -m py_compile agent\tools\web_search\web_search.py channel\web\web_channel.py config.py tests\test_models_handler.py tests\test_web_search_providers.py`
 - `python -m json.tool config-template.json`
 
+### 微信群自由回复评分与发送链路修复
+- 参考 `BaiLongmaPro/src/social/wechat-ambient-reply.js` 的接话评分思路，扩展 `channel/wechat_group/wechat_group_free_reply.py`：普通群问题支持“哪里/啥意思/能不能/看看”等口语问法，结合当前群近期消息补充 `unanswered_question` 加分；低信息闲聊和梗类文本按更接近群聊语境的规则判断。
+- 修复 XML / 表情 / 图片原始 payload 因包含 `?` 被误判为群问题的问题，新增 `media_payload` 抑制，避免非文本内容误入自由回复 LLM 复核。
+- 更新 `channel/wechat_group/wechat_group_channel.py` 与 `channel/chat_channel.py`：自由回复本地评分时读取当前群最近消息；LLM 复核通过后用 `wechat_group_force_reply` 绕过通用群聊非 @ 过滤，确保进入最终 LLM 回复与微信群发送链路，同时仍保留自由回复不 mention 发送者的行为。
+- 更新 `channel/web/static/js/console.js`：切换自由回复活跃档位时同步刷新阈值、间隔和上限输入框，避免把 normal 档参数误保存到 active/crazy 等档位。
+- 扩展 `tests/test_wechat_group_free_reply.py`、`tests/test_wechat_group_channel.py`、`tests/test_wechat_group_web.py`：覆盖口语问法 active 档触发、XML payload 抑制、worker 通过后进入最终回复队列，以及 Web 档位切换同步逻辑。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_free_reply tests.test_wechat_group_free_reply_judge tests.test_wechat_group_free_reply_worker tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `node --check D:\JiangShuai\SourceCode\CowAgent\channel\web\static\js\console.js`
+- `python -m py_compile channel\chat_channel.py channel\wechat_group\wechat_group_free_reply.py channel\wechat_group\wechat_group_channel.py tests\test_wechat_group_free_reply.py tests\test_wechat_group_channel.py tests\test_wechat_group_web.py`
+
 ### Agent turn start 日志摘要优化
 - 更新 `agent/protocol/agent_stream.py`：Agent 入口日志改为 `[Agent] turn start` 结构化摘要，只展示模型、thinking 状态、真实用户问题预览和微信群增强块规模。
 - 微信群增强上下文只记录块类型和统计信息，例如 `wechat_context=persona, recent_transcript, memory`、`recent_transcript_messages`、`recent_transcript_window`、`memory_chars`，不再打印最近群聊逐条内容、人设正文或群记忆正文。

@@ -31,6 +31,7 @@ NEGATIVE_RULES = [
     {"id": "self_message", "label": "Message sent by bot itself"},
     {"id": "blocked_sender", "label": "Sender is blocked"},
     {"id": "low_information", "label": "Low-information short text"},
+    {"id": "media_payload", "label": "Raw media payload should not trigger free reply"},
     {"id": "sensitive_or_dangerous", "label": "Sensitive, private or dangerous request"},
     {"id": "min_interval", "label": "Room cooldown is active"},
     {"id": "hourly_limit", "label": "Hourly limit reached"},
@@ -129,11 +130,32 @@ def _text_preview(text: str, limit=120) -> str:
     return text[:limit]
 
 
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def _is_media_payload(text: str, message_type=None) -> bool:
+    value = _normalize_text(text)
+    msg_type = str(message_type or "").strip().lower() if isinstance(message_type, str) else ""
+    if msg_type and msg_type not in ("text", "unknown"):
+        return True
+    if re.match(r"^<\?xml\b", value, re.IGNORECASE):
+        return True
+    if re.match(r"^<msg\b", value, re.IGNORECASE):
+        return True
+    return bool(re.search(r"<(img|emoji|videomsg|appmsg|voicemsg)\b", value, re.IGNORECASE))
+
+
 def _is_low_information(text: str) -> bool:
     compact = re.sub(r"\s+", "", text or "")
     if len(compact) <= 2:
         return True
-    return compact.lower() in {"哈哈", "呵呵", "嗯嗯", "好的", "ok", "hi", "hello"}
+    lowered = compact.lower()
+    if lowered in {"哈哈", "呵呵", "嗯嗯", "好的", "ok", "hi", "hello"}:
+        return True
+    without_fillers = re.sub(r"[\W_]+", "", lowered, flags=re.UNICODE)
+    without_fillers = re.sub(r"(哈|啊|呀|哦|噢|嗯|额|呃|呵|hi|hello|ok)+", "", without_fillers, flags=re.IGNORECASE)
+    return len(without_fillers) == 0 and len(compact) <= 8
 
 
 def _is_sensitive_or_dangerous(text: str) -> bool:
@@ -154,6 +176,7 @@ def _is_sensitive_or_dangerous(text: str) -> bool:
 
 
 def _score_text(text: str, bot_names=None) -> tuple:
+    text = _normalize_text(text)
     score = 0
     reasons = []
     bot_names = [
@@ -163,18 +186,21 @@ def _score_text(text: str, bot_names=None) -> tuple:
     if any(name and name in text for name in bot_names):
         score += 45
         reasons.append("bot_name_match")
-    if re.search(r"(谁能|有没有人|大家|帮我|帮忙|怎么|如何|为什么|吗|？|\?)", text or ""):
+    if re.search(r"(谁能|谁有|有没有人|大家|帮我|帮忙|求|看看|看下|咋办|怎么办|怎么|如何|为啥|为什么|啥意思|什么意思|哪个|哪位|哪里|哪儿|能不能|可不可以|会不会|吗|嘛|呢|？|\?)", text or ""):
         score += 30
         reasons.append("group_question")
-    if re.search(r"(总结|归纳|方案|记录|上下文|刚才|讨论|记忆|群聊|文档)", text or ""):
+    if re.search(r"(总结|归纳|方案|记录|上下文|刚才|讨论|记忆|群聊|文档|报告|代码|识图|图片|截图|视频|解析|表情包|梗图|斗图|文件|txt|pdf|word|excel|ppt|链接|网页|搜索|查一下)", text or "", re.IGNORECASE):
         score += 25
         reasons.append("bot_capability_match")
-    if re.search(r"(记得|群记忆|聊天记录|刚才说)", text or ""):
+    if re.search(r"(记得|群记忆|聊天记录|刚才说|之前|上面|前面|谁说|谁发|谁讲|群里|群友|这个人|他们|她们)", text or ""):
         score += 20
         reasons.append("memory_or_transcript")
     if re.search(r"(AI怎么看|ai怎么看|问问AI|问问ai)", text or ""):
         score += 35
         reasons.append("ai_opinion")
+    if re.search(r"(笑死|绷不住|破防|离谱|抽象|逆天|吐槽|哈哈哈|hhh|好家伙|急了|整活|活了|太对了|这也行|烂活|名场面)", text or "", re.IGNORECASE):
+        score += 10
+        reasons.append("banter_opportunity")
     return score, reasons
 
 
@@ -199,11 +225,20 @@ def evaluate_wechat_group_free_reply(
     is_self=False,
     blocked_sender_ids=None,
     bot_names=None,
+    message_type=None,
 ) -> dict:
     now = time.time() if now is None else now
     state = state or {}
     suppressions = []
-    score, reasons = _score_text(text or "", bot_names=bot_names)
+    normalized_text = _normalize_text(text or "")
+    media_payload = _is_media_payload(normalized_text, message_type=message_type)
+    if media_payload:
+        score, reasons = 0, []
+    else:
+        score, reasons = _score_text(normalized_text, bot_names=bot_names)
+        if "group_question" in reasons and len(recent_messages or []) >= 2:
+            score += 25
+            reasons.append("unanswered_question")
     level = config.get("activity_level") or "normal"
     profile = (config.get("profiles") or DEFAULT_FREE_REPLY_PROFILES).get(level, DEFAULT_FREE_REPLY_PROFILES["normal"])
     threshold = int(profile.get("min_score", 50))
@@ -218,6 +253,8 @@ def evaluate_wechat_group_free_reply(
         suppressions.append("blocked_sender")
     if _is_low_information(text or ""):
         suppressions.append("low_information")
+    if media_payload:
+        suppressions.append("media_payload")
     if _is_sensitive_or_dangerous(text or ""):
         suppressions.append("sensitive_or_dangerous")
 

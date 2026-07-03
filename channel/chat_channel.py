@@ -115,7 +115,7 @@ class ChatChannel(Channel):
                 # 校验关键字
                 match_prefix = check_prefix(content, conf().get("group_chat_prefix"))
                 match_contain = check_contain(content, conf().get("group_chat_keyword"))
-                flag = False
+                flag = bool(context.get("wechat_group_force_reply", False))
                 if context["msg"].to_user_id != context["msg"].actual_user_id:
                     if match_prefix is not None or match_contain is not None:
                         flag = True
