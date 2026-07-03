@@ -68,6 +68,30 @@ class WechatGroupFreeReplyWorkerPoolTest(unittest.TestCase):
         callback.assert_not_called()
         self.assertEqual(1, pool.status()["rejected_total"])
 
+    def test_worker_logs_llm_rejected_decision(self):
+        judge = Mock()
+        judge.judge.return_value = {
+            "approved": False,
+            "confidence": 0.41,
+            "error": "low_confidence",
+            "reason": "two person thread",
+        }
+        callback = Mock()
+        pool, _, _ = self.make_pool(judge=judge, callback=callback)
+        pool.start()
+        try:
+            with self.assertLogs("log", level="INFO") as captured:
+                self.assertTrue(pool.submit(self.make_task()))
+                self.assertTrue(wait_until(lambda: pool.status()["rejected_total"] == 1))
+        finally:
+            pool.stop()
+
+        logs = "\n".join(captured.output)
+        self.assertIn("[wechat_group] free reply llm rejected:", logs)
+        self.assertIn("confidence=0.41", logs)
+        self.assertIn('error="low_confidence"', logs)
+        self.assertIn('reason="two person thread"', logs)
+
     def test_expired_task_is_dropped_before_llm_judge(self):
         pool, judge, callback = self.make_pool(ttl_seconds=1)
         task = self.make_task()

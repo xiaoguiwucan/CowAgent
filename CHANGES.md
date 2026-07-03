@@ -2,6 +2,17 @@
 
 ## 2026-07-03
 
+### 微信群与 Agent 请求日志可读性优化
+- 更新 `channel/wechat_group/wechat_group_channel.py`：收到微信群消息时记录群名、发送人、消息类型、是否 @ 和截断文本；未 @ 文本进入自由回复判定后记录入队/跳过、得分、阈值、档位、命中原因和抑制原因。
+- 更新 `channel/wechat_group/wechat_group_free_reply_worker.py`：自由回复 LLM 复核通过或拒绝时记录置信度、错误码/原因和消息预览，便于定位“为什么接话或沉默”。
+- 更新 `agent/protocol/agent_stream.py`：将 LLM 请求摘要压缩为单行，保留 system 来源、历史角色/字数和工具名称，去掉工具 schema 展开，降低日志噪声。
+- 扩展 `tests/test_agent_stream_logging.py`、`tests/test_wechat_group_channel.py`、`tests/test_wechat_group_free_reply_worker.py`：覆盖新的 Agent 请求摘要、微信群入站消息日志、自由回复本地判定日志和 LLM 复核拒绝日志。
+
+验证记录：
+- `python -m unittest tests.test_agent_stream_logging tests.test_wechat_group_free_reply_worker`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m py_compile agent\protocol\agent_stream.py channel\wechat_group\wechat_group_channel.py channel\wechat_group\wechat_group_free_reply_worker.py tests\test_agent_stream_logging.py tests\test_wechat_group_channel.py tests\test_wechat_group_free_reply_worker.py`
+
 ### web_fetch 代理配置透传
 - 更新 `agent/tools/web_fetch/web_fetch.py`：`web_fetch` 请求优先读取 `tools.web_fetch.proxy`，未配置时复用全局 `proxy`，并将代理透传给 `requests.get`；未配置代理时保留 `requests` 默认环境变量代理行为。
 - 扩展 `tests/test_security_ssrf_web_fetch.py`：覆盖工具专用代理和全局代理都会传入请求，同时保留 SSRF 跳转校验路径。

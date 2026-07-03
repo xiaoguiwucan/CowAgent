@@ -352,6 +352,36 @@ class WechatGroupChannelTest(unittest.TestCase):
         channel.produce.assert_not_called()
         channel.free_reply_worker.submit.assert_not_called()
 
+    def test_non_at_message_logs_inbound_message_and_free_reply_decision(self):
+        conf()["wechat_group_free_reply_enabled"] = False
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="Can someone summarize the plan from the group discussion?",
+            text="Can someone summarize the plan from the group discussion?",
+            message_type="text",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            is_at=False,
+        )
+
+        with self.assertLogs("log", level="INFO") as captured:
+            channel.handle_text(msg)
+
+        logs = "\n".join(captured.output)
+        self.assertIn("[wechat_group] inbound:", logs)
+        self.assertIn('room="Test Room"', logs)
+        self.assertIn('sender="Alice"', logs)
+        self.assertIn("Can someone summarize the plan", logs)
+        self.assertIn("[wechat_group] free reply skipped:", logs)
+        self.assertIn("score=", logs)
+        self.assertIn("threshold=", logs)
+        self.assertIn("suppressions=disabled", logs)
+
     def test_free_reply_scored_message_is_enqueued_not_produced_directly(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]
         conf()["wechat_group_free_reply_enabled"] = True

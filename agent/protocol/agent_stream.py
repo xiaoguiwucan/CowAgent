@@ -153,7 +153,7 @@ def _summarize_messages_for_llm_log(messages: List[Dict[str, Any]]) -> str:
         for block_type in sorted(block_counts)
     ) or "none"
     return (
-        f"count={len(messages or [])} "
+        f"{len(messages or [])} "
         f"roles={role_summary} "
         f"content_chars={total_chars} "
         f"blocks={block_summary}"
@@ -163,22 +163,9 @@ def _summarize_messages_for_llm_log(messages: List[Dict[str, Any]]) -> str:
 def _summarize_tools_for_llm_log(tools_schema: Optional[List[Dict[str, Any]]]) -> str:
     tools = tools_schema or []
     names = [str(tool.get("name") or "unknown") for tool in tools]
-    schema_summaries = []
-    for tool in tools[:10]:
-        input_schema = tool.get("input_schema") or {}
-        properties = input_schema.get("properties") if isinstance(input_schema, dict) else {}
-        required = input_schema.get("required") if isinstance(input_schema, dict) else []
-        prop_count = len(properties) if isinstance(properties, dict) else 0
-        req_count = len(required) if isinstance(required, list) else 0
-        schema_summaries.append(
-            f"{tool.get('name') or 'unknown'}(properties={prop_count}, required={req_count})"
-        )
-    schema_suffix = f" (+{len(tools) - 10} more)" if len(tools) > 10 else ""
-    schema_summary = ", ".join(schema_summaries) + schema_suffix if schema_summaries else "none"
     return (
-        f"count={len(tools)} "
-        f"names={_summarize_names(names, limit=20)} "
-        f"schemas={schema_summary}"
+        f"{len(tools)} "
+        f"names={_summarize_names(names, limit=6)}"
     )
 
 
@@ -992,10 +979,11 @@ class AgentStreamExecutor:
                 })
 
         logger.info(
-            "[Agent] LLM request summary:\n"
-            f"system: {_summarize_system_prompt_for_llm_log(self.system_prompt)}\n"
-            f"messages: {_summarize_messages_for_llm_log(messages)}\n"
-            f"tools: {_summarize_tools_for_llm_log(tools_schema)}"
+            "[Agent] LLM request: "
+            f"system={_summarize_system_prompt_for_llm_log(self.system_prompt)}; "
+            f"messages={_summarize_messages_for_llm_log(messages)}; "
+            f"tools={_summarize_tools_for_llm_log(tools_schema)}; "
+            "current_message=preview_logged"
         )
 
         # Create request

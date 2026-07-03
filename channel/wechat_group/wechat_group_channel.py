@@ -1,5 +1,6 @@
 """WeChat group channel backed by a Node.js Wechaty sidecar."""
 
+import re
 import time
 
 from bridge.context import ContextType
@@ -32,6 +33,42 @@ from common.expired_dict import ExpiredDict
 from common.log import logger
 from config import conf
 from agent.protocol.agent_stream import looks_like_scheduler_request
+
+
+def _wechat_group_log_preview(text, limit=120) -> str:
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(value) <= limit:
+        return value
+    return "{}...(+{} chars)".format(value[:limit], len(value) - limit)
+
+
+def _wechat_group_log_value(value) -> str:
+    if value is None:
+        return ""
+    if "unittest.mock" in type(value).__module__:
+        return ""
+    return str(value)
+
+
+def _free_reply_rule_label_map() -> dict:
+    labels = {}
+    for group in (get_wechat_group_free_reply_rules() or {}).values():
+        for rule in group or []:
+            rule_id = str(rule.get("id") or "")
+            if rule_id:
+                labels[rule_id] = str(rule.get("label") or rule_id)
+    return labels
+
+
+def _format_free_reply_items(items) -> str:
+    values = [str(item) for item in (items or []) if str(item)]
+    if not values:
+        return "-"
+    labels = _free_reply_rule_label_map()
+    return ", ".join(
+        "{}({})".format(item, labels[item]) if labels.get(item) else item
+        for item in values
+    )
 
 
 class WechatGroupChannel(ChatChannel):
@@ -120,6 +157,7 @@ class WechatGroupChannel(ChatChannel):
         return True
 
     def handle_text(self, msg: WechatGroupMessage):
+        self._log_inbound_message(msg)
         if msg.ctype == ContextType.TEXT and not getattr(msg, "is_at", False):
             should_enqueue, decision = self._should_enqueue_free_reply_message(msg)
             if not should_enqueue:
@@ -128,6 +166,9 @@ class WechatGroupChannel(ChatChannel):
             submitted = self.free_reply_worker.submit(self._build_free_reply_task(msg, decision))
             if submitted:
                 self.free_reply_state.mark_triggered(msg.other_user_id, now=decision.get("timestamp"))
+                self._log_free_reply_decision(decision, "queued")
+            else:
+                self._log_free_reply_decision(decision, "queue_full")
             return
         context = self._compose_context(
             msg.ctype,
@@ -137,6 +178,43 @@ class WechatGroupChannel(ChatChannel):
         )
         if context:
             self.produce(context)
+
+    def _log_inbound_message(self, msg: WechatGroupMessage):
+        try:
+            text = _wechat_group_log_value(getattr(msg, "text", None)) or _wechat_group_log_value(getattr(msg, "content", ""))
+            room_name = _wechat_group_log_value(getattr(msg, "other_user_nickname", "")) or _wechat_group_log_value(getattr(msg, "other_user_id", ""))
+            sender_name = _wechat_group_log_value(getattr(msg, "actual_user_nickname", "")) or _wechat_group_log_value(getattr(msg, "actual_user_id", ""))
+            message_type = _wechat_group_log_value(getattr(msg, "message_type", "")) or _wechat_group_log_value(getattr(msg, "ctype", ""))
+            logger.info(
+                '[wechat_group] inbound: room="{}" sender="{}" type={} is_at={} text="{}"'.format(
+                    room_name,
+                    sender_name,
+                    message_type,
+                    bool(getattr(msg, "is_at", False)),
+                    _wechat_group_log_preview(text),
+                )
+            )
+        except Exception as e:
+            logger.debug("[wechat_group] inbound log skipped: {}".format(e))
+
+    def _log_free_reply_decision(self, decision: dict, status: str):
+        try:
+            logger.info(
+                '[wechat_group] free reply {}: room="{}" sender="{}" score={} threshold={} level={} '
+                'reasons={} suppressions={} text="{}"'.format(
+                    status,
+                    decision.get("room_name") or decision.get("room_id", ""),
+                    decision.get("sender_name") or decision.get("sender_id", ""),
+                    decision.get("score", 0),
+                    decision.get("threshold", 0),
+                    decision.get("activity_level", ""),
+                    _format_free_reply_items(decision.get("reasons")),
+                    _format_free_reply_items(decision.get("suppressions")),
+                    _wechat_group_log_preview(decision.get("text_preview", "")),
+                )
+            )
+        except Exception as e:
+            logger.debug("[wechat_group] free reply decision log skipped: {}".format(e))
 
     def _compose_context(self, ctype, content, **kwargs):
         context = super()._compose_context(ctype, content, **kwargs)
@@ -339,6 +417,7 @@ class WechatGroupChannel(ChatChannel):
             )
         self.free_reply_state.remember_decision(decision)
         if not decision.get("triggered"):
+            self._log_free_reply_decision(decision, "skipped")
             self.free_reply_state.mark_observed(getattr(msg, "other_user_id", ""))
             return False, decision
         return True, decision

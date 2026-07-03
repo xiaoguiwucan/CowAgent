@@ -4,6 +4,15 @@ import queue
 import threading
 import time
 
+from common.log import logger
+
+
+def _preview(text, limit=120) -> str:
+    value = " ".join(str(text or "").split())
+    if len(value) <= limit:
+        return value
+    return "{}...(+{} chars)".format(value[:limit], len(value) - limit)
+
 
 class WechatGroupFreeReplyWorkerPool:
     def __init__(self, judge, submit_callback, max_workers=2, queue_size=100, ttl_seconds=120):
@@ -98,10 +107,29 @@ class WechatGroupFreeReplyWorkerPool:
         try:
             decision = self.judge.judge(task, task.get("config") or {})
             if decision.get("approved"):
+                logger.info(
+                    '[wechat_group] free reply llm approved: room="{}" sender="{}" confidence={} reason="{}" text="{}"'.format(
+                        task.get("room_name", "") or task.get("room_id", ""),
+                        task.get("sender_name", "") or task.get("sender_id", ""),
+                        decision.get("confidence", 0),
+                        _preview(decision.get("reason", ""), limit=80),
+                        _preview(task.get("text", "")),
+                    )
+                )
                 self.submit_callback(task, decision)
                 with self._lock:
                     self.approved_total += 1
             else:
+                logger.info(
+                    '[wechat_group] free reply llm rejected: room="{}" sender="{}" confidence={} error="{}" reason="{}" text="{}"'.format(
+                        task.get("room_name", "") or task.get("room_id", ""),
+                        task.get("sender_name", "") or task.get("sender_id", ""),
+                        decision.get("confidence", 0),
+                        decision.get("error", ""),
+                        _preview(decision.get("reason", ""), limit=80),
+                        _preview(task.get("text", "")),
+                    )
+                )
                 with self._lock:
                     self.rejected_total += 1
         except Exception as e:
