@@ -2,6 +2,19 @@
 
 ## 2026-07-03
 
+### 微信群群友画像向量检索
+- 更新 `agent/memory/manager.py`：修复混合检索合并结果时丢失 `id`、`scope_type`、`scope_id`、`channel_type`、`subject_id`、metadata 和来源消息的问题，保证向量命中后的作用域信息可继续用于安全过滤。
+- 更新 `agent/memory/scope.py` 与 `agent/memory/storage.py`：新增当前微信群所有群友画像的作用域检索能力，允许按 `room_id` 强过滤后跨 `subject_id` 做语义召回，不放宽跨群边界。
+- 更新 `channel/wechat_group/wechat_group_memory.py`：群友画像在无明确 @ 且昵称/别名不命中时，按当前群画像执行向量/关键词混合检索并注入 `matched_by="semantic"`；若昵称/别名存在歧义则保持不注入，避免误选成员。
+- 更新 `channel/wechat_group/wechat_group_memory_tools.py`：`wechat_group_profile_get` 增加 `query`、`max_results`、`min_score` 参数，支持 Agent 在当前群内按自然语言搜索群友画像，仍不暴露 `room_id`。
+- 扩展 `tests/test_wechat_group_memory.py` 与 `tests/test_wechat_group_memory_tools.py`：覆盖群友画像向量召回、跨群隔离、当前发言人/机器人排除和工具语义搜索。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_uses_vector_search_for_related_member_profile tests.test_wechat_group_memory_tools.WechatGroupMemoryToolsTest.test_profile_get_tool_can_vector_search_current_room_profiles`
+- `python -m unittest tests.test_wechat_group_memory tests.test_wechat_group_memory_tools tests.test_wechat_group_channel`
+- `python -m unittest tests.test_memory_scope tests.test_wechat_group_context tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_web`
+- `python -m py_compile agent\memory\scope.py agent\memory\storage.py agent\memory\manager.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_memory_tools.py channel\wechat_group\wechat_group_channel.py tests\test_wechat_group_memory.py tests\test_wechat_group_memory_tools.py`
+
 ### 微信群记忆复用向量供应商
 - 更新 `channel/wechat_group/wechat_group_memory.py`：新增微信群记忆服务创建函数，创建 `MemoryManager` 时复用全局 `create_default_embedding_provider()`，避免已配置向量供应商时仍降级为关键词检索。
 - 更新 `channel/wechat_group/wechat_group_channel.py` 与 `channel/web/web_channel.py`：微信群运行时上下文注入和 Web 群记忆管理入口统一使用上述服务创建函数，不再直接裸创建 `MemoryManager()`。

@@ -655,7 +655,9 @@ class MemoryStorage:
             memory_scope.scope_id,
             memory_scope.channel_type,
         ]
-        if memory_scope.subject_id:
+        if memory_scope.subject_id == "*":
+            pass
+        elif memory_scope.subject_id:
             clauses.append("chunks.subject_id = ?")
             params.append(memory_scope.subject_id)
         else:

@@ -48,6 +48,16 @@ class MemoryScope:
         )
 
     @classmethod
+    def wechat_group_member_profiles(cls, room_id: str) -> "MemoryScope":
+        room_id = _require_text("room_id", room_id)
+        return cls(
+            scope_type="wechat_group_member_profile",
+            scope_id=room_id,
+            channel_type="wechat_group",
+            subject_id="*",
+        )
+
+    @classmethod
     def from_legacy(
         cls,
         scope: str,

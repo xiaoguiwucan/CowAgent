@@ -6,6 +6,25 @@ from agent.memory.manager import MemoryManager
 from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
 
 
+class FakeProfileEmbeddingProvider:
+    model = "fake-profile-vectors"
+
+    def embed_query(self, text):
+        return self._embed(text)
+
+    def embed_batch(self, texts):
+        return [self._embed(text) for text in texts]
+
+    @staticmethod
+    def _embed(text):
+        text = (text or "").lower()
+        if any(term in text for term in ("frontend", "react", "dashboard", "ui")):
+            return [1.0, 0.0, 0.0]
+        if any(term in text for term in ("database", "postgres", "sql")):
+            return [0.0, 1.0, 0.0]
+        return [0.0, 0.0, 1.0]
+
+
 class WechatGroupMemoryServiceTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -145,6 +164,53 @@ class WechatGroupMemoryServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("aliases: 大力, 力佬", preview["content"])
         self.assertIn("资源协调人", preview["content"])
         self.assertEqual([], preview["filtered_reasons"])
+
+    async def test_preview_uses_vector_search_for_related_member_profile(self):
+        self.manager.embedding_provider = FakeProfileEmbeddingProvider()
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            role="question asker",
+            evidence="manual admin entry",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            role="UI owner",
+            expertise="React dashboards",
+            evidence="manual admin entry",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_carol",
+            sender_nickname="Carol",
+            role="database owner",
+            expertise="PostgreSQL tuning",
+            evidence="manual admin entry",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@b",
+            sender_id="wxid_cross_room",
+            sender_nickname="Cross Room Bob",
+            role="UI owner",
+            expertise="React dashboards",
+            evidence="manual admin entry",
+        )
+
+        preview = await self.service.preview_prompt_memories(
+            room_id="room@@a",
+            sender_id="wxid_alice",
+            query="Who is the frontend specialist?",
+            mentioned_sender_ids=[],
+            bot_sender_id="wxid_bot",
+        )
+
+        self.assertIn('[mentioned_profile sender_id="wxid_bob" matched_by="semantic"]', preview["content"])
+        self.assertIn("React dashboards", preview["content"])
+        self.assertNotIn("wxid_carol", preview["content"])
+        self.assertNotIn("wxid_cross_room", preview["content"])
 
     async def test_preview_skips_alias_profile_when_match_is_ambiguous(self):
         await self.service.upsert_member_profile(

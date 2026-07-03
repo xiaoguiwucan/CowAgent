@@ -598,7 +598,15 @@ class MemoryManager:
                 score=combined_score,
                 snippet=result.snippet,
                 source=result.source,
-                user_id=result.user_id
+                user_id=result.user_id,
+                id=result.id,
+                scope_type=result.scope_type,
+                scope_id=result.scope_id,
+                channel_type=result.channel_type,
+                subject_id=result.subject_id,
+                status=result.status,
+                metadata=result.metadata,
+                source_message_ids=result.source_message_ids,
             ))
         
         merged_results.sort(key=lambda r: r.score, reverse=True)

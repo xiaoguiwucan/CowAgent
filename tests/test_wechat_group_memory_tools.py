@@ -11,6 +11,23 @@ from channel.wechat_group.wechat_group_memory_tools import (
 )
 
 
+class FakeProfileEmbeddingProvider:
+    model = "fake-profile-vectors"
+
+    def embed_query(self, text):
+        return self._embed(text)
+
+    def embed_batch(self, texts):
+        return [self._embed(text) for text in texts]
+
+    @staticmethod
+    def _embed(text):
+        text = (text or "").lower()
+        if any(term in text for term in ("frontend", "react", "dashboard", "ui")):
+            return [1.0, 0.0]
+        return [0.0, 1.0]
+
+
 class WechatGroupMemoryToolsTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -65,6 +82,37 @@ class WechatGroupMemoryToolsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("wants risk first", result.result)
         self.assertNotIn("budget owner", result.result)
         self.assertNotIn("wants cost first", result.result)
+
+    async def test_profile_get_tool_can_vector_search_current_room_profiles(self):
+        self.manager.embedding_provider = FakeProfileEmbeddingProvider()
+        await self.service.upsert_member_profile(
+            room_id="room@@a",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            role="UI owner",
+            expertise="React dashboards",
+            evidence="manual admin entry",
+        )
+        await self.service.upsert_member_profile(
+            room_id="room@@b",
+            sender_id="wxid_cross_room",
+            sender_nickname="Cross Room Bob",
+            role="UI owner",
+            expertise="React dashboards",
+            evidence="manual admin entry",
+        )
+
+        tool = WechatGroupProfileGetTool(
+            self.service,
+            room_id="room@@a",
+            sender_id="wxid_alice",
+        )
+        result = tool.execute({"query": "frontend specialist", "max_results": 3})
+
+        self.assertEqual("success", result.status)
+        self.assertIn("sender_id: wxid_bob", result.result)
+        self.assertIn("React dashboards", result.result)
+        self.assertNotIn("wxid_cross_room", result.result)
 
     async def test_wechat_group_tool_schemas_do_not_accept_room_id(self):
         tools = create_wechat_group_memory_tools(

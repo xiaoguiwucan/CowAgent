@@ -86,7 +86,8 @@ class WechatGroupProfileGetTool(BaseTool):
     description = (
         "Read a member profile from the current WeChat group only. Use this "
         "for member role, preferences, expertise, interaction style, boundaries, "
-        "or evidence. If sender_id is omitted, reads the current speaker profile."
+        "or evidence. Provide sender_id for an exact profile, or query to search "
+        "related current-room member profiles."
     )
     params = {
         "type": "object",
@@ -94,6 +95,20 @@ class WechatGroupProfileGetTool(BaseTool):
             "sender_id": {
                 "type": "string",
                 "description": "Optional member sender_id in the current group; omit for current speaker",
+            },
+            "query": {
+                "type": "string",
+                "description": "Optional semantic search query for current-room member profiles",
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum number of profiles to return for query search",
+                "default": 1,
+            },
+            "min_score": {
+                "type": "number",
+                "description": "Minimum relevance score from 0 to 1 for query search",
+                "default": 0,
             },
         },
         "required": [],
@@ -113,7 +128,38 @@ class WechatGroupProfileGetTool(BaseTool):
         self.bot_sender_id = bot_sender_id or ""
 
     def execute(self, params: dict) -> ToolResult:
-        requested_sender_id = str(params.get("sender_id") or self.sender_id or "").strip()
+        requested_sender_id = str(params.get("sender_id") or "").strip()
+        query = str(params.get("query") or "").strip()
+        if query and not requested_sender_id:
+            max_results = _to_int(params.get("max_results"), self.service.member_memory_limit)
+            min_score = _to_float(params.get("min_score"), 0.0)
+
+            async def _search_profiles():
+                return await self.service.search_member_profiles(
+                    self.room_id,
+                    query=query,
+                    limit=max_results,
+                    excluded_sender_ids={self.sender_id, self.bot_sender_id},
+                    min_score=min_score,
+                )
+
+            try:
+                rows = _run_async_sync(_search_profiles)
+            except Exception as e:
+                return ToolResult.fail(f"Error searching current group profiles: {e}")
+
+            if not rows:
+                return ToolResult.success("No matching current group member profiles found.")
+            lines = [f"Found {len(rows)} current group member profiles:"]
+            for idx, profile in enumerate(rows, 1):
+                sender_id = profile.get("subject_id") or ""
+                lines.append(
+                    f"\n{idx}. sender_id: {sender_id}\n"
+                    f"{profile.get('content', '')}"
+                )
+            return ToolResult.success("\n".join(lines))
+
+        requested_sender_id = requested_sender_id or self.sender_id or ""
         if not requested_sender_id:
             return ToolResult.fail("Error: sender_id is required when current speaker is unknown")
         if self.bot_sender_id and requested_sender_id == self.bot_sender_id:

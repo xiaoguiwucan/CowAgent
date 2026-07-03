@@ -200,6 +200,37 @@ class WechatGroupMemoryService:
             )
         return [self._result_to_dict(row) for row in rows]
 
+    async def search_member_profiles(
+        self,
+        room_id: str,
+        query: str,
+        limit: Optional[int] = None,
+        excluded_sender_ids: Optional[set] = None,
+        min_score: float = 0.0,
+    ) -> List[Dict]:
+        room_id = self._require_room(room_id)
+        query = self._require_text("query", query)
+        limit = int(limit or self.member_memory_limit or 1)
+        excluded_sender_ids = excluded_sender_ids or set()
+        rows = await self.memory_manager.search(
+            query=query,
+            memory_scope=MemoryScope.wechat_group_member_profiles(room_id),
+            max_results=max(limit * 3, limit),
+            min_score=min_score,
+        )
+        results = []
+        seen_sender_ids = set()
+        for row in rows:
+            item = self._result_to_dict(row)
+            sender_id = (item.get("subject_id") or "").strip()
+            if not sender_id or sender_id in excluded_sender_ids or sender_id in seen_sender_ids:
+                continue
+            seen_sender_ids.add(sender_id)
+            results.append(item)
+            if len(results) >= limit:
+                break
+        return results
+
     def list_profile_revisions(
         self,
         room_id: str,
@@ -340,7 +371,6 @@ class WechatGroupMemoryService:
                     query=query,
                     excluded_sender_ids=self._excluded_mentioned_ids(sender_id, bot_sender_id),
                 )
-                filtered_reasons.extend(nickname_reasons)
                 for profile, matched_by in name_matches:
                     mentioned_profiles.append(profile)
                     mentioned_id = profile["subject_id"]
@@ -348,6 +378,28 @@ class WechatGroupMemoryService:
                         f"[mentioned_profile sender_id=\"{mentioned_id}\" matched_by=\"{matched_by}\"]\n"
                         f"{profile['content']}"
                     )
+                has_ambiguous_name_match = any("ambiguous" in reason for reason in nickname_reasons)
+                if not name_matches and has_ambiguous_name_match:
+                    filtered_reasons.extend(nickname_reasons)
+                elif not name_matches:
+                    semantic_matches = await self.search_member_profiles(
+                        room_id=room_id,
+                        query=query,
+                        limit=self.member_memory_limit,
+                        excluded_sender_ids=self._excluded_mentioned_ids(sender_id, bot_sender_id),
+                        min_score=0.0,
+                    )
+                    if semantic_matches:
+                        for profile in semantic_matches:
+                            mentioned_profiles.append(profile)
+                            mentioned_id = profile["subject_id"]
+                            sections.append(
+                                f"[mentioned_profile sender_id=\"{mentioned_id}\" matched_by=\"semantic\"]\n"
+                                f"{profile['content']}"
+                            )
+                    else:
+                        filtered_reasons.extend(nickname_reasons)
+                        filtered_reasons.append("semantic profile match not found")
         else:
             filtered_reasons.append("member profile memory disabled")
 
