@@ -2,6 +2,20 @@
 
 ## 2026-07-03
 
+### 同步上游 master 更新
+- 新增 `upstream = git@github.com:zhayujie/CowAgent.git` 远端并合并 `upstream/master` 的 6 个提交。
+- 吸收上游 Claude 默认模型更新：新增 `claude-sonnet-5` 常量，更新 Claude 推荐模型、视觉工具默认候选、Web 控制台模型列表及多语言模型文档。
+- 吸收桌面端更新：新增 macOS 签名/公证相关 `desktop/electron-builder.js`、`desktop/build/entitlements.mac.plist`、静态资源类型声明和桌面端品牌 logo；保留本 fork 的微信群、记忆、搜索与日志改动。
+- 新增 `plans/upstream_sync_20260703.md` 记录本次同步分析、执行步骤与验证结果。
+验证记录：
+- `npm run build`（在 `desktop/` 目录）
+- `python -m unittest tests.test_models_handler tests.test_web_search_providers tests.test_chat_gpt_logging`
+- `python -m unittest tests.test_security_ssrf_web_fetch`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m py_compile common\const.py channel\web\web_channel.py agent\tools\vision\vision.py models\claudeapi\claude_api_bot.py models\chatgpt\chat_gpt_bot.py`
+- `git diff --check`
+- 全量 `python -m unittest discover -s tests` 未通过：291 个测试中失败 5、错误 5；失败项为合并前已存在的测试环境/历史断言问题，包括缺少 `pytest`、Windows 默认 GBK 读取 UTF-8 文件、Qianfan 文档断言、Web console cache buster 旧断言，以及测试导入顺序导致的 `requests` stub 污染。
+
 ### ChatGPT query 日志摘要精简
 - 更新 `models/chatgpt/chat_gpt_bot.py`：将 `[CHATGPT] query=` 从完整打印用户输入改为单行摘要；对微信群自由回复 LLM 判定 prompt 仅记录 `room`、`sender`、`text`、本地得分、阈值、原因、字符数和行数，避免整段判定器说明刷屏。
 - 新增 `tests/test_chat_gpt_logging.py`：覆盖自由回复判定 prompt 不泄露完整说明文本，并保留普通短 query 原样打印。
