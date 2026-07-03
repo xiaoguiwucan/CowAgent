@@ -13,6 +13,15 @@
 - `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
 - `python -m py_compile agent\protocol\agent_stream.py channel\wechat_group\wechat_group_channel.py channel\wechat_group\wechat_group_free_reply_worker.py tests\test_agent_stream_logging.py tests\test_wechat_group_channel.py tests\test_wechat_group_free_reply_worker.py`
 
+### 微信群回复真实 @ 提问人
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：在 wechat4u runtime internals 可用时，优先通过 `webwxsendmsg` 的 `MsgSource.atuserlist` 发送带协议元数据的群聊 @；失败或 internals 不可用时继续降级为可见 `@昵称` 文本，保留原有兼容行为。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：`MsgSource.atuserlist` 允许写入真实群成员 `wxid_...`，不再只接受 `@...` Web 微信 ID，避免实际发言人 ID 被过滤后降级为普通文本。
+- 扩展 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`：覆盖 `sendText` 在 wechat4u runtime 可用时不再只调用 `room.say('@昵称 文本')`，而是写入 `MsgSource.atuserlist`；同时覆盖 `wxid_...` 成员 ID 的真实 @ 元数据。
+
+验证记录：
+- `node --test .\wechaty-sidecar-core.test.mjs`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
 ### web_fetch 代理配置透传
 - 更新 `agent/tools/web_fetch/web_fetch.py`：`web_fetch` 请求优先读取 `tools.web_fetch.proxy`，未配置时复用全局 `proxy`，并将代理透传给 `requests.get`；未配置代理时保留 `requests` 默认环境变量代理行为。
 - 扩展 `tests/test_security_ssrf_web_fetch.py`：覆盖工具专用代理和全局代理都会传入请求，同时保留 SSRF 跳转校验路径。

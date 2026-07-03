@@ -82,7 +82,7 @@ function buildAtUserList(targets = []) {
   const ids = []
   for (const target of targets || []) {
     const id = String(target?.id || target?.contact?.id || '').trim()
-    if (!id || !id.startsWith('@') || id.startsWith('@@') || seen.has(id)) continue
+    if (!id || id.startsWith('@@') || seen.has(id)) continue
     seen.add(id)
     ids.push(id)
     if (ids.length >= 20) break
@@ -168,8 +168,15 @@ export async function sendText(command, deps) {
     command.mention_ids || [],
     deps.findContact,
   )
-  const useVisibleMentionText = mentionTargets.length && (deps.isWechat4u?.() || deps.getWechat4u?.())
-  if (useVisibleMentionText) {
+  const wechat4u = deps.getWechat4u?.()
+  const useVisibleMentionText = mentionTargets.length && (deps.isWechat4u?.() || wechat4u)
+  if (mentionTargets.length && wechat4u) {
+    try {
+      await sendWechat4uRawTextWithMsgSource(wechat4u, room, command.text, mentionTargets)
+    } catch {
+      await room.say(buildManualMentionText(command.text, mentionTargets))
+    }
+  } else if (useVisibleMentionText) {
     await room.say(buildManualMentionText(command.text, mentionTargets))
   } else if (mentionTargets.length) {
     const contacts = mentionTargets.map(item => item.contact).filter(Boolean)
