@@ -180,6 +180,72 @@ def _is_upstream_object_parse_error(error_str_lower: str) -> bool:
     )
 
 
+def _extract_tag_block(text: str, tag: str) -> str:
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", text or "", flags=re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def _strip_tag_block(text: str, tag: str) -> str:
+    return re.sub(rf"<{tag}>.*?</{tag}>", "", text or "", flags=re.DOTALL).strip()
+
+
+def _preview_for_run_log(text: str, limit: int = 120) -> str:
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(value) <= limit:
+        return value
+    return "{}...(+{} chars)".format(value[:limit], len(value) - limit)
+
+
+def _recent_transcript_stats(block: str) -> Dict[str, Any]:
+    lines = [line.strip() for line in (block or "").splitlines() if line.strip()]
+    times = []
+    for line in lines:
+        match = re.match(r"(\d{2})-(\d{2})\s+(\d{2}):(\d{2})", line)
+        if not match:
+            continue
+        month, day, hour, minute = [int(part) for part in match.groups()]
+        times.append((((month * 31) + day) * 24 + hour) * 60 + minute)
+    window = ""
+    if len(times) >= 2:
+        window = "{}m".format(max(0, max(times) - min(times)))
+    return {
+        "messages": len(lines),
+        "window": window,
+        "chars": len(block or ""),
+    }
+
+
+def _summarize_user_message_for_run_log(user_message: str) -> str:
+    message = user_message or ""
+    persona = _extract_tag_block(message, "wechat-group-persona")
+    transcript = _extract_tag_block(message, "recent-wechat-group-transcript")
+    memory = _extract_tag_block(message, "wechat-group-memory")
+
+    user_text = message
+    for tag in ("wechat-group-persona", "recent-wechat-group-transcript", "wechat-group-memory"):
+        user_text = _strip_tag_block(user_text, tag)
+
+    parts = ['user_text="{}"'.format(_preview_for_run_log(user_text))]
+    context_blocks = []
+    if persona:
+        context_blocks.append("persona")
+    if transcript:
+        context_blocks.append("recent_transcript")
+    if memory:
+        context_blocks.append("memory")
+    if context_blocks:
+        parts.append("wechat_context={}".format(", ".join(context_blocks)))
+    if transcript:
+        stats = _recent_transcript_stats(transcript)
+        parts.append("recent_transcript_messages={}".format(stats["messages"]))
+        if stats["window"]:
+            parts.append("recent_transcript_window={}".format(stats["window"]))
+        parts.append("recent_transcript_chars={}".format(stats["chars"]))
+    if memory:
+        parts.append("memory_chars={}".format(len(memory)))
+    return " ".join(parts)
+
+
 def _sanitize_user_message_for_run_log(user_message: str) -> str:
     message = user_message or ""
     return re.sub(
@@ -521,15 +587,15 @@ class AgentStreamExecutor:
         Returns:
             Final response text
         """
-        # Log user message with model info. Truncate very long messages (e.g.
-        # injected transcripts / large prompts) so logs stay readable.
+        # Log a compact turn summary without dumping injected prompt blocks.
         thinking_enabled = self._is_thinking_enabled()
-        thinking_label = " | 💭 thinking" if thinking_enabled else ""
-        log_user_message = _sanitize_user_message_for_run_log(user_message)
-        _log_msg = log_user_message if len(log_user_message) <= 500 else (
-            log_user_message[:500] + f" …(+{len(log_user_message) - 500} chars)"
+        logger.info(
+            "[Agent] turn start: model={} thinking={} {}".format(
+                self.model.model,
+                str(thinking_enabled).lower(),
+                _summarize_user_message_for_run_log(user_message),
+            )
         )
-        logger.info(f"🤖 {self.model.model}{thinking_label} | 👤 {_log_msg}")        
         
         # Add user message (Claude format - use content blocks for consistency)
         self.messages.append({

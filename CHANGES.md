@@ -2,6 +2,15 @@
 
 ## 2026-07-03
 
+### Agent turn start 日志摘要优化
+- 更新 `agent/protocol/agent_stream.py`：Agent 入口日志改为 `[Agent] turn start` 结构化摘要，只展示模型、thinking 状态、真实用户问题预览和微信群增强块规模。
+- 微信群增强上下文只记录块类型和统计信息，例如 `wechat_context=persona, recent_transcript, memory`、`recent_transcript_messages`、`recent_transcript_window`、`memory_chars`，不再打印最近群聊逐条内容、人设正文或群记忆正文。
+- 扩展 `tests/test_agent_stream_logging.py`：覆盖微信群人设、最近群聊 transcript 和群记忆均不会泄露到入口日志，同时保留用户真实问题预览。
+
+验证记录：
+- `python -m unittest tests.test_agent_stream_logging`
+- `python -m py_compile agent\protocol\agent_stream.py tests\test_agent_stream_logging.py`
+
 ### 微信群与 Agent 请求日志可读性优化
 - 更新 `channel/wechat_group/wechat_group_channel.py`：收到微信群消息时记录群名、发送人、消息类型、是否 @ 和截断文本；未 @ 文本进入自由回复判定后记录入队/跳过、得分、阈值、档位、命中原因和抑制原因。
 - 更新 `channel/wechat_group/wechat_group_free_reply_worker.py`：自由回复 LLM 复核通过或拒绝时记录置信度、错误码/原因和消息预览，便于定位“为什么接话或沉默”。

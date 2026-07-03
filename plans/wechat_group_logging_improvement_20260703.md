@@ -30,6 +30,7 @@
 ## 实际改动
 
 - `agent/protocol/agent_stream.py`：LLM 请求摘要由多行改为单行，工具部分只保留数量和前 6 个工具名，不再展开 schema。
+- `agent/protocol/agent_stream.py`：Agent turn start 日志改为结构化摘要，只打印真实用户问题预览和微信群增强块规模，不再打印人设、最近群聊 transcript 或群记忆正文。
 - `channel/wechat_group/wechat_group_channel.py`：新增微信群入站消息日志，以及自由回复本地判定的入队/跳过日志。
 - `channel/wechat_group/wechat_group_free_reply_worker.py`：新增自由回复 LLM 复核通过/拒绝日志。
 - `tests/test_agent_stream_logging.py`、`tests/test_wechat_group_channel.py`、`tests/test_wechat_group_free_reply_worker.py`：补充日志回归测试。
@@ -39,6 +40,8 @@
 - 通过：`python -m unittest tests.test_agent_stream_logging tests.test_wechat_group_free_reply_worker`
 - 通过：`python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
 - 通过：`python -m py_compile agent\protocol\agent_stream.py channel\wechat_group\wechat_group_channel.py channel\wechat_group\wechat_group_free_reply_worker.py tests\test_agent_stream_logging.py tests\test_wechat_group_channel.py tests\test_wechat_group_free_reply_worker.py`
+- 追加通过：`python -m unittest tests.test_agent_stream_logging`
+- 追加通过：`python -m py_compile agent\protocol\agent_stream.py tests\test_agent_stream_logging.py`
 
 ## 当前状态
 

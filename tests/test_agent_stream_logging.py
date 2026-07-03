@@ -43,10 +43,69 @@ class TestAgentStreamLogging(unittest.TestCase):
             executor.run_stream(user_message)
 
         logs = "\n".join(captured.output)
-        self.assertIn("微信群聊人设提示词", logs)
-        self.assertIn("用户真实问题", logs)
+        self.assertIn("[Agent] turn start:", logs)
+        self.assertIn('user_text="用户真实问题"', logs)
+        self.assertIn("wechat_context=persona", logs)
         self.assertNotIn("SECRET_PERSONA_PROMPT_SHOULD_NOT_BE_LOGGED", logs)
         self.assertNotIn("<wechat-group-persona>", logs)
+
+    def test_run_stream_logs_wechat_group_context_as_summary_only(self):
+        from agent.protocol.agent_stream import AgentStreamExecutor
+        from agent.protocol.models import LLMModel
+
+        class StreamingModel(LLMModel):
+            def __init__(self):
+                super().__init__(model="unit-test-model")
+
+            def call_stream(self, request):
+                yield {
+                    "choices": [
+                        {
+                            "delta": {"content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                }
+
+        user_message = (
+            "<wechat-group-persona>\n"
+            "SECRET_PERSONA_PROMPT_SHOULD_NOT_BE_LOGGED\n"
+            "</wechat-group-persona>\n\n"
+            "<recent-wechat-group-transcript>\n"
+            "07-03 14:40 [text] Alice: SECRET_TRANSCRIPT_SHOULD_NOT_BE_LOGGED\n"
+            "07-03 15:37 [text] Bob: hello bot\n"
+            "</recent-wechat-group-transcript>\n\n"
+            "<wechat-group-memory>\n"
+            "SECRET_MEMORY_SHOULD_NOT_BE_LOGGED\n"
+            "</wechat-group-memory>\n\n"
+            "hello"
+        )
+        executor = AgentStreamExecutor(
+            agent=None,
+            model=StreamingModel(),
+            system_prompt="",
+            tools=[],
+            messages=[],
+        )
+
+        with self.assertLogs("log", level="INFO") as captured:
+            executor.run_stream(user_message)
+
+        logs = "\n".join(captured.output)
+        self.assertIn("[Agent] turn start:", logs)
+        self.assertIn("model=unit-test-model", logs)
+        self.assertIn("thinking=", logs)
+        self.assertIn('user_text="hello"', logs)
+        self.assertIn("wechat_context=persona, recent_transcript, memory", logs)
+        self.assertIn("recent_transcript_messages=2", logs)
+        self.assertIn("recent_transcript_window=57m", logs)
+        self.assertIn("memory_chars=", logs)
+        self.assertNotIn("SECRET_PERSONA_PROMPT_SHOULD_NOT_BE_LOGGED", logs)
+        self.assertNotIn("SECRET_TRANSCRIPT_SHOULD_NOT_BE_LOGGED", logs)
+        self.assertNotIn("SECRET_MEMORY_SHOULD_NOT_BE_LOGGED", logs)
+        self.assertNotIn("<wechat-group-persona>", logs)
+        self.assertNotIn("<recent-wechat-group-transcript>", logs)
+        self.assertNotIn("<wechat-group-memory>", logs)
 
     def test_logs_llm_request_sources_and_summary_before_call(self):
         from agent.protocol.agent_stream import AgentStreamExecutor
