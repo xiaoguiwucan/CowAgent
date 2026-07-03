@@ -23,6 +23,14 @@
 - `python -m unittest tests.test_memory_scope tests.test_wechat_group_context tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_web`
 - `python -m py_compile agent\memory\scope.py agent\memory\storage.py agent\memory\manager.py channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_memory_tools.py channel\wechat_group\wechat_group_channel.py tests\test_wechat_group_memory.py tests\test_wechat_group_memory_tools.py`
 
+### 浏览器工具缺失 Playwright 依赖提示
+- 更新 `agent/tools/browser/browser_service.py`：在启动 Playwright 前显式检查依赖是否可用，缺少 `playwright` 时返回明确安装提示，避免报 `sync_playwright` 未定义。
+- 新增 `tests/test_browser_service_dependency.py`：覆盖缺少 Playwright 时浏览器服务应给出可执行安装指引。
+
+验证记录：
+- `python -m unittest tests.test_browser_service_dependency`
+- `python -m unittest tests.test_security_ssrf_browser_navigate`
+
 ### 微信群记忆复用向量供应商
 - 更新 `channel/wechat_group/wechat_group_memory.py`：新增微信群记忆服务创建函数，创建 `MemoryManager` 时复用全局 `create_default_embedding_provider()`，避免已配置向量供应商时仍降级为关键词检索。
 - 更新 `channel/wechat_group/wechat_group_channel.py` 与 `channel/web/web_channel.py`：微信群运行时上下文注入和 Web 群记忆管理入口统一使用上述服务创建函数，不再直接裸创建 `MemoryManager()`。
@@ -42,6 +50,20 @@
 - `python -m unittest tests.test_scheduler_wechat_group_delivery`
 - `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_scheduler_wechat_group_delivery`
 - `python -m unittest tests.test_agent_stream_scheduler_guard tests.test_prompt_scheduler_guidance tests.test_scheduler_ui`
+
+### 微信群自由回复
+- 新增 `channel/wechat_group/wechat_group_free_reply.py`、`wechat_group_free_reply_judge.py`、`wechat_group_free_reply_worker.py`：支持自由回复配置归一化、按群范围启用、本地规则评分与强抑制、每群冷却/上限状态、独立 worker 池、TTL 丢弃和轻量 LLM JSON 二次判定。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：未 @ 普通文本先进入自由回复本地判定，命中后只入 worker 队列；@ 机器人原必回链路不进入自由回复；worker 判定通过后复用原 `_compose_context()` / `produce()` 回复链路，并默认不真实 mention 发言人。
+- 更新 `config.py`、`config-template.json`、`channel/web/web_channel.py`、`channel/web/static/js/console.js` 与 `channel/web/chat.html`：新增自由回复默认配置、Web API 读写与边界归一化、群聊页自由回复配置面板、worker/最近判定展示和脚本缓存版本。
+- 新增 `tests/test_wechat_group_free_reply.py`、`tests/test_wechat_group_free_reply_judge.py`、`tests/test_wechat_group_free_reply_worker.py`，并扩展 `tests/test_wechat_group_channel.py`、`tests/test_wechat_group_web.py`：覆盖默认关闭、评分命中/抑制、冷却/上限、JSON 判定、worker 回调/丢弃、通道分流、不 mention 和 Web 配置读写。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_free_reply tests.test_wechat_group_free_reply_judge tests.test_wechat_group_free_reply_worker`
+- `python -m unittest tests.test_wechat_group_channel`
+- `python -m unittest tests.test_wechat_group_web`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_free_reply tests.test_wechat_group_free_reply_judge tests.test_wechat_group_free_reply_worker tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m py_compile channel\wechat_group\wechat_group_free_reply.py channel\wechat_group\wechat_group_free_reply_judge.py channel\wechat_group\wechat_group_free_reply_worker.py channel\wechat_group\wechat_group_channel.py channel\web\web_channel.py tests\test_wechat_group_free_reply.py tests\test_wechat_group_free_reply_judge.py tests\test_wechat_group_free_reply_worker.py tests\test_wechat_group_channel.py tests\test_wechat_group_web.py`
 
 ### 微信群当前群记忆工具
 - 新增 `channel/wechat_group/wechat_group_memory_tools.py`：提供 `wechat_group_memory_search` 与 `wechat_group_profile_get` 两个只绑定当前微信群的 Agent 工具，工具参数不暴露 `room_id`，避免模型或用户跨群指定作用域。

@@ -7,6 +7,7 @@ import logging
 import mimetypes
 import os
 import random
+import re
 import shutil
 import threading
 import time
@@ -24,6 +25,11 @@ from channel.wechat_group.wechat_group_persona import (
     get_wechat_group_persona_config,
     normalize_wechat_group_persona_prompt,
     resolve_wechat_group_persona_preset_id,
+)
+from channel.wechat_group.wechat_group_free_reply import (
+    get_wechat_group_free_reply_config,
+    get_wechat_group_free_reply_rules,
+    normalize_wechat_group_free_reply_profiles,
 )
 from collections import OrderedDict
 from common import const
@@ -3704,11 +3710,41 @@ class ChannelsHandler:
             return bool(value)
         return str(value or "").strip().lower() in ("1", "true", "yes", "on")
 
+    @staticmethod
+    def _clamp_int(value, low: int, high: int, default: int) -> int:
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            value = default
+        return min(max(value, low), high)
+
+    @staticmethod
+    def _clamp_float(value, low: float, high: float, default: float) -> float:
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = default
+        return min(max(value, low), high)
+
     @classmethod
     def _wechat_group_extra(cls) -> dict:
         running_ch = cls._get_running_wechat_group_channel()
         rooms = getattr(running_ch, "rooms", []) if running_ch else []
         persona = get_wechat_group_persona_config()
+        if running_ch and hasattr(running_ch, "free_reply_status"):
+            free_reply_status = running_ch.free_reply_status()
+        else:
+            free_reply_status = {
+                "config": get_wechat_group_free_reply_config(),
+                "rules": get_wechat_group_free_reply_rules(),
+                "last_decision": {},
+                "worker": {},
+            }
+        free_reply_cfg = free_reply_status.get("config", {}) or {}
+        free_reply = dict(free_reply_cfg)
+        free_reply["rules"] = free_reply_status.get("rules") or get_wechat_group_free_reply_rules()
+        free_reply["last_decision"] = free_reply_status.get("last_decision") or {}
+        free_reply["worker"] = free_reply_status.get("worker") or {}
         return {
             "rooms": rooms if isinstance(rooms, list) else [],
             "selected_room_ids": conf().get("wechat_group_room_ids", []) or [],
@@ -3733,6 +3769,7 @@ class ChannelsHandler:
                 "auto_apply_group_enabled": conf().get("wechat_group_memory_auto_apply_group_enabled", True),
                 "auto_apply_member_enabled": conf().get("wechat_group_memory_auto_apply_member_enabled", True),
             },
+            "free_reply": free_reply,
         }
 
     @classmethod
@@ -3752,6 +3789,17 @@ class ChannelsHandler:
             "wechat_group_memory_distill_message_limit",
             "wechat_group_memory_auto_apply_group_enabled",
             "wechat_group_memory_auto_apply_member_enabled",
+            "wechat_group_free_reply_enabled",
+            "wechat_group_free_reply_room_ids",
+            "wechat_group_free_reply_names",
+            "wechat_group_free_reply_activity_level",
+            "wechat_group_free_reply_queue_ttl_seconds",
+            "wechat_group_free_reply_worker_max_workers",
+            "wechat_group_free_reply_worker_queue_size",
+            "wechat_group_free_reply_llm_judge_enabled",
+            "wechat_group_free_reply_llm_judge_timeout_seconds",
+            "wechat_group_free_reply_llm_judge_min_confidence",
+            "wechat_group_free_reply_profiles",
         }
         local_config = conf()
         applied = {}
@@ -3759,7 +3807,7 @@ class ChannelsHandler:
             if key not in updates:
                 continue
             value = updates.get(key)
-            if key in ("wechat_group_room_ids", "wechat_group_names"):
+            if key in ("wechat_group_room_ids", "wechat_group_names", "wechat_group_free_reply_room_ids", "wechat_group_free_reply_names"):
                 value = cls._normalize_string_list(value)
             elif key == "wechat_group_persona_prompt":
                 value = normalize_wechat_group_persona_prompt(value)
@@ -3770,6 +3818,8 @@ class ChannelsHandler:
                 "wechat_group_memory_auto_extract",
                 "wechat_group_memory_auto_apply_group_enabled",
                 "wechat_group_memory_auto_apply_member_enabled",
+                "wechat_group_free_reply_enabled",
+                "wechat_group_free_reply_llm_judge_enabled",
             ):
                 value = cls._normalize_bool(value)
             elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
@@ -3778,6 +3828,22 @@ class ChannelsHandler:
                 value = max(1, int(value))
             elif key in ("wechat_group_memory_auto_apply_threshold", "wechat_group_memory_candidate_threshold"):
                 value = min(max(float(value), 0.0), 1.0)
+            elif key == "wechat_group_free_reply_activity_level":
+                value = str(value or "normal").strip()
+                if value not in ("quiet", "normal", "active", "crazy"):
+                    value = "normal"
+            elif key == "wechat_group_free_reply_queue_ttl_seconds":
+                value = cls._clamp_int(value, 10, 600, 120)
+            elif key == "wechat_group_free_reply_worker_max_workers":
+                value = cls._clamp_int(value, 1, 8, 2)
+            elif key == "wechat_group_free_reply_worker_queue_size":
+                value = cls._clamp_int(value, 1, 1000, 100)
+            elif key == "wechat_group_free_reply_llm_judge_timeout_seconds":
+                value = cls._clamp_int(value, 1, 30, 8)
+            elif key == "wechat_group_free_reply_llm_judge_min_confidence":
+                value = cls._clamp_float(value, 0.0, 1.0, 0.6)
+            elif key == "wechat_group_free_reply_profiles":
+                value = normalize_wechat_group_free_reply_profiles(value)
             local_config[key] = value
             applied[key] = value
 

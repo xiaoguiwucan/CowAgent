@@ -55,6 +55,10 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_room_ids": conf().get("wechat_group_room_ids"),
             "wechat_group_names": conf().get("wechat_group_names"),
             "group_name_white_list": conf().get("group_name_white_list"),
+            "wechat_group_free_reply_enabled": conf().get("wechat_group_free_reply_enabled"),
+            "wechat_group_free_reply_room_ids": conf().get("wechat_group_free_reply_room_ids"),
+            "wechat_group_free_reply_names": conf().get("wechat_group_free_reply_names"),
+            "wechat_group_free_reply_activity_level": conf().get("wechat_group_free_reply_activity_level"),
         }
 
     def tearDown(self):
@@ -327,6 +331,106 @@ class WechatGroupChannelTest(unittest.TestCase):
             client.commands,
         )
 
+    def test_non_at_message_without_free_reply_enabled_is_ignored(self):
+        conf()["wechat_group_free_reply_enabled"] = False
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="谁能帮我总结一下刚才群里讨论的方案？",
+            text="谁能帮我总结一下刚才群里讨论的方案？",
+            other_user_id="room@@abc",
+            other_user_nickname="测试群",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            is_at=False,
+        )
+
+        channel.handle_text(msg)
+
+        channel.produce.assert_not_called()
+        channel.free_reply_worker.submit.assert_not_called()
+
+    def test_free_reply_scored_message_is_enqueued_not_produced_directly(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_enabled"] = True
+        conf()["wechat_group_free_reply_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_activity_level"] = "normal"
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="谁能帮我总结一下刚才群里讨论的方案？",
+            text="谁能帮我总结一下刚才群里讨论的方案？",
+            other_user_id="room@@abc",
+            other_user_nickname="测试群",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            is_at=False,
+        )
+
+        channel.handle_text(msg)
+
+        channel.free_reply_worker.submit.assert_called_once()
+        channel.produce.assert_not_called()
+
+    def test_at_message_does_not_enter_free_reply_worker(self):
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.free_reply_worker = Mock()
+        channel.produce = Mock()
+        channel._compose_context = Mock(return_value={"receiver": "room@@abc", "msg": Mock()})
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot hello",
+            is_at=True,
+        )
+
+        channel.handle_text(msg)
+
+        channel.free_reply_worker.submit.assert_not_called()
+        channel.produce.assert_called_once()
+
+    def test_worker_approved_task_enters_reply_context(self):
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="谁能总结一下？",
+            other_user_id="room@@abc",
+            other_user_nickname="测试群",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            is_at=False,
+        )
+        channel._compose_context = Mock(return_value={"receiver": "room@@abc", "msg": msg})
+        task = {"msg": msg, "local_decision": {"triggered": True, "score": 55}}
+
+        channel._submit_free_reply_after_judge(task, {"approved": True, "confidence": 0.9})
+
+        context = channel.produce.call_args.args[0]
+        self.assertTrue(context["wechat_group_free_reply_triggered"])
+        self.assertTrue(context["suppress_mention"])
+        self.assertTrue(context["no_need_at"])
+
+    def test_free_reply_does_not_mention_sender(self):
+        mentions = WechatGroupChannel._build_reply_mentions({
+            "suppress_mention": True,
+            "msg": Mock(is_group=True, actual_user_id="wxid_alice"),
+        })
+
+        self.assertEqual([], mentions)
+
+    def test_free_reply_status_returns_config_decision_and_worker_status(self):
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.free_reply_worker = Mock(status=Mock(return_value={"running": False}))
+
+        status = channel.free_reply_status()
+
+        self.assertIn("config", status)
+        self.assertIn("last_decision", status)
+        self.assertIn("worker", status)
 
     def test_memory_service_uses_configured_embedding_provider(self):
         from agent.memory.config import MemoryConfig, get_default_memory_config, set_global_memory_config

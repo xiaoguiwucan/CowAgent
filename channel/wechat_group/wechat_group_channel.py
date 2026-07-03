@@ -1,5 +1,7 @@
 """WeChat group channel backed by a Node.js Wechaty sidecar."""
 
+import time
+
 from bridge.context import ContextType
 from bridge.reply import ReplyType
 from channel.chat_channel import ChatChannel
@@ -17,6 +19,14 @@ from channel.wechat_group.wechat_group_persona import (
     get_wechat_group_persona_config,
     should_skip_persona_for_message,
 )
+from channel.wechat_group.wechat_group_free_reply import (
+    WechatGroupFreeReplyStateStore,
+    evaluate_wechat_group_free_reply,
+    get_wechat_group_free_reply_config,
+    get_wechat_group_free_reply_rules,
+)
+from channel.wechat_group.wechat_group_free_reply_judge import WechatGroupFreeReplyJudge
+from channel.wechat_group.wechat_group_free_reply_worker import WechatGroupFreeReplyWorkerPool
 from common import const
 from common.expired_dict import ExpiredDict
 from common.log import logger
@@ -46,6 +56,12 @@ class WechatGroupChannel(ChatChannel):
         self.qr_code = ""
         self.rooms = []
         self._received_msgs = ExpiredDict(60 * 60 * 8)
+        self.free_reply_state = WechatGroupFreeReplyStateStore()
+        self.free_reply_judge = WechatGroupFreeReplyJudge()
+        self.free_reply_worker = self._create_free_reply_worker()
+        self._free_reply_worker_started = False
+        if get_wechat_group_free_reply_config()["enabled"]:
+            self._ensure_free_reply_worker_started()
 
     def startup(self):
         self.status = self.STATUS_STARTING
@@ -53,6 +69,8 @@ class WechatGroupChannel(ChatChannel):
         self.report_startup_success()
 
     def stop(self):
+        self.free_reply_worker.stop()
+        self._free_reply_worker_started = False
         self.client.stop()
         self.status = self.STATUS_IDLE
 
@@ -102,6 +120,15 @@ class WechatGroupChannel(ChatChannel):
         return True
 
     def handle_text(self, msg: WechatGroupMessage):
+        if msg.ctype == ContextType.TEXT and not getattr(msg, "is_at", False):
+            should_enqueue, decision = self._should_enqueue_free_reply_message(msg)
+            if not should_enqueue:
+                return
+            self._ensure_free_reply_worker_started()
+            submitted = self.free_reply_worker.submit(self._build_free_reply_task(msg, decision))
+            if submitted:
+                self.free_reply_state.mark_triggered(msg.other_user_id, now=decision.get("timestamp"))
+            return
         context = self._compose_context(
             msg.ctype,
             msg.content,
@@ -254,8 +281,98 @@ class WechatGroupChannel(ChatChannel):
 
     @staticmethod
     def _build_reply_mentions(context):
+        if context.get("suppress_mention"):
+            return []
         msg = context.get("msg")
         if not msg or not getattr(msg, "is_group", False):
             return []
         actual_user_id = getattr(msg, "actual_user_id", None)
         return [actual_user_id] if actual_user_id else []
+
+    def _create_free_reply_worker(self):
+        cfg = get_wechat_group_free_reply_config()
+        return WechatGroupFreeReplyWorkerPool(
+            judge=self.free_reply_judge,
+            submit_callback=self._submit_free_reply_after_judge,
+            max_workers=cfg["worker_max_workers"],
+            queue_size=cfg["worker_queue_size"],
+            ttl_seconds=cfg["queue_ttl_seconds"],
+        )
+
+    def _ensure_free_reply_worker_started(self):
+        if self._free_reply_worker_started:
+            return
+        self.free_reply_worker.start()
+        self._free_reply_worker_started = True
+
+    def _should_enqueue_free_reply_message(self, msg: WechatGroupMessage):
+        cfg = get_wechat_group_free_reply_config()
+        if not self._is_selected_room(msg):
+            decision = {
+                "triggered": False,
+                "score": 0,
+                "threshold": 0,
+                "activity_level": cfg["activity_level"],
+                "reasons": [],
+                "suppressions": ["room_not_selected"],
+                "room_id": getattr(msg, "other_user_id", ""),
+                "room_name": getattr(msg, "other_user_nickname", ""),
+                "sender_id": getattr(msg, "actual_user_id", ""),
+                "sender_name": getattr(msg, "actual_user_nickname", ""),
+                "text_preview": getattr(msg, "text", "") or getattr(msg, "content", ""),
+                "timestamp": time.time(),
+            }
+        else:
+            state = self.free_reply_state.get(msg.other_user_id)
+            decision = evaluate_wechat_group_free_reply(
+                cfg,
+                room_id=msg.other_user_id,
+                room_name=msg.other_user_nickname,
+                sender_id=msg.actual_user_id,
+                sender_name=msg.actual_user_nickname,
+                text=getattr(msg, "text", None) or msg.content,
+                state=state,
+                now=time.time(),
+                is_self=getattr(msg, "my_msg", False) is True,
+                blocked_sender_ids=conf().get("wechat_group_blocked_sender_ids", []) or [],
+                bot_names=[getattr(msg, "self_display_name", ""), getattr(msg, "to_user_nickname", ""), self.name],
+            )
+        self.free_reply_state.remember_decision(decision)
+        if not decision.get("triggered"):
+            self.free_reply_state.mark_observed(getattr(msg, "other_user_id", ""))
+            return False, decision
+        return True, decision
+
+    def _build_free_reply_task(self, msg: WechatGroupMessage, decision: dict) -> dict:
+        return {
+            "room_id": msg.other_user_id,
+            "room_name": msg.other_user_nickname,
+            "sender_id": msg.actual_user_id,
+            "sender_name": msg.actual_user_nickname,
+            "text": getattr(msg, "text", None) or msg.content,
+            "msg": msg,
+            "local_decision": decision,
+            "queued_at": time.time(),
+            "config": get_wechat_group_free_reply_config(),
+        }
+
+    def _submit_free_reply_after_judge(self, task, llm_decision):
+        msg = task["msg"]
+        context = self._compose_context(msg.ctype, msg.content, isgroup=True, msg=msg)
+        if not context:
+            return
+        context["wechat_group_free_reply_triggered"] = True
+        context["wechat_group_free_reply_decision"] = task.get("local_decision") or {}
+        context["wechat_group_free_reply_llm_decision"] = llm_decision or {}
+        context["suppress_mention"] = True
+        context["no_need_at"] = True
+        self.produce(context)
+
+    def free_reply_status(self):
+        cfg = get_wechat_group_free_reply_config()
+        return {
+            "config": cfg,
+            "rules": get_wechat_group_free_reply_rules(),
+            "last_decision": self.free_reply_state.last_decision(),
+            "worker": self.free_reply_worker.status(),
+        }

@@ -203,6 +203,8 @@ const I18N = {
         groups_nav_basic_hint: '最近上下文',
         groups_nav_rooms: '群聊开关',
         groups_nav_rooms_hint: '目标群范围',
+        groups_nav_free_reply: '自由回复',
+        groups_nav_free_reply_hint: '普通群聊接话',
         groups_nav_persona: '人设设定',
         groups_nav_persona_hint: '自定义回复风格',
         groups_nav_memory: '永久记忆',
@@ -227,6 +229,31 @@ const I18N = {
         groups_rooms_fallback_hint: '群名兜底只在 room ID 不可用时使用，每行一个群名。',
         groups_room_unnamed: '未命名群',
         groups_room_saved: '已保存群 {n}',
+        wechat_group_free_reply_title: '自由回复',
+        wechat_group_free_reply_hint: '仅对选中的群生效；@ 机器人仍然必回。',
+        wechat_group_free_reply_enabled: '启用自由回复',
+        wechat_group_free_reply_groups: '自由回复群',
+        wechat_group_free_reply_names_label: '自由回复群名兜底',
+        wechat_group_free_reply_level: '活跃档位',
+        wechat_group_free_reply_threshold: '接话阈值',
+        wechat_group_free_reply_interval: '最小间隔（秒）',
+        wechat_group_free_reply_hourly: '每小时上限',
+        wechat_group_free_reply_consecutive: '连续发言上限',
+        wechat_group_free_reply_ttl: '排队 TTL（秒）',
+        wechat_group_free_reply_worker_title: 'worker 池',
+        wechat_group_free_reply_worker_max_workers: 'worker 并发数',
+        wechat_group_free_reply_worker_queue_size: '队列长度上限',
+        wechat_group_free_reply_llm_title: 'LLM 二次判定',
+        wechat_group_free_reply_llm_enabled: '启用 LLM 二次判定',
+        wechat_group_free_reply_llm_timeout: '判定超时（秒）',
+        wechat_group_free_reply_llm_confidence: '最低置信度',
+        wechat_group_free_reply_rules: '评分规则',
+        wechat_group_free_reply_last_decision: '最近判定',
+        wechat_group_free_reply_no_decision: '还没有自由回复判定。开启后，普通群消息会先经过本地评分和 LLM 二次判定。',
+        wechat_group_free_reply_worker_status: 'worker 状态',
+        wechat_group_free_reply_running: '运行中',
+        wechat_group_free_reply_stopped: '未运行',
+        wechat_group_free_reply_room_access: '需先属于目标群范围',
         groups_persona_title: '人设设定',
         groups_persona_desc: '只保留一份自定义人设，保存后对微信群回复生效。',
         groups_memory_title: '永久记忆',
@@ -576,6 +603,8 @@ const I18N = {
         groups_nav_basic_hint: 'Recent context',
         groups_nav_rooms: 'Group switches',
         groups_nav_rooms_hint: 'Target groups',
+        groups_nav_free_reply: 'Free reply',
+        groups_nav_free_reply_hint: 'Ambient group replies',
         groups_nav_persona: 'Persona',
         groups_nav_persona_hint: 'Custom reply style',
         groups_nav_memory: 'Long-term memory',
@@ -600,6 +629,31 @@ const I18N = {
         groups_rooms_fallback_hint: 'Fallback names are used only when room IDs are unavailable. One group name per line.',
         groups_room_unnamed: 'Unnamed group',
         groups_room_saved: 'Saved group {n}',
+        wechat_group_free_reply_title: 'Free reply',
+        wechat_group_free_reply_hint: 'Applies only to selected groups; @ mentions still always reply.',
+        wechat_group_free_reply_enabled: 'Enable free reply',
+        wechat_group_free_reply_groups: 'Free reply groups',
+        wechat_group_free_reply_names_label: 'Fallback free reply group names',
+        wechat_group_free_reply_level: 'Activity level',
+        wechat_group_free_reply_threshold: 'Reply threshold',
+        wechat_group_free_reply_interval: 'Minimum interval (seconds)',
+        wechat_group_free_reply_hourly: 'Hourly limit',
+        wechat_group_free_reply_consecutive: 'Consecutive limit',
+        wechat_group_free_reply_ttl: 'Queue TTL (seconds)',
+        wechat_group_free_reply_worker_title: 'Worker pool',
+        wechat_group_free_reply_worker_max_workers: 'Worker concurrency',
+        wechat_group_free_reply_worker_queue_size: 'Queue size limit',
+        wechat_group_free_reply_llm_title: 'LLM decision',
+        wechat_group_free_reply_llm_enabled: 'Enable LLM decision',
+        wechat_group_free_reply_llm_timeout: 'Decision timeout (seconds)',
+        wechat_group_free_reply_llm_confidence: 'Minimum confidence',
+        wechat_group_free_reply_rules: 'Scoring rules',
+        wechat_group_free_reply_last_decision: 'Latest decision',
+        wechat_group_free_reply_no_decision: 'No free reply decision yet. After enabling, ordinary group messages go through local scoring and LLM decision.',
+        wechat_group_free_reply_worker_status: 'Worker status',
+        wechat_group_free_reply_running: 'Running',
+        wechat_group_free_reply_stopped: 'Stopped',
+        wechat_group_free_reply_room_access: 'Must also be in target group scope',
         groups_persona_title: 'Persona',
         groups_persona_desc: 'Only one custom persona is kept. It applies to WeChat group replies after saving.',
         groups_memory_title: 'Long-term memory',
@@ -6874,6 +6928,7 @@ function renderGroupsView() {
         <aside class="w-56 flex-shrink-0 border-r border-slate-200 dark:border-white/10 p-3 space-y-1">
             ${buildGroupsSectionButton('basic', 'fa-sliders', 'groups_nav_basic', 'groups_nav_basic_hint')}
             ${buildGroupsSectionButton('rooms', 'fa-comments', 'groups_nav_rooms', 'groups_nav_rooms_hint')}
+            ${buildGroupsSectionButton('free_reply', 'fa-comment-dots', 'groups_nav_free_reply', 'groups_nav_free_reply_hint')}
             ${buildGroupsSectionButton('persona', 'fa-user-pen', 'groups_nav_persona', 'groups_nav_persona_hint')}
             ${buildGroupsSectionButton('memory', 'fa-brain', 'groups_nav_memory', 'groups_nav_memory_hint')}
             <div class="pt-3 mt-3 border-t border-slate-200 dark:border-white/10">
@@ -6889,6 +6944,7 @@ function renderGroupsView() {
         <main class="flex-1 min-w-0 h-full overflow-y-auto p-5">
             ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
             ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
+            ${groupsActiveSection === 'free_reply' ? renderWechatGroupFreeReplySettings(extra) : ''}
             ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
             ${groupsActiveSection === 'memory' ? buildGroupsMemoryPanel(extra) : ''}
         </main>
@@ -8015,6 +8071,134 @@ function getWechatGroupDraftPresetId(ch) {
     return matched ? matched.id : 'custom';
 }
 
+function renderWechatGroupFreeReplySettings(extra = {}) {
+    const free = extra.free_reply || {};
+    const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
+    const targetRoomIds = new Set((extra.selected_room_ids || []).map(String));
+    const freeRoomIds = new Set((free.room_ids || []).map(String));
+    const freeNames = Array.isArray(free.names) ? free.names : [];
+    const level = free.activity_level || 'normal';
+    const profiles = free.profiles || {};
+    const profile = profiles[level] || {};
+    const worker = free.worker || {};
+    const last = free.last_decision || {};
+    const rules = free.rules || {};
+    const roomRows = rooms.length ? rooms.map(room => {
+        const id = String(room.id || '');
+        const name = String(room.name || id || t('groups_room_unnamed'));
+        const checked = freeRoomIds.has(id) ? 'checked' : '';
+        const inAccess = !targetRoomIds.size || targetRoomIds.has(id);
+        return `<label class="flex items-start gap-2 rounded-lg px-2 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer">
+            <input type="checkbox" class="mt-1 accent-primary-500" data-wechat-group-free-reply-room-id="${escapeHtml(id)}" ${checked}>
+            <span class="min-w-0 flex-1">
+                <span class="block text-slate-800 dark:text-slate-100 break-words">${escapeHtml(name)}</span>
+                <span class="block text-xs text-slate-400 dark:text-slate-500 font-mono break-all">${escapeHtml(id)}</span>
+                <span class="block text-[11px] ${inAccess ? 'text-primary-500' : 'text-amber-500'}">${inAccess ? t('wechat_group_free_reply_room_access') : t('groups_rooms_none_selected')}</span>
+            </span>
+        </label>`;
+    }).join('') : `<p class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_rooms_empty')}</p>`;
+    const lastHtml = Object.keys(last).length ? `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+            <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_threshold')}：</span>${escapeHtml(String(last.score ?? 0))}/${escapeHtml(String(last.threshold ?? 0))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_level')}：</span>${escapeHtml(String(last.activity_level || ''))}</div>
+            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">reasons：</span>${(last.reasons || []).map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
+            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">suppressions：</span>${(last.suppressions || []).map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
+            <div class="md:col-span-2 break-words"><span class="text-slate-500 dark:text-slate-400">preview：</span>${escapeHtml(last.text_preview || '')}</div>
+        </div>` : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_no_decision')}</p>`;
+    const workerHtml = `<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-300">
+        <span>${t('wechat_group_free_reply_worker_status')}: ${worker.running ? t('wechat_group_free_reply_running') : t('wechat_group_free_reply_stopped')}</span>
+        <span>queue: ${Number(worker.queue_size || 0)}/${Number(worker.queue_limit || free.worker_queue_size || 0)}</span>
+        <span>approved: ${Number(worker.approved_total || 0)}</span>
+        <span>rejected: ${Number(worker.rejected_total || 0)}</span>
+        <span>dropped: ${Number(worker.dropped_total || 0)}</span>
+        <span>expired: ${Number(worker.expired_total || 0)}</span>
+        <span>active: ${Number(worker.active_workers || 0)}</span>
+        <span class="break-words">${escapeHtml(worker.last_error || '')}</span>
+    </div>`;
+    const rulesHtml = [...(rules.positive || []), ...(rules.negative || [])].map(rule => `
+        <span class="inline-flex rounded-md border border-slate-200 dark:border-white/10 px-2 py-1 text-[11px] text-slate-600 dark:text-slate-300">${escapeHtml(rule.id || rule.label || '')}</span>
+    `).join('');
+    return `<div class="h-full w-full space-y-5">
+        ${buildGroupsPanelTitle('fa-comment-dots', 'wechat_group_free_reply_title', 'wechat_group_free_reply_hint')}
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <h4 class="text-sm font-medium text-slate-800 dark:text-slate-100">${t('wechat_group_free_reply_enabled')}</h4>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${t('wechat_group_free_reply_hint')}</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                    <input id="free-reply-enabled" type="checkbox" class="sr-only peer" ${free.enabled ? 'checked' : ''}>
+                    <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer peer-checked:bg-primary-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:h-4 after:w-4 after:rounded-full after:transition-all peer-checked:after:translate-x-5"></div>
+                </label>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">${t('wechat_group_free_reply_groups')}</h4>
+                <div class="max-h-56 overflow-y-auto rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-1.5 space-y-1">${roomRows}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_free_reply_names_label')}</label>
+                <textarea id="free-reply-names" rows="8"
+                    class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 font-mono transition-colors resize-y"
+                    placeholder="${escapeHtml(t('wechat_group_room_names_placeholder'))}">${escapeHtml(freeNames.join('\n'))}</textarea>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">${t('groups_rooms_fallback_hint')}</p>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_free_reply_level')}</label>
+            <select id="free-reply-activity-level"
+                class="w-full md:w-64 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                ${['quiet', 'normal', 'active', 'crazy'].map(item => `<option value="${item}" ${item === level ? 'selected' : ''}>${item}</option>`).join('')}
+            </select>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                ${buildFreeReplyNumberField('free-reply-min-score', 'wechat_group_free_reply_threshold', profile.min_score ?? 50, 0, 100, 1)}
+                ${buildFreeReplyNumberField('free-reply-min-interval', 'wechat_group_free_reply_interval', profile.min_interval_seconds ?? 10, 0, 3600, 1)}
+                ${buildFreeReplyNumberField('free-reply-hourly-limit', 'wechat_group_free_reply_hourly', profile.hourly_limit ?? 0, 0, 999, 1)}
+                ${buildFreeReplyNumberField('free-reply-consecutive-limit', 'wechat_group_free_reply_consecutive', profile.consecutive_limit ?? 0, 0, 99, 1)}
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                ${buildFreeReplyNumberField('free-reply-queue-ttl', 'wechat_group_free_reply_ttl', free.queue_ttl_seconds ?? 120, 10, 600, 1)}
+                ${buildFreeReplyNumberField('free-reply-worker-max-workers', 'wechat_group_free_reply_worker_max_workers', free.worker_max_workers ?? 2, 1, 8, 1)}
+                ${buildFreeReplyNumberField('free-reply-worker-queue-size', 'wechat_group_free_reply_worker_queue_size', free.worker_queue_size ?? 100, 1, 1000, 1)}
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('wechat_group_free_reply_llm_title')}</h4>
+                <label class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <input id="free-reply-llm-enabled" type="checkbox" class="accent-primary-500" ${free.llm_judge_enabled !== false ? 'checked' : ''}>
+                    ${t('wechat_group_free_reply_llm_enabled')}
+                </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                ${buildFreeReplyNumberField('free-reply-llm-timeout', 'wechat_group_free_reply_llm_timeout', free.llm_judge_timeout_seconds ?? 8, 1, 30, 1)}
+                ${buildFreeReplyNumberField('free-reply-llm-confidence', 'wechat_group_free_reply_llm_confidence', free.llm_judge_min_confidence ?? 0.6, 0, 1, 0.05)}
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">${t('wechat_group_free_reply_worker_title')}</h4>
+            ${workerHtml}
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">${t('wechat_group_free_reply_last_decision')}</h4>
+            ${lastHtml}
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">${t('wechat_group_free_reply_rules')}</h4>
+            <div class="flex flex-wrap gap-1.5">${rulesHtml}</div>
+        </div>
+    </div>`;
+}
+
+function buildFreeReplyNumberField(id, labelKey, value, min, max, step) {
+    return `<label class="block">
+        <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t(labelKey)}</span>
+        <input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${Number(value)}"
+            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
+    </label>`;
+}
+
 function buildWechatGroupSettingsPanel(ch) {
     const extra = ch.extra || {};
     const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
@@ -8045,6 +8229,7 @@ function buildWechatGroupSettingsPanel(ch) {
         </button>`;
     }).join('');
     return `<div class="mt-5 pt-5 border-t border-slate-200 dark:border-white/10 space-y-5" id="wechat-group-settings-panel">
+        ${renderWechatGroupFreeReplySettings(extra)}
         <div class="space-y-3">
             <div class="flex items-center justify-between gap-3">
                 <div>
@@ -8168,6 +8353,7 @@ function saveWechatGroupSettings() {
     const recentMinutes = document.getElementById('groups-recent-minutes')
         ? Math.max(1, Number(document.getElementById('groups-recent-minutes').value || 1))
         : Number(recent.minutes || 60);
+    const freeReply = readWechatGroupFreeReplySettings(extra.free_reply || {});
     if (btn) btn.disabled = true;
     fetch('/api/channels', {
         method: 'POST',
@@ -8183,6 +8369,17 @@ function saveWechatGroupSettings() {
                 wechat_group_recent_context_enabled: recentEnabled,
                 wechat_group_recent_context_limit: recentLimit,
                 wechat_group_recent_context_minutes: recentMinutes,
+                wechat_group_free_reply_enabled: freeReply.enabled,
+                wechat_group_free_reply_room_ids: freeReply.room_ids,
+                wechat_group_free_reply_names: freeReply.names,
+                wechat_group_free_reply_activity_level: freeReply.activity_level,
+                wechat_group_free_reply_queue_ttl_seconds: freeReply.queue_ttl_seconds,
+                wechat_group_free_reply_worker_max_workers: freeReply.worker_max_workers,
+                wechat_group_free_reply_worker_queue_size: freeReply.worker_queue_size,
+                wechat_group_free_reply_llm_judge_enabled: freeReply.llm_judge_enabled,
+                wechat_group_free_reply_llm_judge_timeout_seconds: freeReply.llm_judge_timeout_seconds,
+                wechat_group_free_reply_llm_judge_min_confidence: freeReply.llm_judge_min_confidence,
+                wechat_group_free_reply_profiles: freeReply.profiles,
             },
         })
     })
@@ -8206,6 +8403,38 @@ function saveWechatGroupSettings() {
         else showChannelStatus('wechat_group', 'channels_save_error', true);
     })
     .finally(() => { if (btn) btn.disabled = false; });
+}
+
+function clampNumber(value, min, max, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(Math.max(n, min), max);
+}
+
+function readWechatGroupFreeReplySettings(saved = {}) {
+    const level = document.getElementById('free-reply-activity-level')?.value || saved.activity_level || 'normal';
+    const profiles = JSON.parse(JSON.stringify(saved.profiles || {}));
+    profiles[level] = {
+        min_score: clampNumber(document.getElementById('free-reply-min-score')?.value, 0, 100, profiles[level]?.min_score ?? 50),
+        min_interval_seconds: clampNumber(document.getElementById('free-reply-min-interval')?.value, 0, 3600, profiles[level]?.min_interval_seconds ?? 10),
+        hourly_limit: clampNumber(document.getElementById('free-reply-hourly-limit')?.value, 0, 999, profiles[level]?.hourly_limit ?? 0),
+        consecutive_limit: clampNumber(document.getElementById('free-reply-consecutive-limit')?.value, 0, 99, profiles[level]?.consecutive_limit ?? 0),
+    };
+    return {
+        enabled: document.getElementById('free-reply-enabled') ? !!document.getElementById('free-reply-enabled').checked : !!saved.enabled,
+        room_ids: document.querySelector('[data-wechat-group-free-reply-room-id]')
+            ? Array.from(document.querySelectorAll('[data-wechat-group-free-reply-room-id]:checked')).map(el => el.dataset.wechatGroupFreeReplyRoomId).filter(Boolean)
+            : (saved.room_ids || []),
+        names: document.getElementById('free-reply-names') ? splitWechatGroupLines(document.getElementById('free-reply-names').value || '') : (saved.names || []),
+        activity_level: ['quiet', 'normal', 'active', 'crazy'].includes(level) ? level : 'normal',
+        queue_ttl_seconds: clampNumber(document.getElementById('free-reply-queue-ttl')?.value, 10, 600, saved.queue_ttl_seconds ?? 120),
+        worker_max_workers: clampNumber(document.getElementById('free-reply-worker-max-workers')?.value, 1, 8, saved.worker_max_workers ?? 2),
+        worker_queue_size: clampNumber(document.getElementById('free-reply-worker-queue-size')?.value, 1, 1000, saved.worker_queue_size ?? 100),
+        llm_judge_enabled: document.getElementById('free-reply-llm-enabled') ? !!document.getElementById('free-reply-llm-enabled').checked : saved.llm_judge_enabled !== false,
+        llm_judge_timeout_seconds: clampNumber(document.getElementById('free-reply-llm-timeout')?.value, 1, 30, saved.llm_judge_timeout_seconds ?? 8),
+        llm_judge_min_confidence: clampNumber(document.getElementById('free-reply-llm-confidence')?.value, 0, 1, saved.llm_judge_min_confidence ?? 0.6),
+        profiles,
+    };
 }
 
 function buildChannelFieldsHtml(chName, fields) {

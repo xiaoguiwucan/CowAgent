@@ -428,6 +428,12 @@ class BrowserService:
 
     def _launch_browser(self):
         """Launch / connect Chromium on the background thread."""
+        if not _HAS_PLAYWRIGHT:
+            raise RuntimeError(
+                "Playwright is not installed. To enable browser tool, run: "
+                "pip install playwright; playwright install chromium"
+            )
+
         if self._headless is None:
             headless_cfg = self._config.get("headless")
             self._headless = headless_cfg if headless_cfg is not None else _should_use_headless()

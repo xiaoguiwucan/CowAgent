@@ -48,6 +48,17 @@ class WechatGroupWebTest(unittest.TestCase):
             "wechat_group_memory_distill_message_limit": conf().get("wechat_group_memory_distill_message_limit"),
             "wechat_group_memory_auto_apply_group_enabled": conf().get("wechat_group_memory_auto_apply_group_enabled"),
             "wechat_group_memory_auto_apply_member_enabled": conf().get("wechat_group_memory_auto_apply_member_enabled"),
+            "wechat_group_free_reply_enabled": conf().get("wechat_group_free_reply_enabled"),
+            "wechat_group_free_reply_room_ids": conf().get("wechat_group_free_reply_room_ids"),
+            "wechat_group_free_reply_names": conf().get("wechat_group_free_reply_names"),
+            "wechat_group_free_reply_activity_level": conf().get("wechat_group_free_reply_activity_level"),
+            "wechat_group_free_reply_queue_ttl_seconds": conf().get("wechat_group_free_reply_queue_ttl_seconds"),
+            "wechat_group_free_reply_worker_max_workers": conf().get("wechat_group_free_reply_worker_max_workers"),
+            "wechat_group_free_reply_worker_queue_size": conf().get("wechat_group_free_reply_worker_queue_size"),
+            "wechat_group_free_reply_llm_judge_enabled": conf().get("wechat_group_free_reply_llm_judge_enabled"),
+            "wechat_group_free_reply_llm_judge_timeout_seconds": conf().get("wechat_group_free_reply_llm_judge_timeout_seconds"),
+            "wechat_group_free_reply_llm_judge_min_confidence": conf().get("wechat_group_free_reply_llm_judge_min_confidence"),
+            "wechat_group_free_reply_profiles": conf().get("wechat_group_free_reply_profiles"),
         }
 
     def tearDown(self):
@@ -96,6 +107,10 @@ class WechatGroupWebTest(unittest.TestCase):
             item["extra"]["memory_auto_extract"],
         )
         self.assertEqual("owner-digital-twin", item["extra"]["persona"]["preset_id"])
+        self.assertIn("free_reply", item["extra"])
+        self.assertIn("rules", item["extra"]["free_reply"])
+        self.assertIn("last_decision", item["extra"]["free_reply"])
+        self.assertIn("worker", item["extra"]["free_reply"])
 
     def test_wechat_group_qr_handler_returns_running_channel_qr(self):
         from channel.web.web_channel import WechatGroupQrHandler
@@ -165,6 +180,72 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertFalse(conf()["wechat_group_memory_auto_apply_group_enabled"])
         self.assertTrue(conf()["wechat_group_memory_auto_apply_member_enabled"])
 
+    def test_channels_save_wechat_group_free_reply_config(self):
+        from channel.web.web_channel import ChannelsHandler
+        from config import conf
+
+        handler = ChannelsHandler()
+        body = {
+            "action": "save",
+            "channel": "wechat_group",
+            "config": {
+                "wechat_group_free_reply_enabled": True,
+                "wechat_group_free_reply_room_ids": ["room@@abc"],
+                "wechat_group_free_reply_names": ["测试群"],
+                "wechat_group_free_reply_activity_level": "active",
+                "wechat_group_free_reply_queue_ttl_seconds": "999",
+                "wechat_group_free_reply_worker_max_workers": "99",
+                "wechat_group_free_reply_worker_queue_size": "9999",
+                "wechat_group_free_reply_llm_judge_enabled": False,
+                "wechat_group_free_reply_llm_judge_timeout_seconds": "99",
+                "wechat_group_free_reply_llm_judge_min_confidence": "2",
+                "wechat_group_free_reply_profiles": {
+                    "active": {
+                        "min_score": "25",
+                        "min_interval_seconds": "2",
+                        "hourly_limit": "3",
+                        "consecutive_limit": "4",
+                    }
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir, \
+                patch("channel.web.web_channel._require_auth"), \
+                patch("channel.web.web_channel.web.data", return_value=json.dumps(body).encode("utf-8")), \
+                patch("channel.web.web_channel.get_data_root", return_value=tmpdir):
+            result = json.loads(handler.POST())
+
+        self.assertEqual("success", result["status"])
+        self.assertTrue(conf()["wechat_group_free_reply_enabled"])
+        self.assertEqual(["room@@abc"], conf()["wechat_group_free_reply_room_ids"])
+        self.assertEqual(["测试群"], conf()["wechat_group_free_reply_names"])
+        self.assertEqual("active", conf()["wechat_group_free_reply_activity_level"])
+        self.assertEqual(600, conf()["wechat_group_free_reply_queue_ttl_seconds"])
+        self.assertEqual(8, conf()["wechat_group_free_reply_worker_max_workers"])
+        self.assertEqual(1000, conf()["wechat_group_free_reply_worker_queue_size"])
+        self.assertFalse(conf()["wechat_group_free_reply_llm_judge_enabled"])
+        self.assertEqual(30, conf()["wechat_group_free_reply_llm_judge_timeout_seconds"])
+        self.assertEqual(1.0, conf()["wechat_group_free_reply_llm_judge_min_confidence"])
+        self.assertEqual(25, conf()["wechat_group_free_reply_profiles"]["active"]["min_score"])
+
+    def test_wechat_group_extra_returns_running_free_reply_status(self):
+        from channel.web.web_channel import ChannelsHandler
+
+        running = Mock(free_reply_status=Mock(return_value={
+            "config": {"enabled": True},
+            "rules": {"positive": [], "negative": []},
+            "last_decision": {"triggered": True},
+            "worker": {"running": True},
+        }))
+
+        with patch.object(ChannelsHandler, "_get_running_wechat_group_channel", return_value=running):
+            extra = ChannelsHandler._wechat_group_extra()
+
+        self.assertIn("free_reply", extra)
+        self.assertTrue(extra["free_reply"]["enabled"])
+        self.assertEqual({"triggered": True}, extra["free_reply"]["last_decision"])
+        self.assertEqual({"running": True}, extra["free_reply"]["worker"])
+
     def test_wechat_group_memory_preview_api_uses_service(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
 
@@ -192,7 +273,6 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual("success", result["status"])
         self.assertIn("<wechat-group-memory>", result["preview"]["content"])
         self.assertEqual("room@@abc", fake.kwargs["room_id"])
-
 
     def test_wechat_group_memory_service_uses_configured_embedding_provider(self):
         from agent.memory.config import MemoryConfig, get_default_memory_config, set_global_memory_config
