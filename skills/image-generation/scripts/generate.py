@@ -1039,12 +1039,30 @@ def _ensure_project_root_on_path() -> None:
         sys.path.insert(0, root_str)
 
 
+def _load_custom_providers_from_config_file() -> list[dict]:
+    _ensure_project_root_on_path()
+    from config import get_data_root
+
+    config_path = Path(get_data_root()) / "config.json"
+    try:
+        with config_path.open("r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except Exception:
+        return []
+    providers = data.get("custom_providers") if isinstance(data, dict) else []
+    if not isinstance(providers, list):
+        return []
+    return [p for p in providers if isinstance(p, dict) and p.get("id")]
+
+
 def _build_custom_provider(model: str, provider_id: str) -> tuple[str, ImageProvider]:
     _ensure_project_root_on_path()
     from models.custom_provider import parse_custom_bot_type, get_custom_providers, _find_provider_by_id
 
     _, custom_id = parse_custom_bot_type(provider_id)
     provider = _find_provider_by_id(get_custom_providers(), custom_id)
+    if provider is None:
+        provider = _find_provider_by_id(_load_custom_providers_from_config_file(), custom_id)
     if provider is None:
         raise ValueError(f"unknown custom provider id: {custom_id}")
 

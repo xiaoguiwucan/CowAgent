@@ -1,6 +1,7 @@
 # encoding:utf-8
 import base64
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -73,6 +74,36 @@ class TestImageGenerationCustomProvider(unittest.TestCase):
         label, provider = providers[0]
         self.assertEqual(label, "Custom:NewAPI Image")
         self.assertIsInstance(provider, self.generate.OpenAIProvider)
+        self.assertEqual(provider.api_key, "sk-custom")
+        self.assertEqual(provider.api_base, "https://newapi.example.com/v1")
+        self.assertEqual(provider.model, "newapi-image-model")
+
+    def test_build_providers_loads_custom_provider_from_config_file_when_conf_is_empty(self):
+        set_conf({})
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = os.path.join(tmp, "config.json")
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "custom_providers": [
+                            {
+                                "id": "img01",
+                                "name": "NewAPI Image",
+                                "api_key": "sk-custom",
+                                "api_base": "https://newapi.example.com/v1",
+                                "model": "newapi-image-model",
+                            }
+                        ]
+                    },
+                    f,
+                )
+
+            with patch.dict(os.environ, {"COW_DATA_DIR": tmp}):
+                providers = self.generate._build_providers("", provider_id="custom:img01")
+
+        self.assertEqual(len(providers), 1)
+        label, provider = providers[0]
+        self.assertEqual(label, "Custom:NewAPI Image")
         self.assertEqual(provider.api_key, "sk-custom")
         self.assertEqual(provider.api_base, "https://newapi.example.com/v1")
         self.assertEqual(provider.model, "newapi-image-model")

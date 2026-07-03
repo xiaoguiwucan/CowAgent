@@ -13,6 +13,8 @@ from common import memory
 from common.i18n import t as _t
 from plugins import *
 
+DEFAULT_IMAGE_CREATE_PREFIX = ["画", "看", "找"]
+
 handler_pool = ThreadPoolExecutor(max_workers=8)  # 处理消息的线程池
 
 
@@ -163,7 +165,7 @@ class ChatChannel(Channel):
                     logger.info("[chat_channel]receive single chat msg, but checkprefix didn't match")
                     return None
             content = content.strip()
-            img_match_prefix = check_prefix(content, conf().get("image_create_prefix",[""]))
+            img_match_prefix = check_prefix(content, conf().get("image_create_prefix", DEFAULT_IMAGE_CREATE_PREFIX))
             if img_match_prefix:
                 content = content.replace(img_match_prefix, "", 1)
                 context.type = ContextType.IMAGE_CREATE

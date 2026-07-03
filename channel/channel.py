@@ -161,7 +161,7 @@ class Channel(object):
             except Exception:
                 pass
             logger.warning("[Channel] image generation failed: {}".format(err))
-            return Reply(ReplyType.ERROR, "图像生成失败：{}".format(err))
+            return Reply(ReplyType.ERROR, "图片生成失败，我这边没有拿到可发送的图片结果。")
 
         try:
             result = json.loads(stdout)
@@ -174,7 +174,8 @@ class Channel(object):
             return Reply(ReplyType.ERROR, "图像生成返回格式错误。")
 
         if result.get("error"):
-            return Reply(ReplyType.ERROR, "图像生成失败：{}".format(result.get("error")))
+            logger.warning("[Channel] image generation returned error: {}".format(result.get("error")))
+            return Reply(ReplyType.ERROR, "图片生成失败，我这边没有拿到可发送的图片结果。")
 
         images = result.get("images") or []
         if not images:

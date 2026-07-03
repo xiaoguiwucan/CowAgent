@@ -2,6 +2,18 @@
 
 ## 2026-07-03
 
+### 修复缺失生图前缀配置时不触发生图
+- 修复 `config.json` 未显式包含 `image_create_prefix` 时，微信群 `@小灯 画个兔子` 被当作普通文本送入 Agent、没有进入 `ContextType.IMAGE_CREATE` 的问题。
+- 更新 `channel/chat_channel.py`：缺失 `image_create_prefix` 时恢复内置生图触发词 `画`、`看`、`找`；若用户显式配置为空列表，仍保持关闭前缀触发的语义。
+- 修复 `skills/image-generation/scripts/generate.py` 在独立子进程中没有加载主配置，导致已配置的 `custom:a838bee2` 被误判为 `unknown custom provider id` 的问题；脚本现在会从数据目录 `config.json` 回读 `custom_providers`。
+- 更新 `channel/channel.py`：图像生成脚本失败时，技术错误只写入日志，群内回复使用固定兜底文案，避免把内部 provider id / 异常细节直接推送到微信群。
+- 扩展 `tests/test_wechat_group_channel.py`：覆盖缺失配置时微信群 @ 生图请求应转成 `ContextType.IMAGE_CREATE`。
+- 扩展 `tests/test_image_generation_custom_provider.py`：覆盖子进程空内存配置时从 `config.json` 解析自定义图像生成厂商。
+验证记录：
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_wechat_group_image_create_uses_builtin_prefix_when_config_missing`
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_image_create_script_failure_returns_safe_user_message tests.test_image_generation_custom_provider.TestImageGenerationCustomProvider.test_build_providers_loads_custom_provider_from_config_file_when_conf_is_empty`
+- `python -m py_compile channel\channel.py skills\image-generation\scripts\generate.py tests\test_wechat_group_channel.py tests\test_image_generation_custom_provider.py`
+
 ### Agent 模式生图请求直连图像生成脚本
 - 修复微信群 `@小灯 画个兔子` 在 Agent 模式下没有真正生图的问题：`ContextType.IMAGE_CREATE` 现在会直接调用 `skills/image-generation/scripts/generate.py`，不再依赖 LLM 自行决定是否读取技能并拼接 `bash` 命令。
 - 图像生成脚本调用改为 Python `subprocess.run([...])` 参数列表传入 JSON，避免 Windows shell 引号处理导致 `Invalid JSON`。

@@ -65,6 +65,7 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
             "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
             "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
+            "image_create_prefix": conf().get("image_create_prefix"),
             "agent": conf().get("agent"),
             "skills": conf().get("skills"),
         }
@@ -246,6 +247,36 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertIsNotNone(context)
         self.assertTrue(context["intent_requires_scheduler"])
 
+    def test_wechat_group_image_create_uses_builtin_prefix_when_config_missing(self):
+        conf()["wechat_group_room_ids"] = ["room@@allowed"]
+        conf()["group_name_white_list"] = []
+        conf().pop("image_create_prefix", None)
+        channel = WechatGroupChannel(client=FakeClient())
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot \u753b\u4e2a\u5154\u5b50",
+            from_user_id="room@@allowed",
+            other_user_id="room@@allowed",
+            other_user_nickname="Not In Whitelist",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+        )
+
+        context = channel._compose_context(
+            ContextType.TEXT,
+            msg.content,
+            isgroup=True,
+            msg=msg,
+        )
+
+        self.assertIsNotNone(context)
+        self.assertEqual(ContextType.IMAGE_CREATE, context.type)
+        self.assertEqual("\u4e2a\u5154\u5b50", context.content)
+
     def test_send_text_reply_to_original_room_with_sender_mention(self):
         client = FakeClient()
         channel = WechatGroupChannel(client=client)
@@ -423,6 +454,22 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertIn('"provider": "custom:img01"', args[2])
         self.assertIn('"model": "my-image-model"', args[2])
         self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    def test_image_create_script_failure_returns_safe_user_message(self):
+        channel = WechatGroupChannel(client=FakeClient())
+        context = Context(ContextType.IMAGE_CREATE, "a rabbit")
+        completed = Mock(
+            returncode=1,
+            stdout='{"error":"unknown custom provider id: img01"}',
+            stderr="",
+        )
+
+        with patch("channel.channel.subprocess.run", return_value=completed):
+            reply = channel._build_image_create_reply("a rabbit", context)
+
+        self.assertEqual(ReplyType.ERROR, reply.type)
+        self.assertNotIn("unknown custom provider id", reply.content)
+        self.assertIn("\u56fe\u7247\u751f\u6210\u5931\u8d25", reply.content)
 
     def test_non_at_message_without_free_reply_enabled_is_ignored(self):
         conf()["wechat_group_free_reply_enabled"] = False
