@@ -51,4 +51,7 @@ class WechatGroupMessage(ChatMessage):
         self.is_group = True
         self.is_at = bool(payload.get("is_at", False))
         self.at_list = payload.get("at_list") or []
+        self.is_quote_self = bool(payload.get("is_quote_self", False))
+        quote = payload.get("quote") or {}
+        self.quote = quote if isinstance(quote, dict) else {}
         self.my_msg = bool(payload.get("my_msg", False) or (sender_id and sender_id == self_id))

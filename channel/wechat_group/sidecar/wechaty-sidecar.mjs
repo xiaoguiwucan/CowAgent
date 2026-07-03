@@ -1,7 +1,14 @@
 import readline from 'node:readline'
 import { WechatyBuilder } from 'wechaty'
 import { FileBox } from 'file-box'
-import { findContactById, findRoomById, getWechat4uRuntime, isWechat4uBot, sendText as sendTextCore } from './wechaty-sidecar-core.mjs'
+import {
+  extractQuotedMessageFromRawPayload,
+  findContactById,
+  findRoomById,
+  getWechat4uRuntime,
+  isWechat4uBot,
+  sendText as sendTextCore,
+} from './wechaty-sidecar-core.mjs'
 
 const config = JSON.parse(process.argv[2] || '{}')
 
@@ -43,6 +50,13 @@ async function handleMessage(message) {
   const roomName = await room.topic()
   const talkerInfo = await contactPayload(talker)
   const selfInfo = self ? await contactPayload(self) : { id: '', name: '' }
+  let quoteInfo = { is_quote_self: false, quote: {} }
+  if (selfInfo.id && message.id && state.bot?.puppet?.messageRawPayload) {
+    try {
+      const rawPayload = await state.bot.puppet.messageRawPayload(message.id)
+      quoteInfo = extractQuotedMessageFromRawPayload(rawPayload, selfInfo.id)
+    } catch {}
+  }
 
   emit('message', {
     message_id: message.id,
@@ -57,6 +71,8 @@ async function handleMessage(message) {
     message_type: 'text',
     is_at: self ? mentions.some(contact => contact.id === self.id) : false,
     at_list: mentions.map(contact => contact.id),
+    is_quote_self: quoteInfo.is_quote_self,
+    quote: quoteInfo.quote,
     my_msg: self ? talkerInfo.id === self.id : false,
   })
 }

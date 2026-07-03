@@ -1,3 +1,42 @@
+import xmlParser from 'fast-xml-parser'
+
+const APP_MESSAGE_TYPE_REFER = 57
+
+function stringValue(value = '') {
+  if (value === null || value === undefined) return ''
+  return String(value)
+}
+
+function emptyQuoteResult() {
+  return { is_quote_self: false, quote: {} }
+}
+
+export function extractQuotedMessageFromRawPayload(rawPayload = {}, selfId = '') {
+  const content = stringValue(rawPayload?.Content)
+  if (!content.trim()) return emptyQuoteResult()
+  try {
+    const parsed = xmlParser.parse(content)
+    const appmsg = parsed?.msg?.appmsg || {}
+    if (Number(appmsg?.type) !== APP_MESSAGE_TYPE_REFER || !appmsg?.refermsg) {
+      return emptyQuoteResult()
+    }
+    const refer = appmsg.refermsg
+    const quote = {
+      sender_id: stringValue(refer.fromusr),
+      sender_name: stringValue(refer.displayname),
+      message_id: stringValue(refer.svrid),
+      type: stringValue(refer.type),
+      content: stringValue(refer.content),
+    }
+    return {
+      is_quote_self: Boolean(selfId && quote.sender_id === selfId),
+      quote,
+    }
+  } catch {
+    return emptyQuoteResult()
+  }
+}
+
 export async function findRoomById(bot, roomId) {
   if (!bot) throw new Error('bot not started')
   const room = await bot.Room.find({ id: roomId })

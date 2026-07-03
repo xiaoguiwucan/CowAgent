@@ -1,7 +1,37 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { sendText, sendWechat4uRawTextWithMsgSource } from './wechaty-sidecar-core.mjs'
+import { extractQuotedMessageFromRawPayload, sendText, sendWechat4uRawTextWithMsgSource } from './wechaty-sidecar-core.mjs'
+
+function buildReferMsgContent({ fromusr = '@bot', displayname = 'CowBot', content = 'previous answer', title = 'current reply' } = {}) {
+  return `<msg><appmsg><title>${title}</title><des></des><type>57</type><url></url><appattach></appattach><thumburl></thumburl><md5></md5><refermsg><type>1</type><svrid>123456</svrid><fromusr>${fromusr}</fromusr><chatusr>@@room</chatusr><displayname>${displayname}</displayname><content>${content}</content></refermsg></appmsg><fromusername>@@room</fromusername><appinfo><appname></appname></appinfo></msg>`
+}
+
+test('extractQuotedMessageFromRawPayload marks quote self when refermsg sender is current bot', () => {
+  const result = extractQuotedMessageFromRawPayload({
+    MsgType: 49,
+    Content: buildReferMsgContent({ fromusr: '@bot', displayname: 'CowBot', content: 'hello from bot' }),
+  }, '@bot')
+
+  assert.equal(result.is_quote_self, true)
+  assert.deepEqual(result.quote, {
+    sender_id: '@bot',
+    sender_name: 'CowBot',
+    message_id: '123456',
+    type: '1',
+    content: 'hello from bot',
+  })
+})
+
+test('extractQuotedMessageFromRawPayload does not mark quote self for other sender', () => {
+  const result = extractQuotedMessageFromRawPayload({
+    MsgType: 49,
+    Content: buildReferMsgContent({ fromusr: '@alice', displayname: 'Alice', content: 'hello from alice' }),
+  }, '@bot')
+
+  assert.equal(result.is_quote_self, false)
+  assert.equal(result.quote.sender_id, '@alice')
+})
 
 test('sendText mentions the original sender by contact id after room membership check', async () => {
   const alice = { id: 'wxid_alice', name: () => 'Alice' }

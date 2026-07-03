@@ -2,6 +2,21 @@
 
 ## 2026-07-03
 
+### 微信群引用机器人消息触发
+- 新增 `plans/wechat_group_quote_self_trigger_20260703.md`，记录引用机器人消息按被 @ 处理的实现方案、风险与验证结果。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：通过 wechat4u raw `appmsg type=57` 解析 `refermsg.fromusr`，当引用发送者等于当前机器人 ID 时上报 `is_quote_self` 和引用摘要。
+- 更新 `channel/wechat_group/wechat_group_message.py`、`channel/wechat_group/wechat_group_channel.py` 与 `channel/chat_channel.py`：保存引用元数据，并将引用机器人消息纳入微信群直接回复链路，同时保留普通引用消息跳过逻辑。
+- 扩展 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`、`tests/test_wechat_group_message.py` 和 `tests/test_wechat_group_channel.py`，覆盖引用机器人、引用他人、引用文本过滤绕过和自由回复绕过场景。
+验证记录：
+- `node --test .\wechaty-sidecar-core.test.mjs`
+- `node --check .\wechaty-sidecar.mjs`
+- `node --check .\wechaty-sidecar-core.mjs`
+- `python -m py_compile channel\chat_channel.py channel\wechat_group\wechat_group_message.py channel\wechat_group\wechat_group_channel.py`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- 未执行真实微信群手动验证；仍需扫码登录后在目标群引用机器人消息确认真实链路。
+
+## 2026-07-03
+
 ### 同步上游 master 更新
 - 新增 `upstream = git@github.com:zhayujie/CowAgent.git` 远端并合并 `upstream/master` 的 6 个提交。
 - 吸收上游 Claude 默认模型更新：新增 `claude-sonnet-5` 常量，更新 Claude 推荐模型、视觉工具默认候选、Web 控制台模型列表及多语言模型文档。

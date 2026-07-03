@@ -158,7 +158,8 @@ class WechatGroupChannel(ChatChannel):
 
     def handle_text(self, msg: WechatGroupMessage):
         self._log_inbound_message(msg)
-        if msg.ctype == ContextType.TEXT and not getattr(msg, "is_at", False):
+        direct_reply = getattr(msg, "is_at", False) is True or getattr(msg, "is_quote_self", False) is True
+        if msg.ctype == ContextType.TEXT and not direct_reply:
             should_enqueue, decision = self._should_enqueue_free_reply_message(msg)
             if not should_enqueue:
                 return
@@ -170,13 +171,17 @@ class WechatGroupChannel(ChatChannel):
             else:
                 self._log_free_reply_decision(decision, "queue_full")
             return
+        force_reply = getattr(msg, "is_quote_self", False) is True
         context = self._compose_context(
             msg.ctype,
             msg.content,
             isgroup=True,
             msg=msg,
+            wechat_group_force_reply=force_reply,
         )
         if context:
+            if force_reply:
+                context["wechat_group_quote_self_triggered"] = True
             self.produce(context)
 
     def _log_inbound_message(self, msg: WechatGroupMessage):

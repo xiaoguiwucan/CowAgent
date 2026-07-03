@@ -62,6 +62,35 @@ class WechatGroupMessageTest(unittest.TestCase):
         self.assertTrue(msg.my_msg)
         self.assertFalse(msg.is_at)
 
+    def test_parse_quote_self_message_metadata(self):
+        raw = {
+            "type": "message",
+            "message_id": "msg-quote",
+            "timestamp": int(time.time()),
+            "room_id": "room@@abc",
+            "room_name": "Test Room",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "@bot",
+            "self_name": "CowBot",
+            "text": "What about this?",
+            "message_type": "text",
+            "is_quote_self": True,
+            "quote": {
+                "sender_id": "@bot",
+                "sender_name": "CowBot",
+                "message_id": "123456",
+                "type": "1",
+                "content": "previous answer",
+            },
+        }
+
+        msg = WechatGroupMessage(parse_sidecar_event(raw))
+
+        self.assertTrue(msg.is_quote_self)
+        self.assertEqual("@bot", msg.quote["sender_id"])
+        self.assertEqual("previous answer", msg.quote["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

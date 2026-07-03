@@ -422,6 +422,61 @@ class WechatGroupChannelTest(unittest.TestCase):
         channel.free_reply_worker.submit.assert_not_called()
         channel.produce.assert_called_once()
 
+    def test_quote_self_message_does_not_enter_free_reply_worker(self):
+        channel = WechatGroupChannel(client=FakeClient())
+        channel.free_reply_worker = Mock()
+        channel.produce = Mock()
+        channel._compose_context = Mock(return_value={"receiver": "room@@abc", "msg": Mock()})
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="What about this?",
+            is_at=False,
+            is_quote_self=True,
+        )
+
+        channel.handle_text(msg)
+
+        channel.free_reply_worker.submit.assert_not_called()
+        channel.produce.assert_called_once()
+
+    def test_quote_self_message_with_refer_text_enters_reply_context(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        content = "「CowBot：previous answer」\n- - - - - - - - - - - - - - -\nWhat about this?"
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content=content,
+            text=content,
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="@bot",
+            to_user_nickname="CowBot",
+            is_at=False,
+            is_quote_self=True,
+            is_group=True,
+            at_list=[],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-quote-self",
+            message_type="text",
+            media_path="",
+        )
+
+        channel.handle_text(msg)
+
+        channel.produce.assert_called_once()
+        context = channel.produce.call_args.args[0]
+        self.assertEqual("room@@abc", context["receiver"])
+        self.assertTrue(context["wechat_group_quote_self_triggered"])
+
     def test_worker_approved_task_enters_reply_context(self):
         channel = WechatGroupChannel(client=FakeClient())
         channel.produce = Mock()
