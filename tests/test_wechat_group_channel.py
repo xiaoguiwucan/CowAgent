@@ -65,6 +65,8 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
             "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
             "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
+            "agent": conf().get("agent"),
+            "skills": conf().get("skills"),
         }
 
     def tearDown(self):
@@ -376,6 +378,51 @@ class WechatGroupChannelTest(unittest.TestCase):
             prompt="a cat",
             status="accepted",
         )
+
+    def test_image_create_in_agent_mode_uses_deterministic_script_runner(self):
+        conf()["agent"] = True
+        conf()["wechat_group_image_create_hourly_limit"] = 5
+        channel = WechatGroupChannel(client=FakeClient())
+        context = Context(ContextType.IMAGE_CREATE, "a rabbit")
+        context["receiver"] = "room@@abc"
+        context["msg"] = Mock(actual_user_id="wxid_alice")
+
+        with patch("channel.channel.Channel._build_image_create_reply",
+                   return_value=Reply(ReplyType.IMAGE, "D:/tmp/rabbit.png")) as image_reply:
+            with patch("channel.channel.Bridge") as bridge_factory:
+                reply = channel._generate_reply(context)
+
+        image_reply.assert_called_once_with("a rabbit", context)
+        bridge_factory.assert_not_called()
+        self.assertEqual(ReplyType.IMAGE, reply.type)
+        self.assertEqual("D:/tmp/rabbit.png", reply.content)
+
+    def test_image_create_script_runner_uses_json_argument_without_shell(self):
+        conf()["skills"] = {
+            "image-generation": {
+                "provider": "custom:img01",
+                "model": "my-image-model",
+            }
+        }
+        channel = WechatGroupChannel(client=FakeClient())
+        context = Context(ContextType.IMAGE_CREATE, "a rabbit")
+
+        completed = Mock(
+            returncode=0,
+            stdout='{"images":[{"url":"D:/tmp/rabbit.png"}]}',
+            stderr="",
+        )
+        with patch("channel.channel.subprocess.run", return_value=completed) as run:
+            reply = channel._build_image_create_reply("a rabbit", context)
+
+        self.assertEqual(ReplyType.IMAGE, reply.type)
+        self.assertEqual("D:/tmp/rabbit.png", reply.content)
+        args = run.call_args.args[0]
+        self.assertIsInstance(args, list)
+        self.assertIn("generate.py", args[1].replace("\\", "/"))
+        self.assertIn('"provider": "custom:img01"', args[2])
+        self.assertIn('"model": "my-image-model"', args[2])
+        self.assertFalse(run.call_args.kwargs.get("shell", False))
 
     def test_non_at_message_without_free_reply_enabled_is_ignored(self):
         conf()["wechat_group_free_reply_enabled"] = False

@@ -2,6 +2,16 @@
 
 ## 2026-07-03
 
+### Agent 模式生图请求直连图像生成脚本
+- 修复微信群 `@小灯 画个兔子` 在 Agent 模式下没有真正生图的问题：`ContextType.IMAGE_CREATE` 现在会直接调用 `skills/image-generation/scripts/generate.py`，不再依赖 LLM 自行决定是否读取技能并拼接 `bash` 命令。
+- 图像生成脚本调用改为 Python `subprocess.run([...])` 参数列表传入 JSON，避免 Windows shell 引号处理导致 `Invalid JSON`。
+- 继续只在 `agent=true` 时启用该确定性分支；非 Agent 模式保留原有 Bot 生图路径。
+- 扩展 `tests/test_wechat_group_channel.py`，覆盖 Agent 模式生图绕过通用 Agent 文本回复、脚本参数使用 JSON 且不走 shell。
+验证记录：
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_image_create_in_agent_mode_uses_deterministic_script_runner tests.test_wechat_group_channel.WechatGroupChannelTest.test_image_create_script_runner_uses_json_argument_without_shell tests.test_wechat_group_channel.WechatGroupChannelTest.test_image_create_success_records_hourly_usage`
+- `python -B -c "from pathlib import Path; paths=['channel/channel.py','tests/test_wechat_group_channel.py']; [compile(Path(p).read_text(encoding='utf-8'), p, 'exec') for p in paths]; print('syntax ok')"`
+- `python -m unittest tests.test_wechat_group_channel tests.test_models_handler tests.test_image_generation_custom_provider`
+
 ### 图像生成支持自定义厂商
 - 更新 `channel/web/web_channel.py`：图像生成能力下拉框展开 `custom:<id>` 自定义厂商，保存时校验自定义厂商存在、`api_key`、`api_base` 与模型名，并移除已完成路由后的 `router_pending` 状态。
 - 更新 `skills/image-generation/scripts/generate.py`：显式选择 `custom:<id>` 时，从 `custom_providers` 读取凭据和默认模型，并复用 OpenAI-compatible `/images/generations` / `/images/edits` 接口。

@@ -2,8 +2,13 @@
 Message sending channel abstract class
 """
 
+import json
+import os
+import subprocess
+import sys
+
 from bridge.bridge import Bridge
-from bridge.context import Context
+from bridge.context import Context, ContextType
 from bridge.reply import *
 from common.log import logger
 from config import conf
@@ -76,6 +81,9 @@ class Channel(object):
         use_agent = conf().get("agent", True)
 
         if use_agent:
+            if context and context.type == ContextType.IMAGE_CREATE:
+                return self._build_image_create_reply(query, context)
+
             try:
                 logger.info("[Channel] Using agent mode")
 
@@ -100,6 +108,84 @@ class Channel(object):
         else:
             # Normal mode
             return Bridge().fetch_reply_content(query, context)
+
+    def _build_image_create_reply(self, query, context: Context = None) -> Reply:
+        """Run the image-generation skill script deterministically.
+
+        Image creation is already identified before this method is called via
+        ContextType.IMAGE_CREATE, so do not ask the chat model to decide
+        whether to use the skill. Passing argv as a list avoids Windows shell
+        quote loss that breaks JSON arguments.
+        """
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script = os.path.join(project_root, "skills", "image-generation", "scripts", "generate.py")
+        if not os.path.exists(script):
+            return Reply(ReplyType.ERROR, "图像生成脚本不存在，请检查 skills/image-generation。")
+
+        payload = {"prompt": str(query or "").strip()}
+        skills_cfg = conf().get("skills") or conf().get("skill") or {}
+        if isinstance(skills_cfg, dict):
+            image_cfg = skills_cfg.get("image-generation") or {}
+            if isinstance(image_cfg, dict):
+                provider = (image_cfg.get("provider") or "").strip()
+                model = (image_cfg.get("model") or "").strip()
+                if provider:
+                    payload["provider"] = provider
+                if model:
+                    payload["model"] = model
+        if not payload["prompt"]:
+            return Reply(ReplyType.ERROR, "图像生成提示词为空。")
+
+        try:
+            completed = subprocess.run(
+                [sys.executable, script, json.dumps(payload, ensure_ascii=False)],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            return Reply(ReplyType.ERROR, "图像生成超时，请稍后再试。")
+        except Exception as e:
+            logger.warning("[Channel] image generation script failed to start: {}".format(e))
+            return Reply(ReplyType.ERROR, "图像生成启动失败：{}".format(e))
+
+        stdout = (completed.stdout or "").strip()
+        stderr = (completed.stderr or "").strip()
+        if completed.returncode != 0:
+            err = stdout or stderr or "unknown error"
+            try:
+                err_obj = json.loads(stdout)
+                err = err_obj.get("error") or err
+            except Exception:
+                pass
+            logger.warning("[Channel] image generation failed: {}".format(err))
+            return Reply(ReplyType.ERROR, "图像生成失败：{}".format(err))
+
+        try:
+            result = json.loads(stdout)
+        except Exception as e:
+            logger.warning(
+                "[Channel] invalid image generation output: error={} stdout={} stderr={}".format(
+                    e, stdout[:300], stderr[:300],
+                )
+            )
+            return Reply(ReplyType.ERROR, "图像生成返回格式错误。")
+
+        if result.get("error"):
+            return Reply(ReplyType.ERROR, "图像生成失败：{}".format(result.get("error")))
+
+        images = result.get("images") or []
+        if not images:
+            return Reply(ReplyType.ERROR, "图像生成没有返回图片。")
+        first = images[0] if isinstance(images[0], dict) else {}
+        image_url = first.get("url") or ""
+        if not image_url:
+            return Reply(ReplyType.ERROR, "图像生成结果缺少图片地址。")
+        if image_url.startswith(("http://", "https://", "file://")):
+            return Reply(ReplyType.IMAGE_URL, image_url)
+        return Reply(ReplyType.IMAGE, image_url)
 
     def build_voice_to_text(self, voice_file) -> Reply:
         return Bridge().fetch_voice_to_text(voice_file)
