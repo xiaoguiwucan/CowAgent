@@ -2,6 +2,14 @@
 
 ## 2026-07-03
 
+### ChatGPT query 日志摘要精简
+- 更新 `models/chatgpt/chat_gpt_bot.py`：将 `[CHATGPT] query=` 从完整打印用户输入改为单行摘要；对微信群自由回复 LLM 判定 prompt 仅记录 `room`、`sender`、`text`、本地得分、阈值、原因、字符数和行数，避免整段判定器说明刷屏。
+- 新增 `tests/test_chat_gpt_logging.py`：覆盖自由回复判定 prompt 不泄露完整说明文本，并保留普通短 query 原样打印。
+验证记录：
+- `python -B -m unittest tests.test_chat_gpt_logging tests.test_wechat_group_free_reply_judge`
+- `python -B -c "from pathlib import Path; paths=['models/chatgpt/chat_gpt_bot.py','tests/test_chat_gpt_logging.py']; [compile(Path(p).read_text(encoding='utf-8'), p, 'exec') for p in paths]; print('syntax ok')"`
+- `git diff --check`
+
 ### 联网搜索支持 Serper 与 Jina
 - 更新 `agent/tools/web_search/web_search.py`：新增 `serper` 与 `jina` 搜索 Provider，分别读取 `tools.web_search.serper_api_key` / `SERPER_API_KEY` 与 `tools.web_search.jina_api_key` / `JINA_API_KEY`，并按统一结果格式返回标题、链接和摘要。
 - 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：在「模型管理 -> 联网搜索 -> 添加厂商」中加入 Serper、Jina；Bocha/Serper/Jina 复用搜索专用 API Key 弹窗，并在弹窗中展示对应申请链接。

@@ -28,6 +28,67 @@ from common.token_bucket import TokenBucket
 from config import conf, load_config
 from models.baidu.baidu_wenxin_session import BaiduWenxinSession
 
+
+def _compact_log_value(value, limit=80):
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    if limit <= 20:
+        return text[:limit]
+    return "{}...({} chars)".format(text[: limit - 15].rstrip(), len(text))
+
+
+def _extract_labeled_line(text, label):
+    for separator in ("\uff1a", ":"):
+        marker = "{}{}".format(label, separator)
+        start = text.find(marker)
+        if start < 0:
+            continue
+        start += len(marker)
+        end = text.find("\n", start)
+        if end < 0:
+            end = len(text)
+        return text[start:end].strip()
+    return ""
+
+
+def _is_free_reply_judge_query(query, context=None):
+    if context is not None and context.get("wechat_group_free_reply_judge", False):
+        return True
+    return (
+        "CowAgent" in query
+        and "should_reply" in query
+        and "\u5fae\u4fe1\u7fa4\u81ea\u7531\u56de\u590d" in query
+    )
+
+
+def _format_query_for_log(query, context=None, max_chars=240):
+    text = "" if query is None else str(query)
+    line_count = text.count("\n") + 1 if text else 0
+    if _is_free_reply_judge_query(text, context):
+        fields = (
+            ("\u7fa4\u540d", "room"),
+            ("\u53d1\u9001\u8005", "sender"),
+            ("\u6587\u672c", "text"),
+            ("\u672c\u5730\u5f97\u5206", "score"),
+            ("\u672c\u5730\u9608\u503c", "threshold"),
+            ("\u52a0\u5206\u539f\u56e0", "reasons"),
+            ("\u6291\u5236\u539f\u56e0", "suppressions"),
+        )
+        parts = ["free_reply_judge"]
+        for label, key in fields:
+            value = _extract_labeled_line(text, label)
+            if value:
+                parts.append("{}={}".format(key, _compact_log_value(value, 96)))
+        parts.append("chars={}".format(len(text)))
+        parts.append("lines={}".format(line_count))
+        return " ".join(parts)
+
+    compact = _compact_log_value(text, max_chars)
+    if compact == text and "\n" not in text:
+        return compact
+    return 'preview="{}" chars={} lines={}'.format(compact, len(text), line_count)
+
 # OpenAI对话模型API (可用)
 class ChatGPTBot(Bot, OpenAIImage, OpenAICompatibleBot):
     def __init__(self):
@@ -102,7 +163,7 @@ class ChatGPTBot(Bot, OpenAIImage, OpenAICompatibleBot):
     def reply(self, query, context=None):
         # acquire reply content
         if context.type == ContextType.TEXT:
-            logger.info("[CHATGPT] query={}".format(query))
+            logger.info("[CHATGPT] query={}".format(_format_query_for_log(query, context)))
 
             session_id = context["session_id"]
             reply = None
