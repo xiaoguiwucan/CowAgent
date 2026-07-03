@@ -476,12 +476,16 @@ class AgentBridge:
             
             # Filter tools based on context
             original_tools = agent.tools
+            original_extra_system_suffix = getattr(agent, "extra_system_suffix", "")
             filtered_tools = original_tools
+            tools_modified = False
+            suffix_modified = False
             
             # If this is a scheduled task execution, exclude scheduler tool to prevent recursion
             if context and context.get("is_scheduled_task"):
                 filtered_tools = [tool for tool in agent.tools if tool.name != "scheduler"]
                 agent.tools = filtered_tools
+                tools_modified = True
                 logger.info(f"[AgentBridge] Scheduled task execution: excluded scheduler tool ({len(filtered_tools)}/{len(original_tools)} tools)")
             else:
                 # Attach context to scheduler tool if present
@@ -494,6 +498,23 @@ class AgentBridge:
                             except Exception as e:
                                 logger.warning(f"[AgentBridge] Failed to attach context to scheduler: {e}")
                             break
+
+            wechat_group_tools = self._create_wechat_group_memory_tools(agent, context)
+            if wechat_group_tools:
+                existing_names = {tool.name for tool in filtered_tools}
+                scoped_tools = [
+                    tool for tool in wechat_group_tools
+                    if tool.name not in existing_names
+                ]
+                if scoped_tools:
+                    agent.tools = list(filtered_tools) + scoped_tools
+                    tools_modified = True
+                suffix = self._build_wechat_group_memory_tool_prompt()
+                agent.extra_system_suffix = (
+                    f"{original_extra_system_suffix}\n\n{suffix}".strip()
+                    if original_extra_system_suffix else suffix
+                )
+                suffix_modified = True
             
             # Pass context metadata to model for downstream API requests
             if context and hasattr(agent, 'model'):
@@ -550,9 +571,11 @@ class AgentBridge:
                 except Exception:
                     pass
 
-                # Restore original tools
-                if context and context.get("is_scheduled_task"):
+                # Restore original per-turn tool/prompt mutations.
+                if tools_modified:
                     agent.tools = original_tools
+                if suffix_modified:
+                    agent.extra_system_suffix = original_extra_system_suffix
 
                 # Log execution summary
                 event_handler.log_summary()
@@ -645,6 +668,45 @@ class AgentBridge:
                 except Exception:
                     pass
             return Reply(ReplyType.ERROR, f"Agent error: {str(e)}")
+
+    def _create_wechat_group_memory_tools(self, agent, context: Context = None):
+        if not context or context.get("channel_type") != "wechat_group":
+            return []
+        room_id = (context.get("wechat_group_room_id") or "").strip()
+        sender_id = (context.get("wechat_group_sender_id") or "").strip()
+        if not room_id or not sender_id:
+            return []
+        memory_manager = getattr(agent, "memory_manager", None)
+        if memory_manager is None:
+            return []
+        try:
+            from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
+            from channel.wechat_group.wechat_group_memory_tools import create_wechat_group_memory_tools
+
+            service = WechatGroupMemoryService(memory_manager)
+            return create_wechat_group_memory_tools(
+                service=service,
+                room_id=room_id,
+                sender_id=sender_id,
+                bot_sender_id=context.get("wechat_group_bot_sender_id") or "",
+            )
+        except Exception as e:
+            logger.warning(f"[AgentBridge] Failed to create WeChat group memory tools: {e}")
+            return []
+
+    @staticmethod
+    def _build_wechat_group_memory_tool_prompt() -> str:
+        return (
+            "## WeChat Group Scoped Memory\n\n"
+            "- For current group rules, group preferences, historical agreements, "
+            "project facts, or recurring decisions, prefer calling "
+            "`wechat_group_memory_search` before answering.\n"
+            "- For current group member roles, preferences, expertise, interaction "
+            "style, boundaries, or profile facts, prefer calling "
+            "`wechat_group_profile_get` before answering.\n"
+            "- These tools are bound to the current WeChat group by the server. "
+            "Do not treat them as global memory or cross-group search tools."
+        )
     
     def _schedule_mcp_hot_reload(self, agent):
         """

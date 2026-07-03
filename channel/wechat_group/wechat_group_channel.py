@@ -116,6 +116,9 @@ class WechatGroupChannel(ChatChannel):
         msg = context.get("msg")
         if not msg or not getattr(msg, "is_group", False):
             return context
+        context["wechat_group_room_id"] = msg.other_user_id
+        context["wechat_group_sender_id"] = msg.actual_user_id
+        context["wechat_group_bot_sender_id"] = msg.to_user_id
         if looks_like_scheduler_request(context.content):
             context["intent_requires_scheduler"] = True
         self._record_inbound_message(msg)

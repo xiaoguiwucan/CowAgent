@@ -2,6 +2,19 @@
 
 ## 2026-07-03
 
+### 微信群当前群记忆工具
+- 新增 `channel/wechat_group/wechat_group_memory_tools.py`：提供 `wechat_group_memory_search` 与 `wechat_group_profile_get` 两个只绑定当前微信群的 Agent 工具，工具参数不暴露 `room_id`，避免模型或用户跨群指定作用域。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：在微信群上下文中写入 `wechat_group_room_id`、`wechat_group_sender_id`、`wechat_group_bot_sender_id`，供 AgentBridge 安全创建当前 turn 的 scoped 工具。
+- 更新 `bridge/agent_bridge.py`：微信群 turn 临时挂载当前群记忆/画像工具，并追加 scoped memory 使用提示；运行结束后恢复原工具列表和 `extra_system_suffix`，避免污染后续 turn。
+- 更新 `agent/prompt/builder.py`：在工具摘要中展示微信群 scoped memory 工具。
+- 新增 `tests/test_wechat_group_memory_tools.py`、`tests/test_wechat_group_agent_bridge_tools.py`，并扩展 `tests/test_wechat_group_context.py`：覆盖当前群记忆检索、群友画像读取、工具 schema 不暴露 room、AgentBridge 临时挂载与恢复、真实通道元数据注入。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory_tools tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_context tests.test_wechat_group_memory`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_memory_tools tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_context tests.test_wechat_group_memory`
+- `python -m py_compile channel\wechat_group\wechat_group_memory_tools.py channel\wechat_group\wechat_group_channel.py bridge\agent_bridge.py agent\prompt\builder.py tests\test_wechat_group_memory_tools.py tests\test_wechat_group_agent_bridge_tools.py tests\test_wechat_group_context.py`
+- `git diff --check`
+
 ### 微信群群友画像别名匹配
 - 更新 `channel/wechat_group/wechat_group_memory.py`：群友画像新增 `aliases` 字段，写入 metadata 和画像正文；运行时画像召回从只匹配 `sender_nickname` 扩展为匹配 `sender_nickname + aliases`，命中别名时注入 `matched_by="alias"`，同别名命中多个 `sender_id` 时跳过注入并返回歧义诊断，保持当前群作用域隔离。
 - 更新 `channel/wechat_group/wechat_group_memory_distiller.py`：自动蒸馏候选 schema 支持 `aliases`，自动应用群友画像时保留别名。

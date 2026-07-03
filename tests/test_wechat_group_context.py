@@ -284,6 +284,32 @@ class WechatGroupRecentContextTest(unittest.TestCase):
 
         self.assertNotIn("<wechat-group-memory>", context.content)
 
+    def test_channel_sets_wechat_group_memory_tool_metadata(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_memory_enabled"] = False
+        conf()["wechat_group_member_memory_enabled"] = False
+        channel = WechatGroupChannel(client=Mock(), archive=WechatGroupArchive(self.db_path))
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "Test Room",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot summarize",
+            "is_at": True,
+            "at_list": ["wxid_bot"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        self.assertEqual("room@@abc", context.get("wechat_group_room_id"))
+        self.assertEqual("wxid_alice", context.get("wechat_group_sender_id"))
+        self.assertEqual("wxid_bot", context.get("wechat_group_bot_sender_id"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -144,6 +144,20 @@ npm run dev:hot
 
 修改个人微信群通道：
 
+定位与开发范围：
+
+- 个人微信群在 CowAgent 中只定位为一个消息渠道，不是一套独立 Agent、独立机器人产品或社交工作台。
+- Wechaty 侧车只负责微信登录、群列表、群消息监听、微信侧收发、媒体下载/发送和 Wechaty 运行细节；不要把 CowAgent 的模型调用、工具调用、记忆检索或 Agent 执行逻辑搬到侧车里。
+- Python 微信群通道只负责侧车进程管理、消息去重、自发消息过滤、`ChatMessage` / `Context` 转换、群白名单、触发规则、上下文增强、回复目标锁定和发送适配。
+- 文本回复、Agent、工具、插件、模型路由、图像理解、图像生成、语音识别、语音合成、长期记忆、知识库和上下文压缩必须优先复用 CowAgent 既有 `ChatChannel`、`Bridge`、`agent/`、`plugins/`、`voice/`、`agent/memory` 和 `agent/knowledge` 链路。
+- 不要在 `channel/wechat_group/` 内重写独立模型调用、独立工具执行器、独立 Agent loop、独立长期记忆系统或绕过 `Bridge.fetch_agent_reply()` 的回复链路；确需新增适配层时，应只做微信群作用域校验、提示词装配或协议转换。
+- 微信群专属能力应作为当前用户消息的上下文增强进入既有主链路，例如 `<wechat-group-persona>`、`<recent-wechat-group-transcript>`、`<wechat-group-memory>`；这些块不能替代 CowAgent 通用系统提示词、技能、工具 schema、知识库规则或 Agent 会话历史。
+- 新增微信群多模态能力时，优先映射到现有 `ContextType`、`ReplyType` 和渠道回复机制；只有现有抽象无法表达微信侧协议细节时，才在微信群通道内补充最小适配。
+- 群永久记忆和群友画像必须进入 CowAgent 统一作用域记忆体系，通过 `WechatGroupMemoryService` 或等价适配层携带 `room_id` / `sender_id` 强过滤后召回；不允许另建绕过通用记忆管理的长期记忆孤岛。
+- 默认开发范围聚焦稳定渠道闭环：扫码登录、群列表、目标群选择、@ 触发、真实发送人身份、回复回原群并真实 mention、最近群上下文、群记忆隔离、多模态基础映射、安全守卫和最小运维 UI。
+- 未经单独计划确认，不在个人微信群通道内扩展完整社交工作台、战报、图库、备份迁移中心、跨群身份合并、复杂人设市场、群友在线改人设、完全无人值守自动记忆系统或与渠道职责无关的大型业务 UI。
+- 如果后续需求会扩大个人微信群职责边界，必须先更新对应计划文档和本节规则，再按最小可验证步骤实施，并补充防止能力分叉、跨群泄露和绕过主链路的回归测试。
+
 1. 优先查看 `channel/wechat_group/wechat_group_channel.py`、`wechat_group_client.py`、`wechat_group_message.py`、`protocol.py` 和 `channel/wechat_group/sidecar/wechaty-sidecar.mjs`。
 2. 扫码入口必须在通道管理中完成：`通道管理 -> 接入通道 -> 个人微信群`，由界面展示二维码；不要把“看日志扫码”作为主要交互路径。
 3. Web 控制台入口涉及 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`；桌面端入口涉及 `desktop/src/renderer/src/pages/ChannelsPage.tsx`、`components/QrLoginModal.tsx`、`api/client.ts` 和 `i18n.ts`。
