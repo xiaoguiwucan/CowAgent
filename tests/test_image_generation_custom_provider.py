@@ -143,6 +143,46 @@ class TestImageGenerationCustomProvider(unittest.TestCase):
         self.assertEqual(calls[0][1]["json"]["model"], "override-image-model")
         self.assertEqual(calls[0][1]["json"]["prompt"], "draw a cow")
 
+    def test_custom_provider_generation_uses_url_when_b64_json_is_null(self):
+        set_conf({
+            "custom_providers": [
+                {
+                    "id": "img01",
+                    "name": "NewAPI Image",
+                    "api_key": "sk-custom",
+                    "api_base": "https://newapi.example.com/v1",
+                    "model": "newapi-image-model",
+                }
+            ]
+        })
+        provider = self.generate._build_providers("", provider_id="custom:img01")[0][1]
+
+        class UrlResponse(_Response):
+            def json(self):
+                return {
+                    "data": [
+                        {
+                            "b64_json": None,
+                            "url": "https://cdn.example.com/rabbit.png",
+                        }
+                    ]
+                }
+
+        def fake_post(url, **kwargs):
+            resp = UrlResponse()
+            resp.url = url
+            return resp
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(self.generate, "requests", types.SimpleNamespace(post=fake_post)):
+                with patch.object(self.generate, "_load_image", return_value=b"fake-png-bytes") as load_image:
+                    paths = provider.generate("draw a rabbit", output_dir=tmp)
+
+                    self.assertEqual(len(paths), 1)
+                    load_image.assert_called_once_with("https://cdn.example.com/rabbit.png")
+                    with open(paths[0], "rb") as f:
+                        self.assertEqual(b"fake-png-bytes", f.read())
+
     def test_custom_provider_requires_api_key_base_and_model(self):
         set_conf({
             "custom_providers": [

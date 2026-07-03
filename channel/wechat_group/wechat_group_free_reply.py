@@ -33,6 +33,7 @@ NEGATIVE_RULES = [
     {"id": "low_information", "label": "Low-information short text"},
     {"id": "media_payload", "label": "Raw media payload should not trigger free reply"},
     {"id": "sensitive_or_dangerous", "label": "Sensitive, private or dangerous request"},
+    {"id": "image_generation_failure_discussion", "label": "Image generation failure discussion should not trigger free reply"},
     {"id": "min_interval", "label": "Room cooldown is active"},
     {"id": "hourly_limit", "label": "Hourly limit reached"},
     {"id": "consecutive_limit", "label": "Consecutive reply limit reached"},
@@ -175,6 +176,17 @@ def _is_sensitive_or_dangerous(text: str) -> bool:
     return any(re.search(pattern, lower, re.IGNORECASE) for pattern in patterns)
 
 
+def _is_image_generation_failure_discussion(text: str) -> bool:
+    value = _normalize_text(text)
+    return bool(
+        re.search(
+            r"(图片生成失败|图像生成失败|生图失败|绘图密钥|绘图.*密钥|画不了|生成不了图)",
+            value,
+            re.IGNORECASE,
+        )
+    )
+
+
 def _score_text(text: str, bot_names=None) -> tuple:
     text = _normalize_text(text)
     score = 0
@@ -257,6 +269,8 @@ def evaluate_wechat_group_free_reply(
         suppressions.append("media_payload")
     if _is_sensitive_or_dangerous(text or ""):
         suppressions.append("sensitive_or_dangerous")
+    if _is_image_generation_failure_discussion(text or ""):
+        suppressions.append("image_generation_failure_discussion")
 
     min_interval = int(profile.get("min_interval_seconds", 0) or 0)
     last_triggered = float(state.get("last_triggered_at") or 0)

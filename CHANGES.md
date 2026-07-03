@@ -6,13 +6,21 @@
 - 修复 `config.json` 未显式包含 `image_create_prefix` 时，微信群 `@小灯 画个兔子` 被当作普通文本送入 Agent、没有进入 `ContextType.IMAGE_CREATE` 的问题。
 - 更新 `channel/chat_channel.py`：缺失 `image_create_prefix` 时恢复内置生图触发词 `画`、`看`、`找`；若用户显式配置为空列表，仍保持关闭前缀触发的语义。
 - 修复 `skills/image-generation/scripts/generate.py` 在独立子进程中没有加载主配置，导致已配置的 `custom:a838bee2` 被误判为 `unknown custom provider id` 的问题；脚本现在会从数据目录 `config.json` 回读 `custom_providers`。
+- 修复 NewAPI 图像模型返回 `b64_json: null` 且同时返回 `url` 时，脚本错误解码空值导致生图失败的问题；现在会跳过空 `b64_json` 并下载 `url` 图片。
+- 本地运行配置已将图像生成模型从文本模型 `agnes-2.0-flash` 调整为 NewAPI 图像模型 `agnes-image-2.1-flash`。
 - 更新 `channel/channel.py`：图像生成脚本失败时，技术错误只写入日志，群内回复使用固定兜底文案，避免把内部 provider id / 异常细节直接推送到微信群。
+- 更新 `channel/wechat_group/wechat_group_free_reply.py`：普通群聊里讨论“图片生成失败 / 绘图密钥 / 画不了”等失败话题时不再触发自由回复，避免拟人回复继续放大错误。
 - 扩展 `tests/test_wechat_group_channel.py`：覆盖缺失配置时微信群 @ 生图请求应转成 `ContextType.IMAGE_CREATE`。
 - 扩展 `tests/test_image_generation_custom_provider.py`：覆盖子进程空内存配置时从 `config.json` 解析自定义图像生成厂商。
+- 扩展 `tests/test_wechat_group_free_reply.py`：覆盖生图失败讨论不触发微信群自由回复。
 验证记录：
 - `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_wechat_group_image_create_uses_builtin_prefix_when_config_missing`
 - `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_image_create_script_failure_returns_safe_user_message tests.test_image_generation_custom_provider.TestImageGenerationCustomProvider.test_build_providers_loads_custom_provider_from_config_file_when_conf_is_empty`
 - `python -m py_compile channel\channel.py skills\image-generation\scripts\generate.py tests\test_wechat_group_channel.py tests\test_image_generation_custom_provider.py`
+- `python -m unittest tests.test_image_generation_custom_provider.TestImageGenerationCustomProvider.test_custom_provider_generation_uses_url_when_b64_json_is_null tests.test_wechat_group_free_reply.WechatGroupFreeReplyDecisionTest.test_image_generation_failure_discussion_is_suppressed`
+- `python -m unittest tests.test_image_generation_custom_provider tests.test_wechat_group_free_reply tests.test_wechat_group_channel tests.test_models_handler`
+- `python -B -c "from pathlib import Path; paths=['skills/image-generation/scripts/generate.py','channel/wechat_group/wechat_group_free_reply.py','channel/channel.py','channel/chat_channel.py','tests/test_image_generation_custom_provider.py','tests/test_wechat_group_free_reply.py','tests/test_wechat_group_channel.py']; [compile(Path(p).read_text(encoding='utf-8'), p, 'exec') for p in paths]; print('syntax ok')"`
+- 真实脚本验证：`custom:a838bee2` + `agnes-image-2.1-flash` 成功生成本地图片。
 
 ### Agent 模式生图请求直连图像生成脚本
 - 修复微信群 `@小灯 画个兔子` 在 Agent 模式下没有真正生图的问题：`ContextType.IMAGE_CREATE` 现在会直接调用 `skills/image-generation/scripts/generate.py`，不再依赖 LLM 自行决定是否读取技能并拼接 `bash` 命令。

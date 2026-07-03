@@ -180,6 +180,22 @@ class WechatGroupFreeReplyDecisionTest(unittest.TestCase):
         self.assertFalse(decision["triggered"])
         self.assertIn("sensitive_or_dangerous", decision["suppressions"])
 
+    def test_image_generation_failure_discussion_is_suppressed(self):
+        decision = evaluate_wechat_group_free_reply(
+            self.enabled_cfg(),
+            room_id="room@@abc",
+            room_name="\u6d4b\u8bd5\u7fa4",
+            sender_id="wxid_alice",
+            sender_name="Alice",
+            text="\u56fe\u7247\u751f\u6210\u5931\u8d25\uff0c\u5b83\u8bf4\u6ca1\u6709\u7ed8\u56fe\u5bc6\u94a5\uff0c\u8fd9\u662f\u600e\u4e48\u56de\u4e8b\uff1f",
+            recent_messages=[{"sender_nickname": "Bot", "text": "\u56fe\u7247\u751f\u6210\u5931\u8d25"}],
+            state={},
+            now=100000,
+        )
+
+        self.assertFalse(decision["triggered"])
+        self.assertIn("image_generation_failure_discussion", decision["suppressions"])
+
     def test_min_interval_suppresses_recent_free_reply(self):
         cfg = self.enabled_cfg()
         cfg["profiles"] = copy.deepcopy(cfg["profiles"])

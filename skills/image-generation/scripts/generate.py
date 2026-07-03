@@ -341,11 +341,14 @@ class OpenAIProvider(ImageProvider):
     def _save_results(result: dict, output_dir: str) -> list[str]:
         paths = []
         for item in result.get("data", []):
-            if "b64_json" in item:
-                raw = base64.b64decode(item["b64_json"])
+            b64_json = item.get("b64_json")
+            if b64_json:
+                raw = base64.b64decode(b64_json)
                 paths.append(_save_image(raw, output_dir))
-            elif "url" in item:
-                raw = _load_image(item["url"])
+                continue
+            image_url = item.get("url")
+            if image_url:
+                raw = _load_image(image_url)
                 paths.append(_save_image(raw, output_dir))
         return paths
 

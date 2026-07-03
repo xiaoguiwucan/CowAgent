@@ -413,7 +413,11 @@ class WechatGroupChannelTest(unittest.TestCase):
     def test_image_create_in_agent_mode_uses_deterministic_script_runner(self):
         conf()["agent"] = True
         conf()["wechat_group_image_create_hourly_limit"] = 5
-        channel = WechatGroupChannel(client=FakeClient())
+        archive = Mock(
+            count_image_create_usage=Mock(return_value=0),
+            record_image_create_usage=Mock(),
+        )
+        channel = WechatGroupChannel(client=FakeClient(), archive=archive)
         context = Context(ContextType.IMAGE_CREATE, "a rabbit")
         context["receiver"] = "room@@abc"
         context["msg"] = Mock(actual_user_id="wxid_alice")
