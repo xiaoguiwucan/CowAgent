@@ -4480,9 +4480,8 @@ class WechatGroupMemoriesHandler:
     @classmethod
     def _get_service(cls):
         if cls._service is None:
-            from agent.memory.manager import MemoryManager
-            from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
-            cls._service = WechatGroupMemoryService(MemoryManager())
+            from channel.wechat_group.wechat_group_memory import create_wechat_group_memory_service
+            cls._service = create_wechat_group_memory_service()
         return cls._service
 
     @classmethod

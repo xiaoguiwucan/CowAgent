@@ -6,9 +6,27 @@ import asyncio
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from agent.memory.embedding.factory import create_default_embedding_provider
 from agent.memory.manager import MemoryManager
 from agent.memory.scope import MemoryScope
 from config import conf
+
+
+def create_wechat_group_memory_service(
+    allowed_room_ids: Optional[List[str]] = None,
+    memory_enabled: Optional[bool] = None,
+    member_memory_enabled: Optional[bool] = None,
+) -> "WechatGroupMemoryService":
+    """Create the WeChat memory adapter with the configured embedding provider."""
+    memory_manager = MemoryManager(
+        embedding_provider=create_default_embedding_provider()
+    )
+    return WechatGroupMemoryService(
+        memory_manager=memory_manager,
+        allowed_room_ids=allowed_room_ids,
+        memory_enabled=memory_enabled,
+        member_memory_enabled=member_memory_enabled,
+    )
 
 
 class WechatGroupMemoryService:

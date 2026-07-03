@@ -193,6 +193,30 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("<wechat-group-memory>", result["preview"]["content"])
         self.assertEqual("room@@abc", fake.kwargs["room_id"])
 
+
+    def test_wechat_group_memory_service_uses_configured_embedding_provider(self):
+        from agent.memory.config import MemoryConfig, get_default_memory_config, set_global_memory_config
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        original_config = get_default_memory_config()
+        provider = object()
+        WechatGroupMemoriesHandler._service = None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            set_global_memory_config(MemoryConfig(workspace_root=tmpdir))
+            with patch(
+                "channel.wechat_group.wechat_group_memory.create_default_embedding_provider",
+                return_value=provider,
+                create=True,
+            ):
+                service = WechatGroupMemoriesHandler._get_service()
+            try:
+                self.assertIs(service.memory_manager.embedding_provider, provider)
+            finally:
+                service.memory_manager.close()
+                WechatGroupMemoriesHandler._service = None
+                set_global_memory_config(original_config)
+
     def test_wechat_group_memory_group_post_requires_room_id(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
 

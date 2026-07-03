@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from unittest.mock import Mock
 
@@ -325,6 +326,29 @@ class WechatGroupChannelTest(unittest.TestCase):
             [("send_audio", "room@@abc", "D:/tmp/a.mp3")],
             client.commands,
         )
+
+
+    def test_memory_service_uses_configured_embedding_provider(self):
+        from agent.memory.config import MemoryConfig, get_default_memory_config, set_global_memory_config
+        from unittest.mock import patch
+
+        original_config = get_default_memory_config()
+        provider = object()
+        channel = WechatGroupChannel(client=FakeClient())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            set_global_memory_config(MemoryConfig(workspace_root=tmpdir))
+            with patch(
+                "channel.wechat_group.wechat_group_memory.create_default_embedding_provider",
+                return_value=provider,
+                create=True,
+            ):
+                service = channel._get_memory_service()
+            try:
+                self.assertIs(service.memory_manager.embedding_provider, provider)
+            finally:
+                service.memory_manager.close()
+                set_global_memory_config(original_config)
 
 
 if __name__ == "__main__":

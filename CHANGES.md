@@ -2,6 +2,17 @@
 
 ## 2026-07-03
 
+### 微信群记忆复用向量供应商
+- 更新 `channel/wechat_group/wechat_group_memory.py`：新增微信群记忆服务创建函数，创建 `MemoryManager` 时复用全局 `create_default_embedding_provider()`，避免已配置向量供应商时仍降级为关键词检索。
+- 更新 `channel/wechat_group/wechat_group_channel.py` 与 `channel/web/web_channel.py`：微信群运行时上下文注入和 Web 群记忆管理入口统一使用上述服务创建函数，不再直接裸创建 `MemoryManager()`。
+- 扩展 `tests/test_wechat_group_channel.py` 与 `tests/test_wechat_group_web.py`：覆盖两条懒加载入口会把配置解析出的 embedding provider 传入 `MemoryManager`。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_memory_service_uses_configured_embedding_provider tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_memory_service_uses_configured_embedding_provider`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_memory`
+- `python -m py_compile channel\wechat_group\wechat_group_memory.py channel\wechat_group\wechat_group_channel.py channel\web\web_channel.py tests\test_wechat_group_channel.py tests\test_wechat_group_web.py`
+
 ### 微信群定时任务投递复用运行通道
 - 更新 `agent/tools/scheduler/integration.py`：调度器投递到 `wechat_group` 时优先复用 `ChannelManager` 中已启动的微信群通道实例，避免新建未 `startup()` 的通道导致 `wechat group sidecar is not started`；其它渠道仍保持原有创建通道逻辑。
 - 新增 `tests/test_scheduler_wechat_group_delivery.py`：覆盖 Agent 定时任务结果发送到微信群时必须使用运行中的微信群 sidecar 通道。

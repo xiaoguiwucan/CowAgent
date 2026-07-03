@@ -7,7 +7,10 @@ from channel.wechat_group.protocol import SidecarEvent, SidecarEventType
 from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_client import WechatGroupClient
 from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
-from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
+from channel.wechat_group.wechat_group_memory import (
+    WechatGroupMemoryService,
+    create_wechat_group_memory_service,
+)
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
 from channel.wechat_group.wechat_group_persona import (
     build_wechat_group_persona_block,
@@ -18,7 +21,6 @@ from common import const
 from common.expired_dict import ExpiredDict
 from common.log import logger
 from config import conf
-from agent.memory.manager import MemoryManager
 from agent.protocol.agent_stream import looks_like_scheduler_request
 
 
@@ -237,7 +239,7 @@ class WechatGroupChannel(ChatChannel):
 
     def _get_memory_service(self):
         if self.memory_service is None:
-            self.memory_service = WechatGroupMemoryService(MemoryManager())
+            self.memory_service = create_wechat_group_memory_service()
         return self.memory_service
 
     @staticmethod
