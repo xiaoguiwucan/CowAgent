@@ -231,6 +231,32 @@ current user message:
 - 技能、工具 schema、运行时信息和上下文压缩逻辑仍由 Agent 主链路处理。
 - 自主进化仍会记录微信群用户轮次并参与 idle evolution；群聊场景通常不设置主动推送 `receiver`，避免进化结果主动打扰群。
 
+### 个人微信群图片理解链路
+
+微信群图片理解仍然是渠道适配能力，不是一套独立视觉模型链路。sidecar 只负责识别微信图片消息、下载媒体文件并上报 `message_type = image`、`file_path` / `media_path` 等事件字段；Python 通道负责把图片转换为当前消息的上下文增强，视觉理解必须复用既有 `agent.tools.vision.vision.Vision` 能力。
+
+当前图片进入 LLM 的形式是 `<wechat-group-image>` 块，包含图片文件路径、发送者和视觉摘要，随后拼接用户原始文本或默认回应指令。该块作为当前 user message 的补充上下文进入既有 `ChatChannel` / `Bridge` / Agent 主链路，不绕过 `Bridge.fetch_agent_reply()`，也不在微信群通道内重复实现模型调用。
+
+识图触发规则：
+
+- 当群内直接发送图片并触发机器人回复时，通道优先对本张图片调用 `Vision().execute({"image": image_path, "question": question})` 生成视觉摘要，再注入 `<wechat-group-image>`。
+- 当用户发送文本类识图请求，例如“识别这张图”“看看这张图片”，通道不会盲目下载文本消息文件；它会在归档中查找目标图片，再把找到的图片转成同样的 `<wechat-group-image>` 上下文。
+- 直接图片没有附带文本时，是否自动评论由 `wechat_group_image_understanding_comment_enabled` 控制；总开关由 `wechat_group_image_understanding_enabled` 控制。
+- 图片理解 prompt 来自 `wechat_group_image_understanding_prompt`，为空时使用默认简洁描述提示；相同 `image_path + question` 的结果按 `wechat_group_image_understanding_cache_minutes` 做短期缓存。
+
+文本识图请求的图片定位优先级：
+
+1. 如果本条文本是回复引用消息，且 `quote.message_id` 存在，先按 `room_id + message_id` 精确查找归档图片；命中后只识别被引用的那张图片。
+2. 如果引用消息 ID 查不到图片，再按引用发送者 `quote.sender_id` 或 `quote.sender_name` 在当前群最近 30 分钟、最多 20 条归档消息中倒序查找该发送者最近发过的图片。
+3. 如果没有可用引用或引用匹配失败，最后才回退到当前群最近 10 分钟、最多 10 条归档消息中的最新图片。
+
+维护约束：
+
+- 回复引用图片的优先级高于“最近图片”回退；后续修复识图问题时，不能把引用关系退化成全群最近图片匹配。
+- 图片归档查找必须始终带 `room_id` 过滤，不能跨群复用图片或引用消息。
+- sidecar 遇到文本消息不能调用 `toFileBox()` 下载文件；只有图片等真实媒体消息才进入媒体下载逻辑，避免 `text message no file` 类错误。
+- 新增图片类型、引用字段或 sidecar 事件字段时，需要同步更新 JSON Lines 协议、Python message/archive/channel 解析和对应测试。
+
 当前实现边界：
 
 - 4.3 完成前，当前微信群 `_compose_context()` 直接注入链路只明确使用人设块和最近群聊 transcript；不要假设已经有独立的 room/member 长期记忆块被自动拼进当前消息。

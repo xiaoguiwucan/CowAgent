@@ -313,20 +313,26 @@ python -m unittest tests.test_vision_custom_provider
 
 任务：
 
-- [ ] `_image_capability()` provider 列表增加 `custom:<id>`，反显已保存的自定义 provider。
-- [ ] `_set_image()` 允许 `provider_id.startswith("custom:")`，校验对应 provider 存在。
-- [ ] `generate.py` 支持显式 provider 为 `custom:<id>`，并在 `_build_providers()` 中优先命中该 provider。
-- [ ] `generate.py` 通过 `models.custom_provider.parse_custom_bot_type()`、`get_custom_providers()` 和 `_find_provider_by_id()` 从 CowAgent 配置解析自定义 provider 的 `api_key` / `api_base` / 默认 `model`。
-- [ ] `generate.py` 复用 OpenAI-compatible image endpoint 请求 `{custom.api_base}/images/generations`，不新增 `CUSTOM_*` 或 `NEWAPI_*` 环境变量。
-- [ ] provider 为有效 `custom:<id>` 时，`_image_capability()` 返回 `runtime_active: true`，`_set_image()` 不再返回 `router_pending: true`。
-- [ ] provider 为未知 `custom:<id>`、缺少 `api_key`、缺少 `api_base` 或缺少模型名时返回清晰错误。
-- [ ] 补测试：显式自定义 provider 生成请求命中 `{custom.api_base}/images/generations`。
+- [x] `_image_capability()` provider 列表增加 `custom:<id>`，反显已保存的自定义 provider。
+- [x] `_set_image()` 允许 `provider_id.startswith("custom:")`，校验对应 provider 存在。
+- [x] `generate.py` 支持显式 provider 为 `custom:<id>`，并在 `_build_providers()` 中优先命中该 provider。
+- [x] `generate.py` 通过 `models.custom_provider.parse_custom_bot_type()`、`get_custom_providers()` 和 `_find_provider_by_id()` 从 CowAgent 配置解析自定义 provider 的 `api_key` / `api_base` / 默认 `model`。
+- [x] `generate.py` 复用 OpenAI-compatible image endpoint 请求 `{custom.api_base}/images/generations`，不新增 `CUSTOM_*` 或 `NEWAPI_*` 环境变量。
+- [x] provider 为有效 `custom:<id>` 时，`_image_capability()` 返回 `runtime_active: true`，`_set_image()` 不再返回 `router_pending: true`。
+- [x] provider 为未知 `custom:<id>`、缺少 `api_key`、缺少 `api_base` 或缺少模型名时返回清晰错误。
+- [x] 补测试：显式自定义 provider 生成请求命中 `{custom.api_base}/images/generations`。
 
 验证：
 
 ```powershell
 python -m unittest tests.test_models_handler tests.test_image_generation_custom_provider
 ```
+
+完成记录：
+
+- 2026-07-03：已完成阶段 3。Web 模型管理的图像生成能力会展开 `custom:<id>` 自定义厂商，保存时校验自定义厂商存在、`api_key`、`api_base` 与模型名，并取消 `router_pending` 返回。
+- 2026-07-03：`skills/image-generation/scripts/generate.py` 已支持显式 `custom:<id>` provider，直接从 `custom_providers` 解析凭据，复用 OpenAI-compatible 图片接口，不新增 `CUSTOM_*` / `NEWAPI_*` 环境变量。
+- 2026-07-03：新增 `tests/test_image_generation_custom_provider.py`，并扩展 `tests/test_models_handler.py`，覆盖下拉反显、保存校验、默认模型回填、运行时 URL/Header/Payload 与错误路径。
 
 ### 阶段 4：ASR/TTS 自定义渠道运行时
 

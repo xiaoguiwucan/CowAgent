@@ -29,6 +29,110 @@ if "web" not in sys.modules:
 
 
 class TestModelsHandler(unittest.TestCase):
+    def test_image_capability_exposes_custom_providers(self):
+        from config import Config
+        import config as config_module
+        from channel.web.web_channel import ModelsHandler
+
+        local_config = Config({
+            "custom_providers": [
+                {
+                    "id": "img01",
+                    "name": "NewAPI Image",
+                    "api_key": "sk-test",
+                    "api_base": "https://newapi.example.com/v1",
+                    "model": "my-image-model",
+                }
+            ],
+            "skills": {
+                "image-generation": {
+                    "provider": "custom:img01",
+                    "model": "my-image-model",
+                }
+            },
+        })
+
+        with patch.object(config_module, "config", local_config):
+            cap = ModelsHandler._image_capability(local_config)
+
+        self.assertIn("custom:img01", cap["providers"])
+        self.assertEqual(cap["current_provider"], "custom:img01")
+        self.assertEqual(cap["current_model"], "my-image-model")
+        self.assertTrue(cap["runtime_active"])
+        self.assertNotEqual(cap.get("note"), "router_pending")
+
+    def test_set_image_accepts_custom_provider_and_uses_default_model(self):
+        from config import Config
+        import config as config_module
+        from channel.web.web_channel import ModelsHandler
+
+        local_config = Config({
+            "custom_providers": [
+                {
+                    "id": "img01",
+                    "name": "NewAPI Image",
+                    "api_key": "sk-test",
+                    "api_base": "https://newapi.example.com/v1",
+                    "model": "my-image-model",
+                }
+            ],
+        })
+        file_config = {
+            "custom_providers": [
+                {
+                    "id": "img01",
+                    "name": "NewAPI Image",
+                    "api_key": "sk-test",
+                    "api_base": "https://newapi.example.com/v1",
+                    "model": "my-image-model",
+                }
+            ],
+        }
+        handler = ModelsHandler()
+
+        with patch.object(config_module, "config", local_config):
+            with patch("channel.web.web_channel.conf", return_value=local_config):
+                with patch.object(ModelsHandler, "_read_file_config", return_value=file_config):
+                    with patch.object(ModelsHandler, "_write_file_config") as write_file:
+                        result = json.loads(handler._handle_set_capability({
+                            "capability": "image",
+                            "provider_id": "custom:img01",
+                            "model": "",
+                        }))
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["provider"], "custom:img01")
+        self.assertEqual(result["model"], "my-image-model")
+        self.assertNotIn("router_pending", result)
+        self.assertEqual(
+            local_config["skills"]["image-generation"]["provider"],
+            "custom:img01",
+        )
+        self.assertEqual(
+            local_config["skills"]["image-generation"]["model"],
+            "my-image-model",
+        )
+        write_file.assert_called_once_with(file_config)
+
+    def test_set_image_rejects_unknown_custom_provider(self):
+        from config import Config
+        import config as config_module
+        from channel.web.web_channel import ModelsHandler
+
+        local_config = Config({"custom_providers": []})
+        handler = ModelsHandler()
+
+        with patch.object(config_module, "config", local_config):
+            with patch("channel.web.web_channel.conf", return_value=local_config):
+                result = json.loads(handler._handle_set_capability({
+                    "capability": "image",
+                    "provider_id": "custom:missing",
+                    "model": "my-image-model",
+                }))
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("unknown custom provider id", result["message"])
+
     def test_set_asr_capability_persists_provider_and_model(self):
         from channel.web.web_channel import ModelsHandler
 

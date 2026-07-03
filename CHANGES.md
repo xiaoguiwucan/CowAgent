@@ -2,6 +2,17 @@
 
 ## 2026-07-03
 
+### 图像生成支持自定义厂商
+- 更新 `channel/web/web_channel.py`：图像生成能力下拉框展开 `custom:<id>` 自定义厂商，保存时校验自定义厂商存在、`api_key`、`api_base` 与模型名，并移除已完成路由后的 `router_pending` 状态。
+- 更新 `skills/image-generation/scripts/generate.py`：显式选择 `custom:<id>` 时，从 `custom_providers` 读取凭据和默认模型，并复用 OpenAI-compatible `/images/generations` / `/images/edits` 接口。
+- 更新 `skills/image-generation/SKILL.md`：将 `SKILL_IMAGE_GENERATION_PROVIDER` 纳入技能可用性判断，避免只配置自定义图像生成厂商时技能被隐藏。
+- 扩展 `tests/test_models_handler.py` 并新增 `tests/test_image_generation_custom_provider.py`，覆盖图像生成自定义厂商下拉、保存校验、默认模型回填、运行时请求 URL/Header/Payload 和错误路径。
+验证记录：
+- `python -m unittest tests.test_models_handler tests.test_image_generation_custom_provider`
+- `python -m unittest tests.test_custom_provider tests.test_custom_provider_handlers tests.test_models_handler tests.test_image_generation_custom_provider`
+- `python -m py_compile channel\web\web_channel.py skills\image-generation\scripts\generate.py tests\test_models_handler.py tests\test_image_generation_custom_provider.py`
+- `git diff --check`
+
 ### 微信群图片理解与生图限流
 - 新增 `plans/wechat_group_image_multimodal_plan_20260703.md`，记录微信群图片理解、生图限流和 Web 配置方案，并在开发完成后回写实际改动、验证结果和剩余事项。
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`、`wechaty-sidecar.mjs` 与 sidecar 测试：识别图片消息、规整媒体文件名、下载媒体到外部目录，并向 Python 上报 `message_type` 与 `file_path`。

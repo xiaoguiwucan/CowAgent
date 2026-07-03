@@ -11,6 +11,7 @@ metadata:
         - DASHSCOPE_API_KEY
         - MINIMAX_API_KEY
         - LINKAI_API_KEY
+        - SKILL_IMAGE_GENERATION_PROVIDER
 ---
 
 # Image Generation
@@ -105,6 +106,8 @@ The script needs **at least one** of these API keys (set via `env_config` or `co
 `OPENAI_API_KEY` / `GEMINI_API_KEY` / `ARK_API_KEY` / `DASHSCOPE_API_KEY` / `MINIMAX_API_KEY` / `LINKAI_API_KEY`
 
 Each also has an optional `*_API_BASE` for custom endpoints. The script automatically picks the first configured backend and falls back to the next if it fails — no need to specify a model.
+
+Custom OpenAI-compatible providers configured from the Models page are selected through `skills.image-generation.provider` / `model`, which are synced to `SKILL_IMAGE_GENERATION_PROVIDER` / `SKILL_IMAGE_GENERATION_MODEL`. The script resolves their credentials from `custom_providers` and calls the provider's `/images/generations` or `/images/edits` endpoint.
 
 ### Error Handling
 

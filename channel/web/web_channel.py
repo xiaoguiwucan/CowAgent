@@ -2281,6 +2281,7 @@ class ModelsHandler:
             {"value": "gemini-3-pro-image-preview",     "hint": "Nano Banana Pro"},
             "seedream-5.0-lite",
         ],
+        "custom": [],
     }
 
     @staticmethod
@@ -2770,13 +2771,22 @@ class ModelsHandler:
         explicit_model = (img_node.get("model") or "").strip()
         explicit_provider = (img_node.get("provider") or "").strip()
 
+        custom_cards = cls._custom_provider_cards(local_config)
+        providers = []
+        for pid in cls._IMAGE_PROVIDER_MODELS:
+            if pid == "custom":
+                if custom_cards:
+                    providers.extend(c["id"] for c in custom_cards)
+            else:
+                providers.append(pid)
+
         # Provider resolution priority:
         #   1. Explicit `skills.image-generation.provider` (persisted via UI;
         #      supports custom model names that prefix-inference can't catch).
         #   2. Scan per-provider model catalog by model name.
         # Empty provider keeps the dropdown on "auto" when we can't tell.
         inferred_provider = ""
-        if explicit_provider and explicit_provider in cls._IMAGE_PROVIDER_MODELS:
+        if explicit_provider and explicit_provider in providers:
             inferred_provider = explicit_provider
         elif explicit_model:
             for pid, models in cls._IMAGE_PROVIDER_MODELS.items():
@@ -2801,13 +2811,9 @@ class ModelsHandler:
             "current_model": explicit_model,
             "fallback_provider": predicted["provider"],
             "fallback_model": predicted["model"],
-            "providers": list(cls._IMAGE_PROVIDER_MODELS.keys()),
+            "providers": providers,
             "provider_models": cls._IMAGE_PROVIDER_MODELS,
-            # The dispatcher that honors a pinned provider isn't wired up
-            # yet; advertise this so the UI can show a "saved but not active"
-            # banner until the runtime catches up.
-            "runtime_active": False,
-            "note": "router_pending",
+            "runtime_active": True,
         }
 
     # Canonical search provider order. Mirrors PROVIDER_ORDER in
@@ -3216,6 +3222,25 @@ class ModelsHandler:
         # provider field is persisted so users picking a custom model under
         # a specific vendor still get routed there — runtime falls back to
         # model-name prefix inference only when provider is empty.
+        custom_provider = None
+        if provider_id.startswith("custom:"):
+            from models.custom_provider import parse_custom_bot_type
+            _, custom_id = parse_custom_bot_type(provider_id)
+            providers = self._normalize_custom_providers(conf().get("custom_providers"))
+            custom_provider = next((p for p in providers if p.get("id") == custom_id), None)
+            if custom_provider is None:
+                return json.dumps({"status": "error", "message": f"unknown custom provider id: {custom_id}"})
+            if not custom_provider.get("api_key"):
+                return json.dumps({"status": "error", "message": f"custom provider {custom_id} is missing api_key"})
+            if not custom_provider.get("api_base"):
+                return json.dumps({"status": "error", "message": f"custom provider {custom_id} is missing api_base"})
+            if not model:
+                model = custom_provider.get("model") or ""
+            if not model:
+                return json.dumps({"status": "error", "message": f"custom provider {custom_id} is missing image model"})
+        elif provider_id and provider_id not in {p for p in ModelsHandler._IMAGE_PROVIDER_MODELS if p != "custom"}:
+            return json.dumps({"status": "error", "message": f"unknown provider: {provider_id}"})
+
         local_config = conf()
         file_cfg = self._read_file_config()
 
@@ -3247,7 +3272,6 @@ class ModelsHandler:
             "status": "success",
             "provider": provider_id,
             "model": model,
-            "router_pending": True,
         })
 
     def _set_chat(self, provider_id: str, model: str) -> str:

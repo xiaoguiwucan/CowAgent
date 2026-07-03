@@ -1032,6 +1032,40 @@ def _preferred_provider(model: str) -> str | None:
     return None
 
 
+def _ensure_project_root_on_path() -> None:
+    root = Path(__file__).resolve().parents[3]
+    root_str = str(root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+
+def _build_custom_provider(model: str, provider_id: str) -> tuple[str, ImageProvider]:
+    _ensure_project_root_on_path()
+    from models.custom_provider import parse_custom_bot_type, get_custom_providers, _find_provider_by_id
+
+    _, custom_id = parse_custom_bot_type(provider_id)
+    provider = _find_provider_by_id(get_custom_providers(), custom_id)
+    if provider is None:
+        raise ValueError(f"unknown custom provider id: {custom_id}")
+
+    api_key = provider.get("api_key") or ""
+    api_base = provider.get("api_base") or ""
+    selected_model = model or provider.get("model") or ""
+    if not api_key:
+        raise ValueError(f"custom provider {custom_id} is missing api_key")
+    if not api_base:
+        raise ValueError(f"custom provider {custom_id} is missing api_base")
+    if not selected_model:
+        raise ValueError(f"custom provider {custom_id} is missing model")
+
+    name = provider.get("name") or custom_id
+    return f"Custom:{name}", OpenAIProvider(
+        api_key=api_key,
+        api_base=api_base,
+        model=selected_model,
+    )
+
+
 def _build_providers(model: str, provider_id: str = "") -> list[tuple[str, ImageProvider]]:
     """Build an ordered list of (label, provider) to try.
 
@@ -1046,6 +1080,9 @@ def _build_providers(model: str, provider_id: str = "") -> list[tuple[str, Image
          model and fall back to automatic routing — every provider then uses
          its own DEFAULT_MODEL.
     """
+    if provider_id.startswith("custom:"):
+        return [_build_custom_provider(model, provider_id)]
+
     keys = {
         "OpenAI": os.environ.get("OPENAI_API_KEY", ""),
         "Gemini": os.environ.get("GEMINI_API_KEY", ""),
@@ -1141,7 +1178,11 @@ def main():
 
     output_dir = os.environ.get("IMAGE_OUTPUT_DIR", os.path.join(os.getcwd(), "images"))
 
-    providers = _build_providers(model, provider_id=provider_id)
+    try:
+        providers = _build_providers(model, provider_id=provider_id)
+    except ValueError as e:
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        sys.exit(1)
     if not providers:
         target = f"model '{model}'" if model else "image generation"
         print(json.dumps({
