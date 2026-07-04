@@ -677,15 +677,14 @@ class AgentBridge:
         if not room_id or not sender_id:
             return []
         memory_manager = getattr(agent, "memory_manager", None)
-        if memory_manager is None:
-            return []
         try:
-            from channel.wechat_group.wechat_group_memory import WechatGroupMemoryService
+            from channel.wechat_group.wechat_group_knowledge_service import WechatGroupKnowledgeService
             from channel.wechat_group.wechat_group_memory_tools import create_wechat_group_memory_tools
+            from channel.wechat_group.wechat_group_profile_service import WechatGroupProfileService
 
-            service = WechatGroupMemoryService(memory_manager)
             return create_wechat_group_memory_tools(
-                service=service,
+                knowledge_service=WechatGroupKnowledgeService(),
+                profile_service=WechatGroupProfileService(),
                 room_id=room_id,
                 sender_id=sender_id,
                 bot_sender_id=context.get("wechat_group_bot_sender_id") or "",

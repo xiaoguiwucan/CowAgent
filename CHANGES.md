@@ -2,6 +2,17 @@
 
 ## 2026-07-04
 
+### 修复微信群全局画像列表昵称回退为原始 sender id
+- 修复 `channel/wechat_group/wechat_group_profile_service.py`：当画像主昵称被学习成原始 sender id（如 `@...` / `wxid_...`）时，列表展示会优先使用当前群最近可用昵称；写入与返回阶段同时清洗无效昵称、别名和房间摘要，避免前端继续显示原始 id。
+- 修复 `channel/wechat_group/wechat_group_learner.py`：学习画像时不再盲目采用最后一条样本消息的 `sender_nickname`，改为倒序选择最近一个可用真实昵称，降低被异常 `@...` 标识覆盖的概率。
+- 修复 `channel/wechat_group/wechat_group_archive.py`：群成员列表聚合时，若最新记录是原始 sender id、历史消息中存在真实昵称，会回退到可用昵称，供画像列表按群过滤时直接显示。
+- 新增/扩展 `tests/test_wechat_group_profile_service.py` 与 `tests/test_wechat_group_learner.py`，覆盖“已有真实昵称不被原始 sender id 覆盖”“按群过滤时优先显示群内真实昵称”“learner 优先学习真实昵称”。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_profile_service.WechatGroupProfileServiceTest.test_merge_learned_profile_keeps_existing_real_nickname_when_new_value_is_raw_sender_id tests.test_wechat_group_profile_service.WechatGroupProfileServiceTest.test_list_profiles_prefers_room_member_nickname_over_raw_sender_id -v`
+- `python -m unittest tests.test_wechat_group_learner.WechatGroupLearnerTest.test_learner_prefers_real_nickname_over_raw_sender_id -v`
+- `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_learner tests.test_wechat_group_web -v`
+
 ### 迁移 BaiLongmaPro 聊天历史到 CowAgent 会话库
 - 新增 `agent/chat/history_migration.py`，支持读取 BaiLongmaPro `conversations` 表并转换为 CowAgent `sessions` / `messages` 结构。
 - 新增 `scripts/migrate_legacy_chat_history.py`，支持默认 dry-run、`--apply` 正式写入和写入前 SQLite 备份。
@@ -583,3 +594,28 @@
 - 新增本文件作为项目变更记录入口。
 - 更新 `AGENTS.md`：明确以后每次代码、配置或文档修改都必须同步记录到根目录 `CHANGES.md`。
 - 完善 `AGENTS.md` 中个人微信群通道说明，补充 sidecar 职责、通道管理扫码入口、真实 @ 规则、JSON Lines 协议同步要求、运行数据目录约束和最小验证命令。
+## 2026-07-04
+
+### 微信群全局画像与群记忆全量重构收尾
+
+- 新增 `channel/wechat_group/wechat_group_profile_store.py`、`channel/wechat_group/wechat_group_profile_service.py`、`channel/wechat_group/wechat_group_knowledge_store.py`、`channel/wechat_group/wechat_group_knowledge_service.py`、`channel/wechat_group/wechat_group_learner.py`、`channel/wechat_group/wechat_group_context_service.py`，完成全局画像、群记忆、learner 与 `<wechat-group-knowledge>` 运行时注入主链路。
+- 更新 `channel/wechat_group/wechat_group_archive.py`、`channel/wechat_group/wechat_group_channel.py`、`channel/wechat_group/wechat_group_memory_tools.py`、`bridge/agent_bridge.py`、`channel/web/web_channel.py`、`channel/web/static/js/console.js`、`channel/web/chat.html`，切换到新 Web API、新 UI 和 learner 运行记录模型。
+- 更新 `config.py` 与 `config-template.json`：删除旧 `wechat_group_memory_auto_* / candidate / distill` 配置，改用 `wechat_group_knowledge_enabled`、`wechat_group_profile_enabled`、`wechat_group_profile_context_limit`、`wechat_group_group_memory_context_limit`、`wechat_group_learning_*` 新配置键。
+- 删除 `channel/wechat_group/wechat_group_memory.py`、`channel/wechat_group/wechat_group_memory_distiller.py`、`tests/test_wechat_group_memory.py`、`tests/test_wechat_group_memory_distiller.py`，并将兼容性 embedding provider 获取改为直接使用 `agent.memory.create_default_embedding_provider`。
+- 更新测试：`tests/test_wechat_group_profile_store.py`、`tests/test_wechat_group_profile_service.py`、`tests/test_wechat_group_knowledge_store.py`、`tests/test_wechat_group_knowledge_service.py`、`tests/test_wechat_group_learner.py`、`tests/test_wechat_group_context.py`、`tests/test_wechat_group_channel.py`、`tests/test_wechat_group_memory_tools.py`、`tests/test_wechat_group_agent_bridge_tools.py`、`tests/test_wechat_group_memory_ui.py`、`tests/test_wechat_group_web.py`。
+- 追加 Web 群聊页“全局画像”独立浏览入口：从“永久记忆”中拆出单独导航，支持按群过滤、左侧画像列表、右侧详情摘要与手动修正表单。
+- 追加 `profiles` 接口的 `room_id` 透传与服务层聚合：`WechatGroupProfileService.list_profiles()` 现可按群过滤，并返回 `room_summaries`、`last_seen_at` 供前端展示画像出现范围。
+- 收口“永久记忆”页：移除右侧重复的群友画像编辑区，只保留群记忆、注入预览与 learner 运行；改为提示用户跳转到“全局画像”页面管理画像。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_profile_store tests.test_wechat_group_profile_service tests.test_wechat_group_knowledge_store tests.test_wechat_group_knowledge_service tests.test_wechat_group_learner -v`
+- `python -m unittest tests.test_wechat_group_context tests.test_wechat_group_channel tests.test_wechat_group_memory_tools tests.test_wechat_group_agent_bridge_tools -v`
+- `python -m unittest tests.test_wechat_group_memory_ui tests.test_wechat_group_web tests.test_wechat_group_message -v`
+- `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_web tests.test_wechat_group_memory_ui -v`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_memory_ui -v`
+- `node --check channel/web/static/js/console.js`
+
+未完成：
+
+- 未执行真实微信扫码、入群、真实 @ mention 与跨群隔离的手动链路验证。

@@ -3,6 +3,7 @@
 import ast
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -219,6 +220,35 @@ class WechatGroupArchive:
             ).fetchall()
         return [self._message_row_to_dict(row) for row in rows]
 
+    def get_messages_after_row_id(
+        self,
+        room_id: str,
+        last_row_id: int,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        if not room_id:
+            return []
+        max_limit = min(max(int(limit or 200), 1), 500)
+        try:
+            row_id = int(last_row_id or 0)
+        except Exception:
+            row_id = 0
+        with self._lock, closing(self._connect()) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, message_id, room_id, room_name, sender_id, sender_nickname,
+                       message_type, text, media_path, is_at, metadata, created_at
+                FROM wechat_group_messages
+                WHERE room_id = ?
+                  AND id > ?
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (str(room_id), row_id, max_limit),
+            ).fetchall()
+        return [self._message_row_to_dict(row) for row in rows]
+
     def list_members(
         self,
         room_id: str,
@@ -261,9 +291,40 @@ class WechatGroupArchive:
                     "last_seen_at": int(row["created_at"] or 0),
                     "message_count": 0,
                 }
+            elif _looks_like_raw_sender_name(members[sender_id].get("sender_nickname"), sender_id) and not _looks_like_raw_sender_name(nickname, sender_id):
+                members[sender_id]["sender_nickname"] = nickname
             members[sender_id]["message_count"] += 1
 
         return list(members.values())[:max_limit]
+
+    def find_latest_sender_name(self, sender_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
+        sender_text = str(sender_id or "").strip()
+        if not sender_text:
+            return None
+        with self._lock, closing(self._connect()) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT room_id, room_name, sender_nickname, created_at
+                FROM wechat_group_messages
+                WHERE sender_id = ?
+                  AND COALESCE(sender_nickname, '') != ''
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (sender_text, min(max(int(limit or 100), 1), 500)),
+            ).fetchall()
+        for row in rows:
+            nickname = str(row["sender_nickname"] or "").strip()
+            if _looks_like_raw_sender_name(nickname, sender_text):
+                continue
+            return {
+                "room_id": str(row["room_id"] or "").strip(),
+                "room_name": str(row["room_name"] or "").strip(),
+                "sender_nickname": nickname,
+                "created_at": int(row["created_at"] or 0),
+            }
+        return None
 
     def create_distill_run(
         self,
@@ -627,3 +688,21 @@ def _loads_json(value: Any, default: Any) -> Any:
         return json.loads(value)
     except Exception:
         return default
+
+
+def _looks_like_raw_sender_name(value: Any, sender_id: str = "") -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    normalized = text.lstrip("@")
+    sender_text = str(sender_id or "").strip()
+    sender_normalized = sender_text.lstrip("@")
+    if sender_text and text == sender_text:
+        return True
+    if sender_normalized and normalized == sender_normalized:
+        return True
+    if normalized.startswith("wxid_"):
+        return True
+    if text.startswith("@") and re.fullmatch(r"[0-9A-Za-z_-]{12,}", normalized):
+        return True
+    return False

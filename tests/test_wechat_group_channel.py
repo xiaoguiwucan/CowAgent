@@ -1025,7 +1025,7 @@ class WechatGroupChannelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             set_global_memory_config(MemoryConfig(workspace_root=tmpdir))
             with patch(
-                "channel.wechat_group.wechat_group_memory.create_default_embedding_provider",
+                "agent.memory.create_default_embedding_provider",
                 return_value=provider,
                 create=True,
             ):

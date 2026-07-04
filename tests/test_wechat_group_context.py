@@ -8,8 +8,13 @@ from bridge.context import ContextType
 from channel.wechat_group.protocol import parse_sidecar_event
 from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_channel import WechatGroupChannel
+from channel.wechat_group.wechat_group_context_service import WechatGroupContextService
 from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
+from channel.wechat_group.wechat_group_knowledge_service import WechatGroupKnowledgeService
+from channel.wechat_group.wechat_group_knowledge_store import WechatGroupKnowledgeStore
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
+from channel.wechat_group.wechat_group_profile_service import WechatGroupProfileService
+from channel.wechat_group.wechat_group_profile_store import WechatGroupProfileStore
 from config import conf
 
 
@@ -25,9 +30,15 @@ class WechatGroupRecentContextTest(unittest.TestCase):
             "wechat_group_persona_preset_id": conf().get("wechat_group_persona_preset_id"),
             "wechat_group_memory_enabled": conf().get("wechat_group_memory_enabled"),
             "wechat_group_member_memory_enabled": conf().get("wechat_group_member_memory_enabled"),
+            "wechat_group_knowledge_enabled": conf().get("wechat_group_knowledge_enabled"),
+            "wechat_group_profile_enabled": conf().get("wechat_group_profile_enabled"),
+            "wechat_group_profile_context_limit": conf().get("wechat_group_profile_context_limit"),
+            "wechat_group_group_memory_context_limit": conf().get("wechat_group_group_memory_context_limit"),
         }
         self._tmp = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self._tmp.name, "wechat_group_archive.db")
+        self.profile_db_path = os.path.join(self._tmp.name, "profiles.db")
+        self.knowledge_db_path = os.path.join(self._tmp.name, "knowledge.db")
 
     def tearDown(self):
         for key, value in self._original_config.items():
@@ -236,14 +247,52 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         rows = archive.get_recent_messages("room@@abc", limit=10, minutes=60, now=1010)
         self.assertEqual(["msg-prev", "msg-current"], [row["message_id"] for row in rows])
 
+    def test_context_service_builds_wechat_group_knowledge_block(self):
+        profile_service = WechatGroupProfileService(WechatGroupProfileStore(self.profile_db_path))
+        knowledge_service = WechatGroupKnowledgeService(WechatGroupKnowledgeStore(self.knowledge_db_path))
+        knowledge_service.add_group_memory("room@@abc", "发布窗口是周五晚上", ["m1"], "讨论结果", "manual")
+        profile_service.upsert_manual_profile(
+            sender_id="wxid_alice",
+            primary_nickname="Alice",
+            speak_style="直接给结论",
+            interests=["发布"],
+            common_words=["安排"],
+            aliases=[],
+        )
+        profile_service.upsert_manual_profile(
+            sender_id="wxid_bob",
+            primary_nickname="Bob",
+            speak_style="喜欢列清单",
+            interests=["测试"],
+            common_words=["收到"],
+            aliases=[],
+        )
+        service = WechatGroupContextService(
+            profile_service=profile_service,
+            knowledge_service=knowledge_service,
+        )
+
+        preview = service.preview_context(
+            room_id="room@@abc",
+            sender_id="wxid_alice",
+            query="总结一下",
+            mentioned_sender_ids=["wxid_bob"],
+        )
+
+        self.assertIn("<wechat-group-knowledge>", preview["content"])
+        self.assertIn("[group_memory]", preview["content"])
+        self.assertIn('[speaker_profile sender_id="wxid_alice"]', preview["content"])
+        self.assertIn('[mentioned_profile sender_id="wxid_bob"]', preview["content"])
+
     def test_channel_injects_memory_after_recent_context_before_request(self):
-        class FakeMemoryService:
-            def preview_prompt_memories_sync(self, **kwargs):
+        class FakeContextService:
+            def preview_context(self, **kwargs):
                 return {
                     "content": (
-                        "<wechat-group-memory>\n"
+                        "<wechat-group-knowledge>\n"
                         "[group_memory]\n发布窗口是周五晚上\n"
-                        "</wechat-group-memory>"
+                        '[speaker_profile sender_id="wxid_alice"]\n直接给结论\n'
+                        "</wechat-group-knowledge>"
                     ),
                     "filtered_reasons": [],
                 }
@@ -251,8 +300,8 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         conf()["wechat_group_room_ids"] = ["room@@abc"]
         conf()["wechat_group_record_messages"] = True
         conf()["wechat_group_recent_context_enabled"] = True
-        conf()["wechat_group_memory_enabled"] = True
-        conf()["wechat_group_member_memory_enabled"] = True
+        conf()["wechat_group_knowledge_enabled"] = True
+        conf()["wechat_group_profile_enabled"] = True
         archive = WechatGroupArchive(self.db_path)
         archive.record_message(
             message_id="msg-prev",
@@ -264,7 +313,7 @@ class WechatGroupRecentContextTest(unittest.TestCase):
             text="刚才讨论了发布窗口",
             created_at=1000,
         )
-        channel = WechatGroupChannel(client=Mock(), archive=archive, memory_service=FakeMemoryService())
+        channel = WechatGroupChannel(client=Mock(), archive=archive, memory_service=FakeContextService())
         msg = WechatGroupMessage(parse_sidecar_event({
             "type": "message",
             "message_id": "msg-current",
@@ -283,21 +332,21 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
 
         recent_index = context.content.index("<recent-wechat-group-transcript>")
-        memory_index = context.content.index("<wechat-group-memory>")
+        memory_index = context.content.index("<wechat-group-knowledge>")
         request_index = context.content.rindex("总结一下")
         self.assertLess(recent_index, memory_index)
         self.assertLess(memory_index, request_index)
         self.assertIn("发布窗口是周五晚上", context.content)
 
     def test_channel_omits_memory_block_when_memory_config_disabled(self):
-        class FakeMemoryService:
-            def preview_prompt_memories_sync(self, **kwargs):
-                raise AssertionError("memory service should not be called")
+        class FakeContextService:
+            def preview_context(self, **kwargs):
+                raise AssertionError("context service should not be called")
 
         conf()["wechat_group_room_ids"] = ["room@@abc"]
-        conf()["wechat_group_memory_enabled"] = False
-        conf()["wechat_group_member_memory_enabled"] = False
-        channel = WechatGroupChannel(client=Mock(), archive=WechatGroupArchive(self.db_path), memory_service=FakeMemoryService())
+        conf()["wechat_group_knowledge_enabled"] = False
+        conf()["wechat_group_profile_enabled"] = False
+        channel = WechatGroupChannel(client=Mock(), archive=WechatGroupArchive(self.db_path), memory_service=FakeContextService())
         msg = WechatGroupMessage(parse_sidecar_event({
             "type": "message",
             "message_id": "msg-current",
@@ -315,7 +364,7 @@ class WechatGroupRecentContextTest(unittest.TestCase):
 
         context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
 
-        self.assertNotIn("<wechat-group-memory>", context.content)
+        self.assertNotIn("<wechat-group-knowledge>", context.content)
 
     def test_channel_sets_wechat_group_memory_tool_metadata(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]

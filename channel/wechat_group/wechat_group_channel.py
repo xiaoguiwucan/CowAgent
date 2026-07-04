@@ -11,10 +11,7 @@ from channel.wechat_group.protocol import SidecarEvent, SidecarEventType
 from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_client import WechatGroupClient
 from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
-from channel.wechat_group.wechat_group_memory import (
-    WechatGroupMemoryService,
-    create_wechat_group_memory_service,
-)
+from channel.wechat_group.wechat_group_context_service import WechatGroupContextService
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
 from channel.wechat_group.wechat_group_persona import (
     build_wechat_group_persona_block,
@@ -563,25 +560,43 @@ class WechatGroupChannel(ChatChannel):
             return ""
 
     def _build_memory_context_block(self, msg: WechatGroupMessage, query: str) -> str:
-        if not conf().get("wechat_group_memory_enabled", True) and not conf().get("wechat_group_member_memory_enabled", True):
+        knowledge_enabled = bool(conf().get(
+            "wechat_group_knowledge_enabled",
+            conf().get("wechat_group_memory_enabled", True),
+        ))
+        profile_enabled = bool(conf().get(
+            "wechat_group_profile_enabled",
+            conf().get("wechat_group_member_memory_enabled", True),
+        ))
+        if not knowledge_enabled and not profile_enabled:
             return ""
         try:
             service = self._get_memory_service()
-            preview = service.preview_prompt_memories_sync(
+            preview = service.preview_context(
                 room_id=msg.other_user_id,
                 sender_id=msg.actual_user_id,
                 query=query,
                 mentioned_sender_ids=getattr(msg, "at_list", []) or [],
                 bot_sender_id=msg.to_user_id,
             )
-            return (preview or {}).get("content") or ""
+            content = (preview or {}).get("content")
+            return content if isinstance(content, str) else ""
         except Exception as e:
             logger.warning("[wechat_group] failed to build memory context: {}".format(e))
             return ""
 
     def _get_memory_service(self):
         if self.memory_service is None:
-            self.memory_service = create_wechat_group_memory_service()
+            self.memory_service = WechatGroupContextService()
+            try:
+                from agent.memory.manager import MemoryManager
+                from agent.memory import create_default_embedding_provider
+
+                self.memory_service.memory_manager = MemoryManager(
+                    embedding_provider=create_default_embedding_provider()
+                )
+            except Exception:
+                self.memory_service.memory_manager = None
         return self.memory_service
 
     @staticmethod
