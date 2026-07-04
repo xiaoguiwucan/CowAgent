@@ -39,6 +39,7 @@ ref/
 .cursor/
 local/
 node_modules/
+.worktrees/
 
 # cow cli
 dist/

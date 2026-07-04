@@ -1,5 +1,22 @@
 # CHANGES
 
+## 2026-07-04
+
+### 迁移 BaiLongmaPro 聊天历史到 CowAgent 会话库
+- 新增 `agent/chat/history_migration.py`，支持读取 BaiLongmaPro `conversations` 表并转换为 CowAgent `sessions` / `messages` 结构。
+- 新增 `scripts/migrate_legacy_chat_history.py`，支持默认 dry-run、`--apply` 正式写入和写入前 SQLite 备份。
+- 新增 `tests/test_chat_history_migration.py`，覆盖来源渠道与外部对象聚合、Web 归档会话写入、原始时间戳保留、纯 assistant 源会话占位、重复导入阻断和脚本独立运行。
+- 新增 `plans/chat_history_migration_20260704.md`，记录迁移范围、实际导入结果、验证命令和剩余手动验证项。
+- 已执行真实迁移：`D:\JiangShuai\SourceCode\BaiLongmaPro\data\jarvis.db` 中 `41` 条旧聊天记录导入到 `C:\Users\clancy\cow\memory\long-term\index.db`，生成 `5` 个 Web 归档会话和 `43` 条目标消息。
+- 正式写入前已创建备份：`C:\Users\clancy\cow\memory\long-term\index.migration-backup-20260704090946.db`。
+
+验证记录：
+- `python -m unittest tests.test_chat_history_migration -v`
+- `python -m py_compile agent\chat\history_migration.py scripts\migrate_legacy_chat_history.py tests\test_chat_history_migration.py`
+- `python scripts\migrate_legacy_chat_history.py --source-db 'D:\JiangShuai\SourceCode\BaiLongmaPro\data\jarvis.db' --target-db 'C:\Users\clancy\cow\memory\long-term\index.db'`
+- `python scripts\migrate_legacy_chat_history.py --source-db 'D:\JiangShuai\SourceCode\BaiLongmaPro\data\jarvis.db' --target-db 'C:\Users\clancy\cow\memory\long-term\index.db' --apply`
+- SQLite 核对新增迁移会话 `5` 个、目标消息 `43` 条。
+
 ## 2026-07-03
 
 ### 修复缺失生图前缀配置时不触发生图
