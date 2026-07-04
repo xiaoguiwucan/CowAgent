@@ -2,6 +2,7 @@
 
 import re
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 from bridge.context import ContextType
@@ -12,12 +13,16 @@ from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 from channel.wechat_group.wechat_group_client import WechatGroupClient
 from channel.wechat_group.wechat_group_context import build_wechat_group_recent_context_block
 from channel.wechat_group.wechat_group_context_service import WechatGroupContextService
+from channel.wechat_group.wechat_group_emotion_service import WechatGroupEmotionService
 from channel.wechat_group.wechat_group_message import WechatGroupMessage
 from channel.wechat_group.wechat_group_persona import (
     build_wechat_group_persona_block,
     get_wechat_group_persona_config,
     should_skip_persona_for_message,
 )
+from channel.wechat_group.wechat_group_style_service import WechatGroupStyleService
+from channel.wechat_group.wechat_group_sticker_service import WechatGroupStickerService
+from channel.wechat_group.wechat_group_topic_service import WechatGroupTopicService
 from channel.wechat_group.wechat_group_free_reply import (
     WechatGroupFreeReplyStateStore,
     evaluate_wechat_group_free_reply,
@@ -83,6 +88,33 @@ def _is_archived_image_message(item) -> bool:
         and str(item.get("media_path") or "").strip()
     )
 
+def _normalize_quote_message_type(value) -> str:
+    raw = str(value or "").strip().lower()
+    if raw in ("1", "text", "7"):
+        return "text"
+    if raw in ("3", "image"):
+        return "image"
+    if raw in ("43", "video"):
+        return "video"
+    if raw in ("49", "app", "link", "forward"):
+        return "app"
+    return raw
+
+
+def _format_multimodal_sender(name, sender_id) -> str:
+    display_name = str(name or "").strip()
+    display_id = str(sender_id or "").strip()
+    if display_name and display_id and display_name != display_id:
+        return "{} ({})".format(display_name, display_id)
+    return display_name or display_id
+
+
+def _trim_multimodal_value(value, limit: int) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return "{}...".format(text[: max(int(limit or 0) - 3, 0)])
+
 
 class WechatGroupChannel(ChatChannel):
     channel_type = const.WECHAT_GROUP
@@ -95,13 +127,26 @@ class WechatGroupChannel(ChatChannel):
     STATUS_CONNECTED = "connected"
     STATUS_ERROR = "error"
 
-    def __init__(self, client=None, archive=None, memory_service=None):
+    def __init__(
+        self,
+        client=None,
+        archive=None,
+        memory_service=None,
+        topic_service=None,
+        emotion_service=None,
+        style_service=None,
+        sticker_service=None,
+    ):
         super().__init__()
         self.client = client or WechatGroupClient(event_handler=self.consume_sidecar_event)
         if hasattr(self.client, "event_handler"):
             self.client.event_handler = self.consume_sidecar_event
         self.archive = archive or WechatGroupArchive()
         self.memory_service = memory_service
+        self.topic_service = topic_service
+        self.emotion_service = emotion_service
+        self.style_service = style_service
+        self.sticker_service = sticker_service
         self.status = self.STATUS_IDLE
         self.qr_code = ""
         self.rooms = []
@@ -173,6 +218,7 @@ class WechatGroupChannel(ChatChannel):
 
     def handle_text(self, msg: WechatGroupMessage):
         self._log_inbound_message(msg)
+        self._observe_emotion(msg)
         direct_reply = getattr(msg, "is_at", False) is True or getattr(msg, "is_quote_self", False) is True
         if msg.ctype == ContextType.IMAGE:
             if not direct_reply:
@@ -191,6 +237,20 @@ class WechatGroupChannel(ChatChannel):
                 context["wechat_group_image_understanding_triggered"] = True
                 self.produce(context)
             return
+        if str(getattr(msg, "message_type", "") or "").lower() == "video" and direct_reply:
+            content = self._build_video_understanding_request_content(msg)
+            if content:
+                context = self._compose_context(
+                    ContextType.TEXT,
+                    content,
+                    isgroup=True,
+                    msg=msg,
+                    wechat_group_force_reply=True,
+                )
+                if context:
+                    context["wechat_group_video_understanding_triggered"] = True
+                    self.produce(context)
+                return
         if msg.ctype == ContextType.TEXT and not direct_reply:
             should_enqueue, decision = self._should_enqueue_free_reply_message(msg)
             if not should_enqueue:
@@ -212,6 +272,7 @@ class WechatGroupChannel(ChatChannel):
                     isgroup=True,
                     msg=msg,
                     wechat_group_force_reply=True,
+                    wechat_group_skip_multimodal_quote=True,
                 )
                 if context:
                     context["wechat_group_image_understanding_triggered"] = True
@@ -373,6 +434,16 @@ class WechatGroupChannel(ChatChannel):
             self._image_understanding_cache_seconds = seconds
         return self._image_understanding_cache
 
+    @staticmethod
+    def _build_video_understanding_request_content(msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_video_understanding_enabled", False):
+            return ""
+        video_path = str(getattr(msg, "media_path", "") or getattr(msg, "content", "") or "").strip()
+        if not video_path:
+            return ""
+        user_text = str(getattr(msg, "text", "") or "").strip()
+        return user_text or "请结合上面的多模态上下文理解这个视频并给出简短回复。"
+
     def _generate_reply(self, context, reply=Reply()):
         if context and context.type == ContextType.IMAGE_CREATE:
             blocked = self._check_image_create_limit(context)
@@ -476,10 +547,29 @@ class WechatGroupChannel(ChatChannel):
         if recent_block:
             blocks.append(recent_block)
             context["wechat_group_recent_context_injected"] = True
+        topic_block = self._build_topic_context_block(msg)
+        if topic_block:
+            blocks.append(topic_block)
+            context["wechat_group_topic_injected"] = True
         memory_block = self._build_memory_context_block(msg, context.content)
         if memory_block:
             blocks.append(memory_block)
             context["wechat_group_memory_injected"] = True
+        style_block = self._build_style_context_block(msg)
+        if style_block:
+            blocks.append(style_block)
+            context["wechat_group_style_injected"] = True
+        emotion_block = self._build_emotion_context_block(msg)
+        if emotion_block:
+            blocks.append(emotion_block)
+            context["wechat_group_emotion_injected"] = True
+        multimodal_block = self._build_multimodal_context_block(
+            msg,
+            include_quote=not context.get("wechat_group_skip_multimodal_quote", False),
+        )
+        if multimodal_block:
+            blocks.append(multimodal_block)
+            context["wechat_group_multimodal_injected"] = True
         if blocks:
             context.content = "{}\n\n{}".format("\n\n".join(blocks), context.content).strip()
         return context
@@ -495,20 +585,24 @@ class WechatGroupChannel(ChatChannel):
             logger.warning("[wechat_group] missing receiver, skip send")
             return
         if reply.type in (ReplyType.TEXT, ReplyType.INFO, ReplyType.ERROR):
+            self._simulate_typing_delay_if_needed(reply)
             mention_ids = self._build_reply_mentions(context)
             self.client.send_text(receiver, reply.content, mention_ids=mention_ids)
             self._record_assistant_reply(context, reply, mention_ids)
         elif reply.type in (ReplyType.IMAGE, ReplyType.IMAGE_URL):
-            self.client.send_image(receiver, reply.content)
+            self.client.send_image(receiver, self._normalize_sidecar_media_path(reply.content))
             self._record_assistant_reply(context, reply, [])
         elif reply.type == ReplyType.VOICE:
-            self.client.send_audio(receiver, reply.content)
+            self.client.send_audio(receiver, self._normalize_sidecar_media_path(reply.content))
             self._record_assistant_reply(context, reply, [])
         elif reply.type in (ReplyType.FILE, ReplyType.VIDEO):
-            self.client.send_file(receiver, reply.content)
+            self.client.send_file(receiver, self._normalize_sidecar_media_path(reply.content))
             self._record_assistant_reply(context, reply, [])
         else:
             logger.warning("[wechat_group] unsupported reply type: {}".format(reply.type))
+            return
+        self._record_emotion_reply(context)
+        self._record_sticker_reply(reply, context)
 
     def _record_inbound_message(self, msg: WechatGroupMessage):
         if not conf().get("wechat_group_record_messages", True):
@@ -524,8 +618,17 @@ class WechatGroupChannel(ChatChannel):
                 text=msg.text,
                 media_path=msg.media_path,
                 is_at=msg.is_at,
+                metadata={
+                    "at_list": getattr(msg, "at_list", []) or [],
+                    "quote": getattr(msg, "quote", {}) or {},
+                    "forward": getattr(msg, "forward", {}) or {},
+                    "raw_app_type": getattr(msg, "raw_app_type", "") or "",
+                    "is_quote_self": bool(getattr(msg, "is_quote_self", False)),
+                    "self_display_name": getattr(msg, "self_display_name", "") or "",
+                },
                 created_at=msg.create_time,
             )
+            self._collect_sticker_from_message(msg)
         except Exception as e:
             logger.warning("[wechat_group] failed to archive inbound message: {}".format(e))
 
@@ -559,6 +662,19 @@ class WechatGroupChannel(ChatChannel):
             logger.warning("[wechat_group] failed to build recent context: {}".format(e))
             return ""
 
+    def _build_topic_context_block(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_topic_enabled", True):
+            return ""
+        try:
+            return self._get_topic_service().build_prompt_block_from_archive(
+                self.archive,
+                msg.other_user_id,
+                now=msg.create_time,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to build topic context: {}".format(e))
+            return ""
+
     def _build_memory_context_block(self, msg: WechatGroupMessage, query: str) -> str:
         knowledge_enabled = bool(conf().get(
             "wechat_group_knowledge_enabled",
@@ -585,6 +701,141 @@ class WechatGroupChannel(ChatChannel):
             logger.warning("[wechat_group] failed to build memory context: {}".format(e))
             return ""
 
+    def _build_emotion_context_block(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_emotion_enabled", True):
+            return ""
+        try:
+            return self._get_emotion_service().build_prompt_block(msg.other_user_id, now=msg.create_time)
+        except Exception as e:
+            logger.warning("[wechat_group] failed to build emotion context: {}".format(e))
+            return ""
+
+    def _build_style_context_block(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_style_enabled", True):
+            return ""
+        try:
+            return self._get_style_service().build_prompt_block_from_archive(
+                self.archive,
+                msg.other_user_id,
+                now=msg.create_time,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to build style context: {}".format(e))
+            return ""
+
+    def _build_multimodal_context_block(self, msg: WechatGroupMessage, include_quote: bool = True) -> str:
+        sections = []
+        if include_quote:
+            quote_section = self._build_quote_multimodal_section(msg)
+            if quote_section:
+                sections.append(quote_section)
+        forward_section = self._build_forward_multimodal_section(msg)
+        if forward_section:
+            sections.append(forward_section)
+        video_section = self._build_video_multimodal_section(msg)
+        if video_section:
+            sections.append(video_section)
+        if not sections:
+            return ""
+        return "<wechat-group-multimodal>\n{}\n</wechat-group-multimodal>".format("\n\n".join(sections))
+
+    def _build_quote_multimodal_section(self, msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_quote_context_enabled", True):
+            return ""
+        quote = getattr(msg, "quote", {}) or {}
+        if not isinstance(quote, dict) or not quote:
+            return ""
+        quoted_item = None
+        quote_message_id = str(quote.get("message_id") or "").strip()
+        if quote_message_id:
+            getter = getattr(self.archive, "get_message_by_id", None)
+            if getter:
+                try:
+                    quoted_item = getter(msg.other_user_id, quote_message_id)
+                except Exception as e:
+                    logger.debug("[wechat_group] failed to load quote context: {}".format(e))
+        message_type = ""
+        sender_id = ""
+        sender_name = ""
+        content = ""
+        media_path = ""
+        if quoted_item:
+            message_type = str(quoted_item.get("message_type") or "").strip()
+            sender_id = str(quoted_item.get("sender_id") or "").strip()
+            sender_name = str(quoted_item.get("sender_nickname") or "").strip()
+            content = str(quoted_item.get("text") or "").strip()
+            media_path = str(quoted_item.get("media_path") or "").strip()
+        else:
+            message_type = _normalize_quote_message_type(quote.get("type"))
+            sender_id = str(quote.get("sender_id") or "").strip()
+            sender_name = str(quote.get("sender_name") or "").strip()
+            content = str(quote.get("content") or "").strip()
+        lines = ["[quoted_message]"]
+        if quote_message_id:
+            lines.append("message_id: {}".format(quote_message_id))
+        sender = _format_multimodal_sender(sender_name, sender_id)
+        if sender:
+            lines.append("sender: {}".format(sender))
+        if message_type:
+            lines.append("message_type: {}".format(message_type))
+        if content:
+            lines.append("content: {}".format(_trim_multimodal_value(content, 320)))
+        if media_path:
+            lines.append("media_path: {}".format(media_path))
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    @staticmethod
+    def _build_forward_multimodal_section(msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_forward_preview_enabled", True):
+            return ""
+        forward = getattr(msg, "forward", {}) or {}
+        if not isinstance(forward, dict) or not forward:
+            return ""
+        title = str(forward.get("title") or "").strip()
+        description = str(forward.get("description") or "").strip()
+        source = str(forward.get("source") or "").strip()
+        record_item = str(forward.get("record_item") or "").strip()
+        record_count = int(forward.get("record_count_hint") or 0)
+        raw_app_type = str(getattr(msg, "raw_app_type", "") or "").strip()
+        if not any([title, description, source, record_item, record_count, raw_app_type]):
+            return ""
+        lines = ["[forward_preview]"]
+        if raw_app_type:
+            lines.append("app_type: {}".format(raw_app_type))
+        if title:
+            lines.append("title: {}".format(_trim_multimodal_value(title, 160)))
+        if description:
+            lines.append("description: {}".format(_trim_multimodal_value(description, 320)))
+        if source:
+            lines.append("source: {}".format(_trim_multimodal_value(source, 120)))
+        if record_count > 0:
+            lines.append("record_count_hint: {}".format(record_count))
+        if record_item and not description:
+            lines.append("record_item: {}".format(_trim_multimodal_value(record_item, 320)))
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_video_multimodal_section(msg: WechatGroupMessage) -> str:
+        if not conf().get("wechat_group_video_understanding_enabled", False):
+            return ""
+        if str(getattr(msg, "message_type", "") or "").lower() != "video":
+            return ""
+        video_path = str(getattr(msg, "media_path", "") or getattr(msg, "content", "") or "").strip()
+        if not video_path:
+            return ""
+        lines = ["[video_message]"]
+        sender = _format_multimodal_sender(
+            getattr(msg, "actual_user_nickname", ""),
+            getattr(msg, "actual_user_id", ""),
+        )
+        if sender:
+            lines.append("sender: {}".format(sender))
+        lines.append("video_file: {}".format(video_path))
+        text = str(getattr(msg, "text", "") or "").strip()
+        if text:
+            lines.append("caption: {}".format(_trim_multimodal_value(text, 200)))
+        return "\n".join(lines)
+
     def _get_memory_service(self):
         if self.memory_service is None:
             self.memory_service = WechatGroupContextService()
@@ -598,6 +849,98 @@ class WechatGroupChannel(ChatChannel):
             except Exception:
                 self.memory_service.memory_manager = None
         return self.memory_service
+
+    def _get_topic_service(self):
+        if self.topic_service is None:
+            self.topic_service = WechatGroupTopicService()
+        return self.topic_service
+
+    def _get_emotion_service(self):
+        if self.emotion_service is None:
+            self.emotion_service = WechatGroupEmotionService()
+        return self.emotion_service
+
+    def _get_style_service(self):
+        if self.style_service is None:
+            self.style_service = WechatGroupStyleService()
+        return self.style_service
+
+    def _get_sticker_service(self):
+        if self.sticker_service is None:
+            self.sticker_service = WechatGroupStickerService()
+        return self.sticker_service
+
+    def _observe_emotion(self, msg: WechatGroupMessage):
+        if not conf().get("wechat_group_emotion_enabled", True):
+            return
+        text = getattr(msg, "text", None) or getattr(msg, "content", "")
+        if not str(text or "").strip():
+            return
+        try:
+            self._get_emotion_service().observe_message(
+                room_id=getattr(msg, "other_user_id", ""),
+                text=text,
+                is_at=bool(getattr(msg, "is_at", False)),
+                now=getattr(msg, "create_time", None),
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to observe emotion: {}".format(e))
+
+    def _record_emotion_reply(self, context):
+        if not conf().get("wechat_group_emotion_enabled", True):
+            return
+        room_id = context.get("receiver") or context.get("wechat_group_room_id") or ""
+        if not room_id:
+            return
+        msg = context.get("msg")
+        try:
+            self._get_emotion_service().mark_replied(
+                room_id=room_id,
+                now=getattr(msg, "create_time", None) if msg else None,
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to record emotion reply: {}".format(e))
+
+    def _collect_sticker_from_message(self, msg: WechatGroupMessage):
+        if not conf().get("wechat_group_sticker_enabled", True):
+            return
+        if not conf().get("wechat_group_sticker_auto_collect_enabled", True):
+            return
+        if str(getattr(msg, "message_type", "") or "").lower() != "image":
+            return
+        media_path = str(getattr(msg, "media_path", "") or "").strip()
+        if not media_path:
+            return
+        try:
+            description = getattr(msg, "text", "") or Path(media_path).stem
+            self._get_sticker_service().collect_from_message(
+                room_id=getattr(msg, "other_user_id", ""),
+                media_path=media_path,
+                source_message_id=getattr(msg, "msg_id", ""),
+                description=description,
+                now=getattr(msg, "create_time", None),
+            )
+        except Exception as e:
+            logger.warning("[wechat_group] failed to collect sticker: {}".format(e))
+
+    def _record_sticker_reply(self, reply, context):
+        if not conf().get("wechat_group_sticker_enabled", True):
+            return
+        sticker_id = str(getattr(reply, "wechat_group_sticker_id", "") or "").strip()
+        room_id = str(context.get("receiver") or context.get("wechat_group_room_id") or "").strip()
+        if not sticker_id or not room_id:
+            return
+        try:
+            self._get_sticker_service().record_sent(room_id, sticker_id)
+        except Exception as e:
+            logger.warning("[wechat_group] failed to record sticker reply: {}".format(e))
+
+    @staticmethod
+    def _normalize_sidecar_media_path(value):
+        text = str(value or "").strip()
+        if text.startswith("file://"):
+            return text[7:]
+        return text
 
     @staticmethod
     def _is_selected_room(msg: WechatGroupMessage) -> bool:
@@ -618,6 +961,21 @@ class WechatGroupChannel(ChatChannel):
             return []
         actual_user_id = getattr(msg, "actual_user_id", None)
         return [actual_user_id] if actual_user_id else []
+
+    @staticmethod
+    def _simulate_typing_delay_if_needed(reply):
+        if not conf().get("wechat_group_free_reply_typing_delay_enabled", True):
+            return
+        content = str(getattr(reply, "content", "") or "")
+        if not content:
+            return
+        try:
+            chars_per_second = max(int(conf().get("wechat_group_free_reply_typing_chars_per_second", 7) or 7), 1)
+        except Exception:
+            chars_per_second = 7
+        delay_seconds = min(len(content) / float(chars_per_second), 8.0)
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
 
     def _create_free_reply_worker(self):
         cfg = get_wechat_group_free_reply_config()
@@ -679,6 +1037,15 @@ class WechatGroupChannel(ChatChannel):
                 bot_names=[getattr(msg, "self_display_name", ""), getattr(msg, "to_user_nickname", ""), self.name],
                 message_type=getattr(msg, "message_type", None),
             )
+            if conf().get("wechat_group_emotion_enabled", True):
+                try:
+                    decision = self._get_emotion_service().adjust_free_reply_decision(
+                        decision,
+                        room_id=msg.other_user_id,
+                        now=getattr(msg, "create_time", None) or time.time(),
+                    )
+                except Exception as e:
+                    logger.warning("[wechat_group] failed to adjust free reply by emotion: {}".format(e))
         self.free_reply_state.remember_decision(decision)
         if not decision.get("triggered"):
             self._log_free_reply_decision(decision, "skipped")

@@ -1265,6 +1265,10 @@ class WebChannel(ChatChannel):
             '/api/weixin/qrlogin', 'WeixinQrHandler',
             '/api/wechat_group/qrlogin', 'WechatGroupQrHandler',
             '/api/wechat-group/memories/(.*)', 'WechatGroupMemoriesHandler',
+            '/api/wechat-group/topics/(.*)', 'WechatGroupTopicsHandler',
+            '/api/wechat-group/styles/(.*)', 'WechatGroupStylesHandler',
+            '/api/wechat-group/emotion/(.*)', 'WechatGroupEmotionHandler',
+            '/api/wechat-group/stickers/(.*)', 'WechatGroupStickersHandler',
             '/api/feishu/register', 'FeishuRegisterHandler',
             '/api/tools', 'ToolsHandler',
             '/api/skills', 'SkillsHandler',
@@ -3763,6 +3767,24 @@ class ChannelsHandler:
             value = default
         return min(max(value, low), high)
 
+    @staticmethod
+    def _normalize_wechat_group_time_rules(value) -> list:
+        if not isinstance(value, list):
+            return []
+        normalized = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            rule = dict(item)
+            if "start" in rule:
+                rule["start"] = str(rule.get("start") or "").strip()
+            if "end" in rule:
+                rule["end"] = str(rule.get("end") or "").strip()
+            if "days" in rule:
+                rule["days"] = [day.lower() for day in ChannelsHandler._normalize_string_list(rule.get("days"))]
+            normalized.append(rule)
+        return normalized
+
     @classmethod
     def _wechat_group_extra(cls) -> dict:
         running_ch = cls._get_running_wechat_group_channel()
@@ -3818,6 +3840,44 @@ class ChannelsHandler:
                 ),
                 "cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes", 30),
                 "create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit", 5),
+                "video_understanding_enabled": conf().get("wechat_group_video_understanding_enabled", False),
+                "forward_preview_enabled": conf().get("wechat_group_forward_preview_enabled", True),
+                "quote_context_enabled": conf().get("wechat_group_quote_context_enabled", True),
+            },
+            "topic": {
+                "enabled": conf().get("wechat_group_topic_enabled", True),
+                "recent_message_limit": conf().get("wechat_group_topic_recent_message_limit", 30),
+                "active_count_limit": conf().get("wechat_group_topic_active_count_limit", 3),
+                "summary_refresh_message_gap": conf().get("wechat_group_topic_summary_refresh_message_gap", 8),
+                "context_limit": conf().get("wechat_group_topic_context_limit", 2),
+                "archive_recall_limit": conf().get("wechat_group_topic_archive_recall_limit", 2),
+            },
+            "style": {
+                "enabled": conf().get("wechat_group_style_enabled", True),
+                "learning_enabled": conf().get("wechat_group_style_learning_enabled", True),
+                "context_limit": conf().get("wechat_group_style_context_limit", 3),
+                "candidate_min_evidence": conf().get("wechat_group_style_candidate_min_evidence", 2),
+                "learning_batch_limit": conf().get("wechat_group_style_learning_batch_limit", 100),
+                "auto_apply_enabled": conf().get("wechat_group_style_auto_apply_enabled", False),
+            },
+            "emotion": {
+                "enabled": conf().get("wechat_group_emotion_enabled", True),
+                "decay_minutes": conf().get("wechat_group_emotion_decay_minutes", 10),
+                "default_valence": conf().get("wechat_group_emotion_default_valence", 0),
+                "default_energy": conf().get("wechat_group_emotion_default_energy", 0.5),
+                "default_sociability": conf().get("wechat_group_emotion_default_sociability", 0.45),
+                "free_reply_time_rules_enabled": conf().get("wechat_group_free_reply_time_rules_enabled", False),
+                "free_reply_time_rules": conf().get("wechat_group_free_reply_time_rules", []) or [],
+                "free_reply_typing_delay_enabled": conf().get("wechat_group_free_reply_typing_delay_enabled", True),
+                "free_reply_typing_chars_per_second": conf().get("wechat_group_free_reply_typing_chars_per_second", 7),
+            },
+            "sticker": {
+                "enabled": conf().get("wechat_group_sticker_enabled", True),
+                "auto_collect_enabled": conf().get("wechat_group_sticker_auto_collect_enabled", True),
+                "context_limit": conf().get("wechat_group_sticker_context_limit", 5),
+                "max_size_mb": conf().get("wechat_group_sticker_max_size_mb", 2),
+                "daily_send_limit": conf().get("wechat_group_sticker_daily_send_limit", 20),
+                "storage_dir": conf().get("wechat_group_sticker_storage_dir", ""),
             },
             "free_reply": free_reply,
         }
@@ -3847,6 +3907,36 @@ class ChannelsHandler:
             "wechat_group_image_understanding_prompt",
             "wechat_group_image_understanding_cache_minutes",
             "wechat_group_image_create_hourly_limit",
+            "wechat_group_video_understanding_enabled",
+            "wechat_group_forward_preview_enabled",
+            "wechat_group_quote_context_enabled",
+            "wechat_group_topic_enabled",
+            "wechat_group_topic_recent_message_limit",
+            "wechat_group_topic_active_count_limit",
+            "wechat_group_topic_summary_refresh_message_gap",
+            "wechat_group_topic_context_limit",
+            "wechat_group_topic_archive_recall_limit",
+            "wechat_group_style_enabled",
+            "wechat_group_style_learning_enabled",
+            "wechat_group_style_context_limit",
+            "wechat_group_style_candidate_min_evidence",
+            "wechat_group_style_learning_batch_limit",
+            "wechat_group_style_auto_apply_enabled",
+            "wechat_group_emotion_enabled",
+            "wechat_group_emotion_decay_minutes",
+            "wechat_group_emotion_default_valence",
+            "wechat_group_emotion_default_energy",
+            "wechat_group_emotion_default_sociability",
+            "wechat_group_free_reply_time_rules_enabled",
+            "wechat_group_free_reply_time_rules",
+            "wechat_group_free_reply_typing_delay_enabled",
+            "wechat_group_free_reply_typing_chars_per_second",
+            "wechat_group_sticker_enabled",
+            "wechat_group_sticker_auto_collect_enabled",
+            "wechat_group_sticker_context_limit",
+            "wechat_group_sticker_max_size_mb",
+            "wechat_group_sticker_daily_send_limit",
+            "wechat_group_sticker_storage_dir",
             "wechat_group_free_reply_enabled",
             "wechat_group_free_reply_room_ids",
             "wechat_group_free_reply_names",
@@ -3878,6 +3968,18 @@ class ChannelsHandler:
                 "wechat_group_learning_enabled",
                 "wechat_group_image_understanding_enabled",
                 "wechat_group_image_understanding_comment_enabled",
+                "wechat_group_video_understanding_enabled",
+                "wechat_group_forward_preview_enabled",
+                "wechat_group_quote_context_enabled",
+                "wechat_group_topic_enabled",
+                "wechat_group_style_enabled",
+                "wechat_group_style_learning_enabled",
+                "wechat_group_style_auto_apply_enabled",
+                "wechat_group_emotion_enabled",
+                "wechat_group_free_reply_time_rules_enabled",
+                "wechat_group_free_reply_typing_delay_enabled",
+                "wechat_group_sticker_enabled",
+                "wechat_group_sticker_auto_collect_enabled",
                 "wechat_group_free_reply_enabled",
                 "wechat_group_free_reply_llm_judge_enabled",
             ):
@@ -3903,6 +4005,34 @@ class ChannelsHandler:
                 "wechat_group_learning_group_memory_window_minutes",
             ):
                 value = max(1, int(value))
+            elif key in (
+                "wechat_group_topic_recent_message_limit",
+                "wechat_group_topic_active_count_limit",
+                "wechat_group_topic_summary_refresh_message_gap",
+                "wechat_group_topic_context_limit",
+                "wechat_group_topic_archive_recall_limit",
+                "wechat_group_style_context_limit",
+                "wechat_group_style_candidate_min_evidence",
+                "wechat_group_style_learning_batch_limit",
+                "wechat_group_emotion_decay_minutes",
+                "wechat_group_free_reply_typing_chars_per_second",
+                "wechat_group_sticker_context_limit",
+            ):
+                value = max(1, int(value))
+            elif key == "wechat_group_emotion_default_valence":
+                value = cls._clamp_float(value, -1.0, 1.0, 0.0)
+            elif key == "wechat_group_emotion_default_energy":
+                value = cls._clamp_float(value, 0.0, 1.0, 0.5)
+            elif key == "wechat_group_emotion_default_sociability":
+                value = cls._clamp_float(value, 0.0, 1.0, 0.45)
+            elif key == "wechat_group_free_reply_time_rules":
+                value = cls._normalize_wechat_group_time_rules(value)
+            elif key == "wechat_group_sticker_max_size_mb":
+                value = cls._clamp_int(value, 1, 20, 2)
+            elif key == "wechat_group_sticker_daily_send_limit":
+                value = cls._clamp_int(value, 0, 200, 20)
+            elif key == "wechat_group_sticker_storage_dir":
+                value = str(value or "").strip()
             elif key == "wechat_group_free_reply_activity_level":
                 value = str(value or "normal").strip()
                 if value not in ("quiet", "normal", "active", "crazy"):
@@ -4658,6 +4788,398 @@ class WechatGroupMemoriesHandler:
         except RuntimeError:
             return asyncio.run(coro)
         raise RuntimeError("WechatGroupMemoriesHandler cannot run coroutine inside an active event loop")
+
+
+class WechatGroupEmotionHandler:
+    _emotion_service = None
+
+    def GET(self, action=""):
+        _require_auth()
+        try:
+            params = web.input(room_id="", now="")
+            action = (action or "").strip("/")
+            if action != "state":
+                return self._json({"status": "error", "message": f"unknown action: {action}"})
+            room_id = str(getattr(params, "room_id", "") or "").strip()
+            if not room_id:
+                raise ValueError("room_id is required")
+            now_value = self._to_optional_int(getattr(params, "now", ""))
+            state = self._build_state_payload(
+                self._get_emotion_service().get_state(room_id, now=now_value),
+            )
+            running = self._get_running_channel()
+            free_reply_status = running.free_reply_status() if running and hasattr(running, "free_reply_status") else {}
+            return self._json({
+                "status": "success",
+                "state": state,
+                "last_decision": free_reply_status.get("last_decision") or {},
+                "worker": free_reply_status.get("worker") or {},
+            })
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupEmotion GET error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    def POST(self, action=""):
+        _require_auth()
+        try:
+            body = json.loads(web.data() or b"{}")
+            action = (action or "").strip("/")
+            if action == "reset":
+                room_id = str(body.get("room_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                state = self._build_state_payload(
+                    self._get_emotion_service().reset_state(
+                        room_id=room_id,
+                        now=self._to_optional_int(body.get("now")),
+                    ),
+                )
+                return self._json({"status": "success", "state": state})
+            if action == "config":
+                allowed_keys = {
+                    "wechat_group_emotion_enabled",
+                    "wechat_group_emotion_decay_minutes",
+                    "wechat_group_emotion_default_valence",
+                    "wechat_group_emotion_default_energy",
+                    "wechat_group_emotion_default_sociability",
+                    "wechat_group_free_reply_time_rules_enabled",
+                    "wechat_group_free_reply_time_rules",
+                    "wechat_group_free_reply_typing_delay_enabled",
+                    "wechat_group_free_reply_typing_chars_per_second",
+                }
+                applied = ChannelsHandler._apply_wechat_group_config(
+                    {key: body.get(key) for key in allowed_keys if key in body}
+                )
+                ChannelsHandler._write_channel_config(applied)
+                return self._json({"status": "success", "config": applied})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupEmotion POST error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    @classmethod
+    def _get_emotion_service(cls):
+        if cls._emotion_service is None:
+            from channel.wechat_group.wechat_group_emotion_service import WechatGroupEmotionService
+
+            cls._emotion_service = WechatGroupEmotionService()
+        return cls._emotion_service
+
+    @staticmethod
+    def _get_running_channel():
+        return WechatGroupQrHandler._get_running_channel()
+
+    @classmethod
+    def _build_state_payload(cls, state):
+        row = dict(state or {})
+        row["interpreted_state"] = cls._get_emotion_service().interpret_state(row)
+        return row
+
+    @staticmethod
+    def _json(payload):
+        web.header("Content-Type", "application/json; charset=utf-8")
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _to_optional_int(value):
+        try:
+            text = str(value).strip()
+            if not text:
+                return None
+            return int(text)
+        except Exception:
+            return None
+
+
+class WechatGroupTopicsHandler:
+    _topic_service = None
+
+    def GET(self, action=""):
+        _require_auth()
+        try:
+            params = web.input(room_id="", q="", limit="20")
+            action = (action or "").strip("/")
+            room_id = str(getattr(params, "room_id", "") or "").strip()
+            if not room_id:
+                raise ValueError("room_id is required")
+            limit = self._to_int(getattr(params, "limit", 20), default=20)
+            if action == "active":
+                topics = self._get_topic_service().list_active_topics(room_id, limit=limit)
+                return self._json({"status": "success", "topics": topics})
+            if action == "archive":
+                topics = self._get_topic_service().search_topics(
+                    room_id,
+                    query=str(getattr(params, "q", "") or "").strip(),
+                    limit=limit,
+                )
+                return self._json({"status": "success", "topics": topics})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupTopics GET error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    def POST(self, action=""):
+        _require_auth()
+        try:
+            body = json.loads(web.data() or b"{}")
+            action = (action or "").strip("/")
+            if action == "refresh":
+                room_id = str(body.get("room_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                topic = self._get_topic_service().refresh_active_topic_from_archive(
+                    self._get_archive(),
+                    room_id=room_id,
+                    now=self._to_optional_int(body.get("now")),
+                )
+                topics = self._get_topic_service().list_active_topics(
+                    room_id,
+                    limit=self._to_int(body.get("limit"), default=20),
+                )
+                return self._json({"status": "success", "topic": topic or {}, "topics": topics})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupTopics POST error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    @classmethod
+    def _get_topic_service(cls):
+        if cls._topic_service is None:
+            from channel.wechat_group.wechat_group_topic_service import WechatGroupTopicService
+
+            cls._topic_service = WechatGroupTopicService()
+        return cls._topic_service
+
+    @staticmethod
+    def _get_archive():
+        running = WechatGroupQrHandler._get_running_channel()
+        if running and hasattr(running, "archive"):
+            return running.archive
+        from channel.wechat_group.wechat_group_archive import WechatGroupArchive
+
+        return WechatGroupArchive()
+
+    @staticmethod
+    def _json(payload):
+        web.header("Content-Type", "application/json; charset=utf-8")
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _to_int(value, default=20):
+        try:
+            return max(int(value), 1)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _to_optional_int(value):
+        try:
+            text = str(value).strip()
+            if not text:
+                return None
+            return int(text)
+        except Exception:
+            return None
+
+
+class WechatGroupStylesHandler:
+    _style_service = None
+
+    def GET(self, action=""):
+        _require_auth()
+        try:
+            params = web.input(room_id="", q="", limit="20")
+            action = (action or "").strip("/")
+            room_id = str(getattr(params, "room_id", "") or "").strip()
+            if not room_id:
+                raise ValueError("room_id is required")
+            limit = self._to_int(getattr(params, "limit", 20), default=20)
+            if action == "candidates":
+                cards = self._get_style_service().list_candidates(room_id, limit=limit)
+                return self._json({"status": "success", "cards": cards})
+            if action == "active":
+                cards = self._get_style_service().list_active_styles(room_id, limit=limit)
+                return self._json({"status": "success", "cards": cards})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupStyles GET error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    def POST(self, action=""):
+        _require_auth()
+        try:
+            body = json.loads(web.data() or b"{}")
+            action = (action or "").strip("/")
+            if action == "review":
+                room_id = str(body.get("room_id") or "").strip()
+                style_id = str(body.get("style_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                if not style_id:
+                    raise ValueError("style_id is required")
+                card = self._get_style_service().review_style(
+                    room_id=room_id,
+                    style_id=style_id,
+                    action=body.get("action") or "approve",
+                )
+                return self._json({"status": "success", "card": card})
+            if action == "refresh":
+                room_id = str(body.get("room_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                archive = self._get_archive()
+                cards = self._get_style_service().refresh_candidates_from_archive(
+                    archive,
+                    room_id=room_id,
+                    now=self._to_optional_int(body.get("now")),
+                )
+                return self._json({"status": "success", "cards": cards})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupStyles POST error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    @classmethod
+    def _get_style_service(cls):
+        if cls._style_service is None:
+            from channel.wechat_group.wechat_group_style_service import WechatGroupStyleService
+
+            cls._style_service = WechatGroupStyleService()
+        return cls._style_service
+
+    @staticmethod
+    def _get_archive():
+        running = WechatGroupQrHandler._get_running_channel()
+        if running and hasattr(running, "archive"):
+            return running.archive
+        from channel.wechat_group.wechat_group_archive import WechatGroupArchive
+
+        return WechatGroupArchive()
+
+    @staticmethod
+    def _json(payload):
+        web.header("Content-Type", "application/json; charset=utf-8")
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _to_int(value, default=20):
+        try:
+            return max(int(value), 1)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _to_optional_int(value):
+        try:
+            text = str(value).strip()
+            if not text:
+                return None
+            return int(text)
+        except Exception:
+            return None
+
+
+class WechatGroupStickersHandler:
+    _sticker_service = None
+
+    def GET(self, action=""):
+        _require_auth()
+        try:
+            params = web.input(room_id="", q="", limit="20", status="")
+            action = (action or "").strip("/")
+            room_id = str(getattr(params, "room_id", "") or "").strip()
+            if not room_id:
+                raise ValueError("room_id is required")
+            if action == "list":
+                stickers = self._get_sticker_service().list_stickers(
+                    room_id,
+                    query=str(getattr(params, "q", "") or "").strip(),
+                    limit=self._to_int(getattr(params, "limit", 20), default=20),
+                    status=str(getattr(params, "status", "") or "").strip(),
+                )
+                return self._json({
+                    "status": "success",
+                    "stickers": [self._serialize_sticker(item) for item in stickers],
+                })
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupStickers GET error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    def POST(self, action=""):
+        _require_auth()
+        try:
+            body = json.loads(web.data() or b"{}")
+            action = (action or "").strip("/")
+            if action == "disable":
+                room_id = str(body.get("room_id") or "").strip()
+                sticker_id = str(body.get("sticker_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                if not sticker_id:
+                    raise ValueError("sticker_id is required")
+                sticker = self._get_sticker_service().disable_sticker(room_id, sticker_id)
+                return self._json({"status": "success", "sticker": self._serialize_sticker(sticker)})
+            if action == "send-test":
+                room_id = str(body.get("room_id") or "").strip()
+                sticker_id = str(body.get("sticker_id") or "").strip()
+                if not room_id:
+                    raise ValueError("room_id is required")
+                if not sticker_id:
+                    raise ValueError("sticker_id is required")
+                result = self._get_sticker_service().prepare_send_result(
+                    room_id,
+                    sticker_id,
+                    message=str(body.get("message") or "").strip(),
+                    now=self._to_optional_int(body.get("now")),
+                )
+                return self._json({"status": "success", "result": result})
+            return self._json({"status": "error", "message": f"unknown action: {action}"})
+        except Exception as e:
+            logger.error(f"[WebChannel] WechatGroupStickers POST error: {e}")
+            return self._json({"status": "error", "message": str(e)})
+
+    @classmethod
+    def _get_sticker_service(cls):
+        if cls._sticker_service is None:
+            from channel.wechat_group.wechat_group_sticker_service import WechatGroupStickerService
+
+            cls._sticker_service = WechatGroupStickerService()
+        return cls._sticker_service
+
+    @staticmethod
+    def _serialize_sticker(sticker):
+        row = dict(sticker or {})
+        media_path = str(row.get("media_path") or "").strip()
+        row["file_name"] = os.path.basename(media_path) if media_path else ""
+        row["preview_url"] = ""
+        if media_path:
+            from urllib.parse import quote
+
+            row["preview_url"] = f"/api/file?path={quote(media_path)}"
+        return row
+
+    @staticmethod
+    def _json(payload):
+        web.header("Content-Type", "application/json; charset=utf-8")
+        return json.dumps(payload, ensure_ascii=False)
+
+    @staticmethod
+    def _to_int(value, default=20):
+        try:
+            return max(int(value), 1)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _to_optional_int(value):
+        try:
+            text = str(value).strip()
+            if not text:
+                return None
+            return int(text)
+        except Exception:
+            return None
 
 
 class FeishuRegisterHandler:

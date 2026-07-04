@@ -2,6 +2,104 @@
 
 ## 2026-07-04
 
+### 微信群拟人化增强 Phase 0 配置骨架
+- 更新 `config.py` 与 `config-template.json`：新增 `topic/style/emotion/sticker` 四组微信群拟人化配置默认值，为后续话题、风格、情绪和表情包能力预留统一配置入口。
+- 更新 `channel/web/web_channel.py`：扩展 `/api/channels` 的 `wechat_group.extra` 返回结构，新增四组拟人化面板配置；同时补充对应保存逻辑与类型归一化，确保旧配置缺项时可回退默认值。
+- 更新 `tests/test_wechat_group_web.py`：新增 `test_channels_api_lists_wechat_group_humanization_defaults` 与 `test_channels_save_wechat_group_humanization_config`，覆盖默认读取、旧配置缺项回退、新配置保存与归一化行为。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_channels_api_lists_wechat_group_humanization_defaults`
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_channels_save_wechat_group_humanization_config`
+- `python -m unittest tests.test_wechat_group_web`
+
+### 微信群拟人化增强 Phase 1 话题存储底座
+- 新增 `channel/wechat_group/wechat_group_topic_store.py`：引入 `wechat_group_topic_threads`、`wechat_group_topic_message_refs`、`wechat_group_topic_summary_history` 三张 SQLite 表，并提供活动话题写入、消息归属映射和摘要历史读取的首版接口。
+- 新增 `channel/wechat_group/wechat_group_topic_service.py`：提供活动话题读取、`<wechat-group-topic>` prompt block 组装和按 query 搜索话题的首版服务层。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：把 `<wechat-group-topic>` 注入接入群消息主链路，位置位于 recent transcript 之后、knowledge 之前；同时在运行时根据 archive 最近消息规则型刷新活动话题。
+- 新增 `tests/test_wechat_group_topic_service.py`：覆盖话题线程按群持久化、消息 ID / row_id 归属查询按 `room_id` 隔离、摘要历史按时间倒序返回，以及 topic service 的 prompt 组装与搜索行为。
+- 更新 `tests/test_wechat_group_context.py`：新增 topic 注入顺序回归测试，确保 prompt 块顺序稳定。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicStoreTest.test_upsert_topic_thread_persists_active_threads_by_room`
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicStoreTest.test_map_message_to_thread_scopes_lookup_to_room`
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicStoreTest.test_append_summary_history_lists_latest_snapshots`
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicServiceTest.test_build_prompt_block_renders_latest_active_topics`
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicServiceTest.test_search_topics_matches_title_and_gist`
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicServiceTest.test_build_prompt_block_from_archive_refreshes_active_topic`
+- `python -m unittest tests.test_wechat_group_context.WechatGroupRecentContextTest.test_channel_injects_topic_after_recent_context_before_memory`
+- `python -m unittest tests.test_wechat_group_context tests.test_wechat_group_topic_service`
+- `python -m unittest tests.test_wechat_group_topic_service`
+
+### 微信群拟人化增强 Phase 3 情绪状态与主动性调度首版
+- 新增 `channel/wechat_group/wechat_group_emotion_store.py`：落库 `wechat_group_emotion_states` 情绪状态表，按 `room_id` 持久化 `valence / energy / sociability / last_decay_at / last_reply_at / reply_count_1h / updated_at`。
+- 新增 `channel/wechat_group/wechat_group_emotion_service.py`：实现默认值初始化、消息观察、回复后的 energy 衰减、定时回归平稳区间、时段规则拦截和 `interpreted_state` 文本解释。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：在文本消息进入主链路前观察群情绪，在自由回复本地决策后叠加 emotion/time-rule 修正，把 `<wechat-group-emotion>` 注入到 `knowledge` 之后、用户问题之前，并在文本回复发送前模拟 typing delay、发送后记录情绪回复。
+- 更新 `channel/web/web_channel.py`：新增 `/api/wechat-group/emotion/state`、`/api/wechat-group/emotion/config`、`/api/wechat-group/emotion/reset`，支持读取当前群情绪状态、重置状态以及保存时段/typing 相关配置。
+- 更新 `channel/web/static/js/console.js`：在 groups 管理页新增“情绪与主动性”子页，支持按群查看实时情绪、最近自由回复决策，以及保存时段规则和 typing delay 配置。
+- 更新 `tests/test_wechat_group_context.py`、`tests/test_wechat_group_channel.py`，新增 `tests/test_wechat_group_emotion_service.py`：覆盖默认情绪初始化、消息观察、时段规则拦截、自由回复压制、prompt 注入顺序和 typing delay 行为。
+- 更新 `tests/test_wechat_group_web.py`：覆盖情绪状态读取、情绪重置、情绪配置保存和群页面板入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_emotion_service tests.test_wechat_group_context tests.test_wechat_group_channel`
+- `python -m unittest tests.test_wechat_group_web tests.test_wechat_group_topic_service tests.test_wechat_group_emotion_service tests.test_wechat_group_context tests.test_wechat_group_channel`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
+### 微信群拟人化增强 Phase 2 风格卡片
+- 新增 `channel/wechat_group/wechat_group_style_store.py` 与 `channel/wechat_group/wechat_group_style_service.py`：实现风格卡片候选持久化、规则型候选学习、审核通过/拒绝和 `<wechat-group-style>` prompt 注入。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：在微信群上下文中接入风格卡片块，异常时跳过对应块，不影响主链路。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：新增风格卡片候选、已启用卡片和审核操作 API/UI。
+- 新增 `tests/test_wechat_group_style_service.py`，扩展 `tests/test_wechat_group_context.py` 与 `tests/test_wechat_group_web.py`：覆盖候选学习、审核启用、注入顺序和 Web 面板入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_style_service tests.test_wechat_group_context tests.test_wechat_group_web`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
+### 微信群拟人化增强 Phase 4 表情包资产层
+- 新增 `channel/wechat_group/wechat_group_sticker_store.py`、`wechat_group_sticker_service.py` 与 `wechat_group_sticker_tools.py`：实现表情包资产存储、文件哈希去重、按群搜索、停用、每日发送限制和发送结果装配。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：归档图片消息后收集表情包候选，发送回复后记录表情包使用。
+- 更新 `bridge/agent_bridge.py`：为微信群 turn 临时挂载 `wechat_group_sticker_search` 与 `wechat_group_sticker_send` scoped tools，保持按当前群隔离。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：新增表情包列表、搜索、预览和停用管理 API/UI。
+- 新增 `tests/test_wechat_group_sticker_service.py`，扩展 `tests/test_wechat_group_agent_bridge_tools.py` 与 `tests/test_wechat_group_web.py`：覆盖收集去重、发送限制、停用搜索和 Agent 工具挂载。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_sticker_service tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_web`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
+### 微信群拟人化增强 Phase 5 多模态上下文补齐
+- 更新 `config.py` 与 `config-template.json`：新增 `wechat_group_video_understanding_enabled`、`wechat_group_forward_preview_enabled`、`wechat_group_quote_context_enabled` 三个保守配置项。
+- 更新 `channel/wechat_group/wechat_group_message.py`、`channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：补齐 `raw_app_type`、`forward`、引用和合并消息预览元数据上报。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：新增 `<wechat-group-multimodal>` 块，支持引用消息、合并转发预览和视频消息上下文；视频理解默认关闭，直接 @ / 引用机器人时才进入文本上下文路径。
+- 更新 `channel/wechat_group/wechat_group_archive.py`：`get_recent_messages()` 返回解析后的 `metadata` 与 `at_list`，供后续多模态上下文使用。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：在 `/api/channels` 和“图片与生图”面板中接入视频上下文、转发预览、引用上下文三个开关。
+- 扩展 `tests/test_wechat_group_message.py`、`tests/test_wechat_group_channel.py`、`tests/test_wechat_group_context.py` 与 `tests/test_wechat_group_web.py`：覆盖 forward 元数据解析、多模态块注入、视频直达文本上下文、归档 metadata 返回和 Web 配置保存。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_message.WechatGroupMessageTest.test_parse_forward_preview_metadata tests.test_wechat_group_channel.WechatGroupChannelTest.test_compose_context_injects_multimodal_quote_and_forward_block tests.test_wechat_group_channel.WechatGroupChannelTest.test_handle_text_video_message_builds_text_context_when_video_understanding_enabled tests.test_wechat_group_web.WechatGroupWebTest.test_channels_api_lists_wechat_group_as_qr_channel tests.test_wechat_group_web.WechatGroupWebTest.test_channels_save_wechat_group_image_config`
+- `python -m unittest tests.test_wechat_group_context.WechatGroupRecentContextTest.test_archive_recent_messages_include_parsed_metadata`
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_at_text_image_request_prefers_quoted_image`
+- `node --check .\\channel\\wechat_group\\sidecar\\wechaty-sidecar-core.mjs`
+- `node --check .\\channel\\wechat_group\\sidecar\\wechaty-sidecar.mjs`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
+### 微信群拟人化增强 Phase 6 Web 管理 UI 与阶段回归
+- 更新 `channel/web/web_channel.py`：补齐 `/api/wechat-group/topics/*`、`/api/wechat-group/styles/*`、`/api/wechat-group/emotion/*`、`/api/wechat-group/stickers/*` 运维接口。
+- 更新 `channel/web/static/js/console.js`：在 groups 视图中完成话题追踪、风格卡片、情绪与主动性、表情包、图片与多模态配置等子页，补齐加载、空状态、错误状态和写操作反馈。
+- 更新 `plans/wechat_group_humanization_upgrade_plan_20260704.md`：回写 Phase 2、Phase 4、Phase 5、Phase 6 实际进度、验证命令和剩余 Phase 7 收尾项。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_sticker_service`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
+### 微信群拟人化增强 Phase 7 收尾回归
+- 更新 `plans/wechat_group_humanization_upgrade_plan_20260704.md`：标记 Phase 7 完成，补充 sidecar 真实扫码链路手动验证说明。
+- 更新 `CHANGES.md`：记录本轮拟人化增强 Phase 2/4/5/6/7 的代码交付与验证结果。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_topic_service tests.test_wechat_group_style_service tests.test_wechat_group_emotion_service tests.test_wechat_group_sticker_service tests.test_wechat_group_memory_ui`
+- `node --check .\\channel\\wechat_group\\sidecar\\wechaty-sidecar-core.mjs`
+- `node --check .\\channel\\wechat_group\\sidecar\\wechaty-sidecar.mjs`
+- `node --check .\\channel\\web\\static\\js\\console.js`
+
 ### 修复微信群全局画像列表昵称回退为原始 sender id
 - 修复 `channel/wechat_group/wechat_group_profile_service.py`：当画像主昵称被学习成原始 sender id（如 `@...` / `wxid_...`）时，列表展示会优先使用当前群最近可用昵称；写入与返回阶段同时清洗无效昵称、别名和房间摘要，避免前端继续显示原始 id。
 - 修复 `channel/wechat_group/wechat_group_learner.py`：学习画像时不再盲目采用最后一条样本消息的 `sender_nickname`，改为倒序选择最近一个可用真实昵称，降低被异常 `@...` 标识覆盖的概率。

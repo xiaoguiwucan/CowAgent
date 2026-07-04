@@ -210,6 +210,14 @@ const I18N = {
         groups_nav_rooms_hint: '目标群范围',
         groups_nav_free_reply: '自由回复',
         groups_nav_free_reply_hint: '普通群聊接话',
+        groups_nav_topic: '话题追踪',
+        groups_nav_topic_hint: '活动话题与归档',
+        groups_nav_style: '风格卡片',
+        groups_nav_style_hint: '候选、审核与启用',
+        groups_nav_emotion: '情绪与主动性',
+        groups_nav_emotion_hint: '情绪状态与节奏',
+        groups_nav_sticker: '表情包',
+        groups_nav_sticker_hint: '资产与停用管理',
         groups_nav_persona: '人设设定',
         groups_nav_persona_hint: '自定义回复风格',
         groups_nav_memory: '永久记忆',
@@ -265,6 +273,121 @@ const I18N = {
         wechat_group_free_reply_room_access: '需先属于目标群范围',
         groups_image_title: '图片与生图',
         groups_image_desc: '控制微信群图片理解，以及每个群每小时可受理的生图次数。',
+        groups_topic_title: '话题追踪',
+        groups_topic_desc: '查看当前群最近讨论的活动话题，并搜索历史归档话题。',
+        groups_topic_room: '目标群',
+        groups_topic_room_hint: '话题摘要按 room_id 隔离，切换群可查看不同群的上下文焦点。',
+        groups_topic_empty: '请先在“群聊开关”里选择至少一个目标群。',
+        groups_topic_loading: '正在读取当前群话题...',
+        groups_topic_refresh: '刷新摘要',
+        groups_topic_refresh_done: '当前群话题摘要已刷新',
+        groups_topic_search_placeholder: '搜索历史话题标题或摘要...',
+        groups_topic_active_title: '当前活动话题',
+        groups_topic_archive_title: '历史归档话题',
+        groups_topic_no_active: '当前群还没有活动话题摘要。',
+        groups_topic_no_archive: '没有匹配的话题归档。',
+        groups_topic_enabled: '总开关',
+        groups_topic_recent_message_limit: '最近消息窗口',
+        groups_topic_active_count_limit: '活动话题上限',
+        groups_topic_summary_refresh_gap: '刷新间隔',
+        groups_topic_context_limit: '注入上限',
+        groups_topic_archive_recall_limit: '归档召回上限',
+        groups_topic_thread_title: '标题',
+        groups_topic_thread_gist: '摘要',
+        groups_topic_thread_facts: '要点',
+        groups_topic_thread_participants: '参与者',
+        groups_topic_thread_open_loops: '未闭环',
+        groups_topic_thread_message_count: '消息数',
+        groups_topic_thread_updated_at: '更新时间',
+        groups_style_title: '风格卡片',
+        groups_style_desc: '审核群聊里沉淀出来的表达风格，只把启用卡片注入到回复上下文。',
+        groups_style_room: '目标群',
+        groups_style_room_hint: '风格卡片按 room_id 隔离，切换群可查看当前候选和启用卡片。',
+        groups_style_empty: '请先在“群聊开关”里选择至少一个目标群。',
+        groups_style_loading: '正在读取当前群的风格卡片...',
+        groups_style_refresh: '刷新候选',
+        groups_style_active_title: '已启用卡片',
+        groups_style_candidates_title: '待审核候选',
+        groups_style_no_active: '当前群还没有启用中的风格卡片。',
+        groups_style_no_candidates: '当前没有待审核候选，可先让群内继续讨论后再刷新。',
+        groups_style_enabled: '总开关',
+        groups_style_learning_enabled: '学习开关',
+        groups_style_auto_apply_enabled: '自动启用',
+        groups_style_context_limit: '注入上限',
+        groups_style_candidate_min_evidence: '最少证据',
+        groups_style_learning_batch_limit: '学习批量',
+        groups_style_on: '开启',
+        groups_style_off: '关闭',
+        groups_style_intent: '意图',
+        groups_style_tone: '语气',
+        groups_style_trigger_rule: '适用场景',
+        groups_style_avoid_rule: '避免事项',
+        groups_style_example: '示例',
+        groups_style_evidence_count: '证据数',
+        groups_style_approve: '通过',
+        groups_style_reject: '拒绝',
+        groups_style_disable: '停用',
+        groups_style_review_saved: '风格卡片已更新',
+        groups_emotion_title: '情绪与主动性',
+        groups_emotion_desc: '查看当前群情绪状态，调整时段规则与打字节奏。',
+        groups_emotion_room: '目标群',
+        groups_emotion_room_hint: '情绪状态按 room_id 隔离，切换群可查看实时状态。',
+        groups_emotion_empty: '请先在“群聊开关”里选择至少一个目标群。',
+        groups_emotion_loading: '正在读取当前群情绪状态...',
+        groups_emotion_state: '当前情绪',
+        groups_emotion_interpreted_state: '解释状态',
+        groups_emotion_reply_count: '近 1 小时回复数',
+        groups_emotion_last_reply: '最近回复时间',
+        groups_emotion_last_decision: '最近自由回复决策',
+        groups_emotion_enabled: '启用情绪模型',
+        groups_emotion_enabled_hint: '关闭后不再根据群状态调节主动性。',
+        groups_emotion_decay_minutes: '衰减周期（分钟）',
+        groups_emotion_decay_minutes_hint: '多久向默认情绪回归一次。',
+        groups_emotion_default_valence: '默认 valence',
+        groups_emotion_default_energy: '默认 energy',
+        groups_emotion_default_sociability: '默认 sociability',
+        groups_emotion_time_rules_enabled: '启用时段规则',
+        groups_emotion_time_rules_enabled_hint: '未命中的时间段会抑制自由回复。',
+        groups_emotion_time_rules: '时段规则 JSON',
+        groups_emotion_time_rules_hint: '示例：[{"days":["mon","tue"],"start":"09:00","end":"18:00"}]',
+        groups_emotion_typing_delay_enabled: '启用打字延迟',
+        groups_emotion_typing_delay_enabled_hint: '文本回复前按字符数模拟自然等待。',
+        groups_emotion_typing_chars_per_second: '打字速度（字/秒）',
+        groups_emotion_typing_chars_per_second_hint: '值越小，发送前等待越久。',
+        groups_emotion_refresh: '刷新状态',
+        groups_emotion_reset: '重置当前群状态',
+        groups_emotion_reset_confirm: '确定将当前群情绪状态恢复到默认值吗？',
+        groups_emotion_reset_done: '当前群情绪状态已重置',
+        groups_emotion_save: '保存情绪配置',
+        groups_emotion_saved: '情绪配置已保存',
+        groups_sticker_title: '表情包',
+        groups_sticker_desc: '查看当前群沉淀的表情包资产，支持搜索、预览和停用。',
+        groups_sticker_room: '目标群',
+        groups_sticker_room_hint: '表情包资产按 room_id 隔离，停用后不会再被当前群检索到。',
+        groups_sticker_empty: '请先在“群聊开关”里选择至少一个目标群。',
+        groups_sticker_loading: '正在读取当前群表情包...',
+        groups_sticker_refresh: '刷新列表',
+        groups_sticker_search_placeholder: '搜索描述、文件名...',
+        groups_sticker_list_title: '表情包列表',
+        groups_sticker_no_items: '当前筛选条件下没有表情包。',
+        groups_sticker_status: '状态',
+        groups_sticker_status_all: '全部',
+        groups_sticker_status_active: '启用中',
+        groups_sticker_status_disabled: '已停用',
+        groups_sticker_enabled: '总开关',
+        groups_sticker_auto_collect_enabled: '自动收集',
+        groups_sticker_context_limit: '注入上限',
+        groups_sticker_max_size_mb: '大小上限(MB)',
+        groups_sticker_daily_send_limit: '每日发送上限',
+        groups_sticker_description: '描述',
+        groups_sticker_file_name: '文件名',
+        groups_sticker_source_message_id: '来源消息',
+        groups_sticker_use_count: '使用次数',
+        groups_sticker_updated_at: '更新时间',
+        groups_sticker_disable: '停用',
+        groups_sticker_disable_confirm: '确定停用这个表情包吗？停用后当前群不会再使用它。',
+        groups_sticker_disabled_done: '表情包已停用',
+        groups_sticker_preview_alt: '表情包预览',
         groups_image_understanding_enabled: '启用图片理解',
         groups_image_understanding_enabled_hint: '仅在图片直接 @ 或引用机器人时调用既有视觉工具。',
         groups_image_comment_enabled: '允许纯图片评论',
@@ -275,6 +398,12 @@ const I18N = {
         groups_image_cache_minutes_hint: '同一图片摘要的缓存时间，范围 1-120。',
         groups_image_create_hourly_limit: '生图每小时上限',
         groups_image_create_hourly_limit_hint: '每个微信群每小时成功受理的生图次数；0 表示关闭微信群生图。',
+        groups_video_understanding_enabled: '启用视频上下文',
+        groups_video_understanding_enabled_hint: '视频消息直接 @ 或引用机器人时，作为文本上下文进入主链路；默认关闭。',
+        groups_forward_preview_enabled: '启用转发预览',
+        groups_forward_preview_enabled_hint: '对合并聊天记录等转发消息注入短摘要字段，不注入大段原文。',
+        groups_quote_context_enabled: '启用引用上下文',
+        groups_quote_context_enabled_hint: '优先按消息 ID 命中被引用内容，减少把最近消息误判为引用对象。',
         groups_persona_title: '人设设定',
         groups_persona_desc: '只保留一份自定义人设，保存后对微信群回复生效。',
         groups_memory_title: '永久记忆',
@@ -664,6 +793,14 @@ const I18N = {
         groups_nav_rooms_hint: 'Target groups',
         groups_nav_free_reply: 'Free reply',
         groups_nav_free_reply_hint: 'Ambient group replies',
+        groups_nav_topic: 'Topics',
+        groups_nav_topic_hint: 'Active and archived',
+        groups_nav_style: 'Style cards',
+        groups_nav_style_hint: 'Review and activate',
+        groups_nav_emotion: 'Emotion',
+        groups_nav_emotion_hint: 'State and pacing',
+        groups_nav_sticker: 'Stickers',
+        groups_nav_sticker_hint: 'Assets and disable',
         groups_nav_persona: 'Persona',
         groups_nav_persona_hint: 'Custom reply style',
         groups_nav_memory: 'Long-term memory',
@@ -719,6 +856,121 @@ const I18N = {
         wechat_group_free_reply_room_access: 'Must also be in target group scope',
         groups_image_title: 'Images',
         groups_image_desc: 'Control WeChat group image understanding and per-group hourly image generation quota.',
+        groups_topic_title: 'Topics',
+        groups_topic_desc: 'Inspect active room topics and search archived summaries.',
+        groups_topic_room: 'Target room',
+        groups_topic_room_hint: 'Topic summaries are isolated by room_id. Switch rooms to inspect different conversation threads.',
+        groups_topic_empty: 'Select at least one target room in "Group switches" first.',
+        groups_topic_loading: 'Loading topics for the current room...',
+        groups_topic_refresh: 'Refresh summary',
+        groups_topic_refresh_done: 'Current room topic summary refreshed',
+        groups_topic_search_placeholder: 'Search archived topics...',
+        groups_topic_active_title: 'Active topics',
+        groups_topic_archive_title: 'Archived topics',
+        groups_topic_no_active: 'No active topic summary for this room yet.',
+        groups_topic_no_archive: 'No archived topic matched the current query.',
+        groups_topic_enabled: 'Feature',
+        groups_topic_recent_message_limit: 'Recent window',
+        groups_topic_active_count_limit: 'Active limit',
+        groups_topic_summary_refresh_gap: 'Refresh gap',
+        groups_topic_context_limit: 'Context limit',
+        groups_topic_archive_recall_limit: 'Archive recall',
+        groups_topic_thread_title: 'Title',
+        groups_topic_thread_gist: 'Summary',
+        groups_topic_thread_facts: 'Facts',
+        groups_topic_thread_participants: 'Participants',
+        groups_topic_thread_open_loops: 'Open loops',
+        groups_topic_thread_message_count: 'Messages',
+        groups_topic_thread_updated_at: 'Updated',
+        groups_style_title: 'Style cards',
+        groups_style_desc: 'Review group-specific speaking patterns and inject only approved cards into the reply context.',
+        groups_style_room: 'Target room',
+        groups_style_room_hint: 'Style cards are isolated by room_id. Switch rooms to inspect candidates and active cards.',
+        groups_style_empty: 'Select at least one target room in "Group switches" first.',
+        groups_style_loading: 'Loading style cards for the current room...',
+        groups_style_refresh: 'Refresh candidates',
+        groups_style_active_title: 'Active cards',
+        groups_style_candidates_title: 'Pending candidates',
+        groups_style_no_active: 'No active style cards in this room yet.',
+        groups_style_no_candidates: 'No pending candidates right now. Let the group chat continue and refresh later.',
+        groups_style_enabled: 'Feature',
+        groups_style_learning_enabled: 'Learning',
+        groups_style_auto_apply_enabled: 'Auto apply',
+        groups_style_context_limit: 'Context limit',
+        groups_style_candidate_min_evidence: 'Min evidence',
+        groups_style_learning_batch_limit: 'Batch size',
+        groups_style_on: 'On',
+        groups_style_off: 'Off',
+        groups_style_intent: 'Intent',
+        groups_style_tone: 'Tone',
+        groups_style_trigger_rule: 'Use when',
+        groups_style_avoid_rule: 'Avoid',
+        groups_style_example: 'Example',
+        groups_style_evidence_count: 'Evidence',
+        groups_style_approve: 'Approve',
+        groups_style_reject: 'Reject',
+        groups_style_disable: 'Disable',
+        groups_style_review_saved: 'Style card updated',
+        groups_emotion_title: 'Emotion and pacing',
+        groups_emotion_desc: 'Inspect the current room emotion state and tune time rules plus typing delay.',
+        groups_emotion_room: 'Target room',
+        groups_emotion_room_hint: 'Emotion state is isolated by room_id; switch rooms to inspect runtime state.',
+        groups_emotion_empty: 'Select at least one target room in "Group switches" first.',
+        groups_emotion_loading: 'Loading current room emotion state...',
+        groups_emotion_state: 'Current emotion',
+        groups_emotion_interpreted_state: 'Interpreted state',
+        groups_emotion_reply_count: 'Replies in last hour',
+        groups_emotion_last_reply: 'Last reply at',
+        groups_emotion_last_decision: 'Latest free-reply decision',
+        groups_emotion_enabled: 'Enable emotion model',
+        groups_emotion_enabled_hint: 'Disable runtime emotion-based proactivity tuning.',
+        groups_emotion_decay_minutes: 'Decay window (minutes)',
+        groups_emotion_decay_minutes_hint: 'How often the room state drifts back to defaults.',
+        groups_emotion_default_valence: 'Default valence',
+        groups_emotion_default_energy: 'Default energy',
+        groups_emotion_default_sociability: 'Default sociability',
+        groups_emotion_time_rules_enabled: 'Enable time rules',
+        groups_emotion_time_rules_enabled_hint: 'Free replies are suppressed outside matched windows.',
+        groups_emotion_time_rules: 'Time-rule JSON',
+        groups_emotion_time_rules_hint: 'Example: [{"days":["mon","tue"],"start":"09:00","end":"18:00"}]',
+        groups_emotion_typing_delay_enabled: 'Enable typing delay',
+        groups_emotion_typing_delay_enabled_hint: 'Wait before text replies based on message length.',
+        groups_emotion_typing_chars_per_second: 'Typing speed (chars/s)',
+        groups_emotion_typing_chars_per_second_hint: 'Lower values create longer delays.',
+        groups_emotion_refresh: 'Refresh state',
+        groups_emotion_reset: 'Reset current room state',
+        groups_emotion_reset_confirm: 'Reset the current room emotion state back to defaults?',
+        groups_emotion_reset_done: 'Current room emotion state reset',
+        groups_emotion_save: 'Save emotion settings',
+        groups_emotion_saved: 'Emotion settings saved',
+        groups_sticker_title: 'Stickers',
+        groups_sticker_desc: 'Inspect collected room stickers, with search, preview, and disable controls.',
+        groups_sticker_room: 'Target room',
+        groups_sticker_room_hint: 'Sticker assets are isolated by room_id. Disabled stickers will no longer be returned to this room.',
+        groups_sticker_empty: 'Select at least one target room in "Group switches" first.',
+        groups_sticker_loading: 'Loading stickers for the current room...',
+        groups_sticker_refresh: 'Refresh list',
+        groups_sticker_search_placeholder: 'Search descriptions or file names...',
+        groups_sticker_list_title: 'Sticker list',
+        groups_sticker_no_items: 'No stickers matched the current filters.',
+        groups_sticker_status: 'Status',
+        groups_sticker_status_all: 'All',
+        groups_sticker_status_active: 'Active',
+        groups_sticker_status_disabled: 'Disabled',
+        groups_sticker_enabled: 'Feature',
+        groups_sticker_auto_collect_enabled: 'Auto collect',
+        groups_sticker_context_limit: 'Context limit',
+        groups_sticker_max_size_mb: 'Max size (MB)',
+        groups_sticker_daily_send_limit: 'Daily send limit',
+        groups_sticker_description: 'Description',
+        groups_sticker_file_name: 'File name',
+        groups_sticker_source_message_id: 'Source message',
+        groups_sticker_use_count: 'Use count',
+        groups_sticker_updated_at: 'Updated',
+        groups_sticker_disable: 'Disable',
+        groups_sticker_disable_confirm: 'Disable this sticker for the current room?',
+        groups_sticker_disabled_done: 'Sticker disabled',
+        groups_sticker_preview_alt: 'Sticker preview',
         groups_image_understanding_enabled: 'Enable image understanding',
         groups_image_understanding_enabled_hint: 'Calls the existing vision tool only when an image directly mentions or quotes the bot.',
         groups_image_comment_enabled: 'Allow image-only comments',
@@ -729,6 +981,12 @@ const I18N = {
         groups_image_cache_minutes_hint: 'Cache time for the same image summary, from 1 to 120.',
         groups_image_create_hourly_limit: 'Hourly image generation limit',
         groups_image_create_hourly_limit_hint: 'Successful image generation requests per WeChat group per hour; 0 disables group image generation.',
+        groups_video_understanding_enabled: 'Enable video context',
+        groups_video_understanding_enabled_hint: 'When a video directly mentions or quotes the bot, send it through the text context path. Disabled by default.',
+        groups_forward_preview_enabled: 'Enable forward preview',
+        groups_forward_preview_enabled_hint: 'Inject concise metadata for merged chat forwards instead of large raw content.',
+        groups_quote_context_enabled: 'Enable quote context',
+        groups_quote_context_enabled_hint: 'Resolve quoted content by message ID first, reducing accidental matches against recent messages.',
         groups_persona_title: 'Persona',
         groups_persona_desc: 'Only one custom persona is kept. It applies to WeChat group replies after saving.',
         groups_memory_title: 'Long-term memory',
@@ -7026,6 +7284,37 @@ let groupsProfilesState = {
     loadedRoomFilter: null,
     selectedSenderId: '',
 };
+let groupsEmotionState = {
+    selectedRoomId: '',
+    loadedRoomId: '',
+    loading: false,
+    state: null,
+    lastDecision: {},
+    worker: {},
+};
+let groupsTopicState = {
+    selectedRoomId: '',
+    loadedKey: '',
+    loading: false,
+    active: [],
+    archive: [],
+    search: '',
+};
+let groupsStyleState = {
+    selectedRoomId: '',
+    loadedRoomId: '',
+    loading: false,
+    active: [],
+    candidates: [],
+};
+let groupsStickerState = {
+    selectedRoomId: '',
+    loadedKey: '',
+    loading: false,
+    stickers: [],
+    search: '',
+    status: '',
+};
 
 function loadGroupsView() {
     const container = document.getElementById('groups-content');
@@ -7073,6 +7362,10 @@ function renderGroupsView() {
             ${buildGroupsSectionButton('basic', 'fa-sliders', 'groups_nav_basic', 'groups_nav_basic_hint')}
             ${buildGroupsSectionButton('rooms', 'fa-comments', 'groups_nav_rooms', 'groups_nav_rooms_hint')}
             ${buildGroupsSectionButton('free_reply', 'fa-comment-dots', 'groups_nav_free_reply', 'groups_nav_free_reply_hint')}
+            ${buildGroupsSectionButton('topic', 'fa-list-check', 'groups_nav_topic', 'groups_nav_topic_hint')}
+            ${buildGroupsSectionButton('style', 'fa-masks-theater', 'groups_nav_style', 'groups_nav_style_hint')}
+            ${buildGroupsSectionButton('emotion', 'fa-heart-pulse', 'groups_nav_emotion', 'groups_nav_emotion_hint')}
+            ${buildGroupsSectionButton('sticker', 'fa-face-laugh-squint', 'groups_nav_sticker', 'groups_nav_sticker_hint')}
             ${buildGroupsSectionButton('image', 'fa-image', 'groups_nav_image', 'groups_nav_image_hint')}
             ${buildGroupsSectionButton('persona', 'fa-user-pen', 'groups_nav_persona', 'groups_nav_persona_hint')}
             ${buildGroupsSectionButton('memory', 'fa-brain', 'groups_nav_memory', 'groups_nav_memory_hint')}
@@ -7091,6 +7384,10 @@ function renderGroupsView() {
             ${groupsActiveSection === 'basic' ? buildGroupsBasicPanel(extra) : ''}
             ${groupsActiveSection === 'rooms' ? buildGroupsRoomsPanel(extra) : ''}
             ${groupsActiveSection === 'free_reply' ? renderWechatGroupFreeReplySettings(extra) : ''}
+            ${groupsActiveSection === 'topic' ? buildGroupsTopicPanel(extra) : ''}
+            ${groupsActiveSection === 'style' ? buildGroupsStylePanel(extra) : ''}
+            ${groupsActiveSection === 'emotion' ? buildGroupsEmotionPanel(extra) : ''}
+            ${groupsActiveSection === 'sticker' ? buildGroupsStickerPanel(extra) : ''}
             ${groupsActiveSection === 'image' ? buildGroupsImagePanel(extra) : ''}
             ${groupsActiveSection === 'persona' ? buildGroupsPersonaPanel(extra) : ''}
             ${groupsActiveSection === 'memory' ? buildGroupsMemoryPanel(extra) : ''}
@@ -7105,6 +7402,18 @@ function renderGroupsView() {
     }
     if (groupsActiveSection === 'free_reply') {
         syncFreeReplyProfileFields(extra.free_reply || {});
+    }
+    if (groupsActiveSection === 'topic') {
+        ensureGroupsTopicLoaded(extra);
+    }
+    if (groupsActiveSection === 'style') {
+        ensureGroupsStyleLoaded(extra);
+    }
+    if (groupsActiveSection === 'emotion') {
+        ensureGroupsEmotionLoaded(extra);
+    }
+    if (groupsActiveSection === 'sticker') {
+        ensureGroupsStickerLoaded(extra);
     }
 }
 
@@ -7176,11 +7485,19 @@ function buildGroupsImagePanel(extra) {
     const prompt = String(image.understanding_prompt || '');
     const cacheMinutes = Number(image.cache_minutes || 30);
     const createHourlyLimit = Number(image.create_hourly_limit ?? 5);
+    const videoUnderstandingEnabled = image.video_understanding_enabled === true;
+    const forwardPreviewEnabled = image.forward_preview_enabled !== false;
+    const quoteContextEnabled = image.quote_context_enabled !== false;
     return `<div class="h-full w-full space-y-4">
         ${buildGroupsPanelTitle('fa-image', 'groups_image_title', 'groups_image_desc')}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
             ${buildGroupsImageToggle('groups-image-understanding-enabled', 'groups_image_understanding_enabled', 'groups_image_understanding_enabled_hint', understandingEnabled)}
             ${buildGroupsImageToggle('groups-image-comment-enabled', 'groups_image_comment_enabled', 'groups_image_comment_enabled_hint', commentEnabled)}
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            ${buildGroupsImageToggle('groups-video-understanding-enabled', 'groups_video_understanding_enabled', 'groups_video_understanding_enabled_hint', videoUnderstandingEnabled)}
+            ${buildGroupsImageToggle('groups-forward-preview-enabled', 'groups_forward_preview_enabled', 'groups_forward_preview_enabled_hint', forwardPreviewEnabled)}
+            ${buildGroupsImageToggle('groups-quote-context-enabled', 'groups_quote_context_enabled', 'groups_quote_context_enabled_hint', quoteContextEnabled)}
         </div>
         <label class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 block">
             <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_image_prompt')}</span>
@@ -7217,6 +7534,817 @@ function buildGroupsImageNumberField(id, labelKey, hintKey, value, min, max) {
         <input id="${id}" type="number" min="${min}" max="${max}" step="1" value="${Number(value)}"
             class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">
     </label>`;
+}
+
+function getGroupsManagedRooms(extra) {
+    const selectedIds = Array.isArray(extra.selected_room_ids) ? extra.selected_room_ids : [];
+    const selectedNames = Array.isArray(extra.selected_room_names) ? extra.selected_room_names : [];
+    const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
+    const roomNameMap = new Map(rooms.map(room => [String(room.id || ''), String(room.name || room.id || '')]));
+    const resolved = selectedIds.map((roomId, idx) => ({
+        id: String(roomId || ''),
+        name: roomNameMap.get(String(roomId || '')) || selectedNames[idx] || String(roomId || ''),
+    })).filter(item => item.id);
+    if (resolved.length) return resolved;
+    return rooms.map(room => ({
+        id: String(room.id || ''),
+        name: String(room.name || room.id || ''),
+    })).filter(item => item.id);
+}
+
+function ensureGroupsTopicLoaded(extra) {
+    const rooms = getGroupsManagedRooms(extra || {});
+    if (!rooms.length) return;
+    if (!groupsTopicState.selectedRoomId || !rooms.some(item => item.id === groupsTopicState.selectedRoomId)) {
+        groupsTopicState.selectedRoomId = rooms[0].id;
+        groupsTopicState.loadedKey = '';
+        groupsTopicState.active = [];
+        groupsTopicState.archive = [];
+    }
+    if (groupsTopicState.loading) return;
+    const loadKey = `${groupsTopicState.selectedRoomId}|${groupsTopicState.search.trim()}`;
+    if (groupsTopicState.loadedKey === loadKey) return;
+    refreshGroupsTopicData(groupsTopicState.selectedRoomId);
+}
+
+function selectGroupsTopicRoom(roomId) {
+    groupsTopicState.selectedRoomId = String(roomId || '');
+    groupsTopicState.loadedKey = '';
+    groupsTopicState.active = [];
+    groupsTopicState.archive = [];
+    renderGroupsView();
+    if (groupsTopicState.selectedRoomId) {
+        refreshGroupsTopicData(groupsTopicState.selectedRoomId);
+    }
+}
+
+function applyGroupsTopicSearch() {
+    groupsTopicState.search = (document.getElementById('groups-topic-search')?.value || '').trim();
+    groupsTopicState.loadedKey = '';
+    refreshGroupsTopicData(groupsTopicState.selectedRoomId);
+}
+
+function refreshGroupsTopicData(roomId) {
+    const targetRoomId = String(roomId || groupsTopicState.selectedRoomId || '').trim();
+    if (!targetRoomId) return;
+    const query = groupsTopicState.search.trim();
+    const loadKey = `${targetRoomId}|${query}`;
+    groupsTopicState.loading = true;
+    groupsTopicState.selectedRoomId = targetRoomId;
+    renderGroupsView();
+    const activeUrl = `/api/wechat-group/topics/active?room_id=${encodeURIComponent(targetRoomId)}&limit=10`;
+    const archiveUrl = `/api/wechat-group/topics/archive?room_id=${encodeURIComponent(targetRoomId)}&limit=20&q=${encodeURIComponent(query)}`;
+    Promise.all([fetch(activeUrl), fetch(archiveUrl)])
+        .then(responses => Promise.all(responses.map(item => item.json())))
+        .then(([activeData, archiveData]) => {
+            if (activeData.status !== 'success') throw new Error(activeData.message || 'topic active load failed');
+            if (archiveData.status !== 'success') throw new Error(archiveData.message || 'topic archive load failed');
+            groupsTopicState.active = Array.isArray(activeData.topics) ? activeData.topics : [];
+            groupsTopicState.archive = Array.isArray(archiveData.topics) ? archiveData.topics : [];
+            groupsTopicState.loadedKey = loadKey;
+        })
+        .catch(err => {
+            showGroupsStatus(err.message || 'groups_load_failed', true);
+            groupsTopicState.active = [];
+            groupsTopicState.archive = [];
+            groupsTopicState.loadedKey = loadKey;
+        })
+        .finally(() => {
+            groupsTopicState.loading = false;
+            renderGroupsView();
+        });
+}
+
+function refreshGroupsTopicSummary() {
+    const roomId = String(groupsTopicState.selectedRoomId || '').trim();
+    if (!roomId) {
+        showGroupsStatus('groups_topic_empty', true);
+        return;
+    }
+    fetch('/api/wechat-group/topics/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'topic refresh failed');
+        showGroupsStatus('groups_topic_refresh_done', false);
+        groupsTopicState.loadedKey = '';
+        refreshGroupsTopicData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'groups_load_failed', true));
+}
+
+function buildGroupsTopicPanel(extra) {
+    const topic = extra.topic || {};
+    const rooms = getGroupsManagedRooms(extra);
+    const selectedRoomId = groupsTopicState.selectedRoomId || (rooms[0]?.id || '');
+    const loading = groupsTopicState.loading;
+    const roomOptions = rooms.length
+        ? rooms.map(room => `<option value="${escapeHtml(room.id)}" ${room.id === selectedRoomId ? 'selected' : ''}>${escapeHtml(room.name || room.id)}</option>`).join('')
+        : '';
+    const summaryItems = [
+        [t('groups_topic_enabled'), topic.enabled !== false ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_topic_recent_message_limit'), Number(topic.recent_message_limit ?? 30)],
+        [t('groups_topic_active_count_limit'), Number(topic.active_count_limit ?? 3)],
+        [t('groups_topic_summary_refresh_gap'), Number(topic.summary_refresh_message_gap ?? 8)],
+        [t('groups_topic_context_limit'), Number(topic.context_limit ?? 2)],
+        [t('groups_topic_archive_recall_limit'), Number(topic.archive_recall_limit ?? 2)],
+    ];
+    const contentHtml = !rooms.length
+        ? `<p class="text-sm text-slate-500 dark:text-slate-400">${t('groups_topic_empty')}</p>`
+        : loading
+            ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_topic_loading')}</p>`
+            : `<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">${t('groups_topic_active_title')}</h4>
+                    ${renderGroupsTopicCards(groupsTopicState.active, 'groups_topic_no_active')}
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('groups_topic_archive_title')}</h4>
+                        <span class="text-xs text-slate-400 dark:text-slate-500">${escapeHtml(String(groupsTopicState.archive.length))}</span>
+                    </div>
+                    ${renderGroupsTopicCards(groupsTopicState.archive, 'groups_topic_no_archive')}
+                </div>
+            </div>`;
+    return `<div class="h-full w-full space-y-4">
+        ${buildGroupsPanelTitle('fa-list-check', 'groups_topic_title', 'groups_topic_desc')}
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('groups_topic_room')}</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t('groups_topic_room_hint')}</p>
+                    <select id="groups-topic-room" onchange="selectGroupsTopicRoom(this.value)"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                        ${roomOptions}
+                    </select>
+                </div>
+                <label class="block">
+                    <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('groups_topic_archive_title')}</span>
+                    <div class="flex gap-2">
+                        <input id="groups-topic-search" type="text" value="${escapeHtml(groupsTopicState.search)}"
+                            placeholder="${escapeHtml(t('groups_topic_search_placeholder'))}"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();applyGroupsTopicSearch();}"
+                            class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                        <button type="button" onclick="applyGroupsTopicSearch()"
+                            class="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">${t('groups_topic_refresh')}</button>
+                    </div>
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="refreshGroupsTopicSummary()"
+                        class="px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors">${t('groups_topic_refresh')}</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    ${summaryItems.map(([label, value]) => `
+                        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] px-3 py-2">
+                            <div class="text-slate-400 dark:text-slate-500">${escapeHtml(String(label))}</div>
+                            <div class="mt-1 font-medium text-slate-700 dark:text-slate-200">${escapeHtml(String(value))}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="space-y-4">
+                ${contentHtml}
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderGroupsTopicCards(topics, emptyKey) {
+    const list = Array.isArray(topics) ? topics : [];
+    if (!list.length) {
+        return `<p class="text-xs text-slate-500 dark:text-slate-400">${t(emptyKey)}</p>`;
+    }
+    return `<div class="space-y-3">${list.map(item => renderGroupsTopicCard(item)).join('')}</div>`;
+}
+
+function renderGroupsTopicCard(topic) {
+    const facts = Array.isArray(topic?.facts) ? topic.facts : [];
+    const participants = Array.isArray(topic?.participants) ? topic.participants : [];
+    const openLoops = Array.isArray(topic?.open_loops) ? topic.open_loops : [];
+    return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+        <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="min-w-0">
+                <div class="text-sm font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(String(topic?.title || '-'))}</div>
+                <div class="text-xs text-slate-400 dark:text-slate-500 mt-1">${escapeHtml(String(topic?.thread_id || ''))}</div>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300">${t('groups_topic_thread_message_count')}: ${escapeHtml(String(topic?.message_count ?? 0))}</span>
+        </div>
+        <div class="space-y-1.5 text-sm text-slate-700 dark:text-slate-200 break-words">
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_topic_thread_gist')}:</span> ${escapeHtml(String(topic?.gist || '-'))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_topic_thread_facts')}:</span> ${renderGroupsTopicInlineList(facts)}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_topic_thread_participants')}:</span> ${renderGroupsTopicInlineList(participants)}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_topic_thread_open_loops')}:</span> ${renderGroupsTopicInlineList(openLoops)}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_topic_thread_updated_at')}:</span> ${escapeHtml(formatGroupsEmotionTimestamp(topic?.updated_at))}</div>
+        </div>
+    </div>`;
+}
+
+function renderGroupsTopicInlineList(items) {
+    const list = Array.isArray(items) ? items.filter(item => String(item || '').trim()) : [];
+    if (!list.length) return '-';
+    return list.map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('');
+}
+
+function ensureGroupsStyleLoaded(extra) {
+    const rooms = getGroupsManagedRooms(extra || {});
+    if (!rooms.length) return;
+    if (!groupsStyleState.selectedRoomId || !rooms.some(item => item.id === groupsStyleState.selectedRoomId)) {
+        groupsStyleState.selectedRoomId = rooms[0].id;
+        groupsStyleState.loadedRoomId = '';
+        groupsStyleState.active = [];
+        groupsStyleState.candidates = [];
+    }
+    if (groupsStyleState.loading) return;
+    if (groupsStyleState.loadedRoomId === groupsStyleState.selectedRoomId) return;
+    refreshGroupsStyleData(groupsStyleState.selectedRoomId);
+}
+
+function selectGroupsStyleRoom(roomId) {
+    groupsStyleState.selectedRoomId = String(roomId || '');
+    groupsStyleState.loadedRoomId = '';
+    groupsStyleState.active = [];
+    groupsStyleState.candidates = [];
+    renderGroupsView();
+    if (groupsStyleState.selectedRoomId) {
+        refreshGroupsStyleData(groupsStyleState.selectedRoomId);
+    }
+}
+
+function refreshGroupsStyleData(roomId) {
+    const targetRoomId = String(roomId || groupsStyleState.selectedRoomId || '').trim();
+    if (!targetRoomId) return;
+    groupsStyleState.loading = true;
+    groupsStyleState.selectedRoomId = targetRoomId;
+    renderGroupsView();
+    const activeUrl = `/api/wechat-group/styles/active?room_id=${encodeURIComponent(targetRoomId)}&limit=20`;
+    const candidatesUrl = `/api/wechat-group/styles/candidates?room_id=${encodeURIComponent(targetRoomId)}&limit=20`;
+    Promise.all([fetch(activeUrl), fetch(candidatesUrl)])
+        .then(responses => Promise.all(responses.map(item => item.json())))
+        .then(([activeData, candidateData]) => {
+            if (activeData.status !== 'success') throw new Error(activeData.message || 'style active load failed');
+            if (candidateData.status !== 'success') throw new Error(candidateData.message || 'style candidates load failed');
+            groupsStyleState.active = Array.isArray(activeData.cards) ? activeData.cards : [];
+            groupsStyleState.candidates = Array.isArray(candidateData.cards) ? candidateData.cards : [];
+            groupsStyleState.loadedRoomId = targetRoomId;
+        })
+        .catch(err => {
+            showGroupsStatus(err.message || 'groups_load_failed', true);
+            groupsStyleState.active = [];
+            groupsStyleState.candidates = [];
+            groupsStyleState.loadedRoomId = targetRoomId;
+        })
+        .finally(() => {
+            groupsStyleState.loading = false;
+            renderGroupsView();
+        });
+}
+
+function reviewGroupsStyleCard(styleId, action) {
+    const roomId = String(groupsStyleState.selectedRoomId || '').trim();
+    const cardId = String(styleId || '').trim();
+    if (!roomId || !cardId) {
+        showGroupsStatus('groups_load_failed', true);
+        return;
+    }
+    fetch('/api/wechat-group/styles/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            room_id: roomId,
+            style_id: cardId,
+            action: action || 'approve',
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'style review failed');
+        showGroupsStatus('groups_style_review_saved', false);
+        groupsStyleState.loadedRoomId = '';
+        refreshGroupsStyleData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'groups_load_failed', true));
+}
+
+function buildGroupsStylePanel(extra) {
+    const style = extra.style || {};
+    const rooms = getGroupsManagedRooms(extra);
+    const selectedRoomId = groupsStyleState.selectedRoomId || (rooms[0]?.id || '');
+    const loading = groupsStyleState.loading;
+    const roomOptions = rooms.length
+        ? rooms.map(room => `<option value="${escapeHtml(room.id)}" ${room.id === selectedRoomId ? 'selected' : ''}>${escapeHtml(room.name || room.id)}</option>`).join('')
+        : '';
+    const summaryItems = [
+        [t('groups_style_enabled'), style.enabled !== false ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_style_learning_enabled'), style.learning_enabled !== false ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_style_auto_apply_enabled'), style.auto_apply_enabled ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_style_context_limit'), Number(style.context_limit ?? 3)],
+        [t('groups_style_candidate_min_evidence'), Number(style.candidate_min_evidence ?? 2)],
+        [t('groups_style_learning_batch_limit'), Number(style.learning_batch_limit ?? 100)],
+    ];
+    const contentHtml = !rooms.length
+        ? `<p class="text-sm text-slate-500 dark:text-slate-400">${t('groups_style_empty')}</p>`
+        : loading
+            ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_style_loading')}</p>`
+            : `<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">${t('groups_style_active_title')}</h4>
+                    ${renderGroupsStyleCards(groupsStyleState.active, 'active')}
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">${t('groups_style_candidates_title')}</h4>
+                    ${renderGroupsStyleCards(groupsStyleState.candidates, 'candidate')}
+                </div>
+            </div>`;
+    return `<div class="h-full w-full space-y-4">
+        ${buildGroupsPanelTitle('fa-masks-theater', 'groups_style_title', 'groups_style_desc')}
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('groups_style_room')}</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t('groups_style_room_hint')}</p>
+                    <select id="groups-style-room" onchange="selectGroupsStyleRoom(this.value)"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                        ${roomOptions}
+                    </select>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="refreshGroupsStyleData()"
+                        class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">${t('groups_style_refresh')}</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    ${summaryItems.map(([label, value]) => buildGroupsEmotionMetric(label, value)).join('')}
+                </div>
+            </div>
+            ${contentHtml}
+        </div>
+    </div>`;
+}
+
+function renderGroupsStyleCards(cards, mode) {
+    const list = Array.isArray(cards) ? cards : [];
+    if (!list.length) {
+        const emptyKey = mode === 'active' ? 'groups_style_no_active' : 'groups_style_no_candidates';
+        return `<p class="text-xs text-slate-500 dark:text-slate-400">${t(emptyKey)}</p>`;
+    }
+    return `<div class="space-y-3">${list.map(card => renderGroupsStyleCard(card, mode)).join('')}</div>`;
+}
+
+function renderGroupsStyleCard(card, mode) {
+    const styleId = String(card?.style_id || '');
+    const actions = mode === 'candidate'
+        ? `<div class="flex flex-wrap gap-2 mt-3">
+                <button type="button" onclick="reviewGroupsStyleCard('${escapeHtml(styleId)}', 'approve')"
+                    class="px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors">${t('groups_style_approve')}</button>
+                <button type="button" onclick="reviewGroupsStyleCard('${escapeHtml(styleId)}', 'reject')"
+                    class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">${t('groups_style_reject')}</button>
+            </div>`
+        : `<div class="flex flex-wrap gap-2 mt-3">
+                <button type="button" onclick="reviewGroupsStyleCard('${escapeHtml(styleId)}', 'disable')"
+                    class="px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/30 text-xs text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 cursor-pointer transition-colors">${t('groups_style_disable')}</button>
+            </div>`;
+    return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+        <div class="flex items-center justify-between gap-3 mb-2">
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">${escapeHtml(styleId || '-')}</span>
+            <span class="inline-flex items-center rounded-full bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300">${t('groups_style_evidence_count')}: ${escapeHtml(String(card?.evidence_count ?? 0))}</span>
+        </div>
+        <div class="space-y-1.5 text-sm text-slate-700 dark:text-slate-200 break-words">
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_style_intent')}:</span> ${escapeHtml(String(card?.intent || '-'))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_style_tone')}:</span> ${escapeHtml(String(card?.tone || '-'))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_style_trigger_rule')}:</span> ${escapeHtml(String(card?.trigger_rule || '-'))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_style_avoid_rule')}:</span> ${escapeHtml(String(card?.avoid_rule || '-'))}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('groups_style_example')}:</span> ${escapeHtml(String(card?.example || '-'))}</div>
+        </div>
+        ${actions}
+    </div>`;
+}
+
+function ensureGroupsEmotionLoaded(extra) {
+    const rooms = getGroupsManagedRooms(extra || {});
+    if (!rooms.length) return;
+    if (!groupsEmotionState.selectedRoomId || !rooms.some(item => item.id === groupsEmotionState.selectedRoomId)) {
+        groupsEmotionState.selectedRoomId = rooms[0].id;
+        groupsEmotionState.loadedRoomId = '';
+        groupsEmotionState.state = null;
+    }
+    if (groupsEmotionState.loading) return;
+    if (groupsEmotionState.loadedRoomId === groupsEmotionState.selectedRoomId && groupsEmotionState.state) return;
+    refreshGroupsEmotionState(groupsEmotionState.selectedRoomId);
+}
+
+function selectGroupsEmotionRoom(roomId) {
+    groupsEmotionState.selectedRoomId = String(roomId || '');
+    groupsEmotionState.loadedRoomId = '';
+    groupsEmotionState.state = null;
+    renderGroupsView();
+    if (groupsEmotionState.selectedRoomId) {
+        refreshGroupsEmotionState(groupsEmotionState.selectedRoomId);
+    }
+}
+
+function refreshGroupsEmotionState(roomId) {
+    const targetRoomId = String(roomId || groupsEmotionState.selectedRoomId || '').trim();
+    if (!targetRoomId) return;
+    groupsEmotionState.loading = true;
+    groupsEmotionState.selectedRoomId = targetRoomId;
+    renderGroupsView();
+    fetch(`/api/wechat-group/emotion/state?room_id=${encodeURIComponent(targetRoomId)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status !== 'success') throw new Error(data.message || 'emotion load failed');
+            groupsEmotionState.state = data.state || null;
+            groupsEmotionState.lastDecision = data.last_decision || {};
+            groupsEmotionState.worker = data.worker || {};
+            groupsEmotionState.loadedRoomId = targetRoomId;
+        })
+        .catch(err => {
+            showGroupsStatus(err.message || 'groups_load_failed', true);
+            groupsEmotionState.state = null;
+            groupsEmotionState.lastDecision = {};
+            groupsEmotionState.worker = {};
+            groupsEmotionState.loadedRoomId = targetRoomId;
+        })
+        .finally(() => {
+            groupsEmotionState.loading = false;
+            renderGroupsView();
+        });
+}
+
+function formatGroupsEmotionTimestamp(value) {
+    const ts = Number(value || 0);
+    if (!Number.isFinite(ts) || ts <= 0) return '-';
+    try {
+        return new Date(ts * 1000).toLocaleString();
+    } catch (_) {
+        return '-';
+    }
+}
+
+function renderGroupsEmotionDecision(decision = {}) {
+    if (!decision || !Object.keys(decision).length) {
+        return `<p class="text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_no_decision')}</p>`;
+    }
+    const reasons = Array.isArray(decision.reasons) ? decision.reasons : [];
+    const suppressions = Array.isArray(decision.suppressions) ? decision.suppressions : [];
+    return `<div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <span>score: ${escapeHtml(String(decision.score ?? 0))}</span>
+            <span>threshold: ${escapeHtml(String(decision.threshold ?? 0))}</span>
+            <span>${t('wechat_group_free_reply_level')}: ${escapeHtml(String(decision.activity_level || '-'))}</span>
+        </div>
+        <div><span class="text-slate-500 dark:text-slate-400">reasons：</span>${reasons.length ? reasons.map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
+        <div><span class="text-slate-500 dark:text-slate-400">suppressions：</span>${suppressions.length ? suppressions.map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
+        <div class="break-words"><span class="text-slate-500 dark:text-slate-400">preview：</span>${escapeHtml(String(decision.text_preview || ''))}</div>
+    </div>`;
+}
+
+function buildGroupsEmotionPanel(extra) {
+    const emotion = extra.emotion || {};
+    const rooms = getGroupsManagedRooms(extra);
+    const selectedRoomId = groupsEmotionState.selectedRoomId || (rooms[0]?.id || '');
+    const state = groupsEmotionState.state || {};
+    const loading = groupsEmotionState.loading;
+    const rulesJson = JSON.stringify(Array.isArray(emotion.free_reply_time_rules) ? emotion.free_reply_time_rules : [], null, 2);
+    const roomOptions = rooms.length
+        ? rooms.map(room => `<option value="${escapeHtml(room.id)}" ${room.id === selectedRoomId ? 'selected' : ''}>${escapeHtml(room.name || room.id)}</option>`).join('')
+        : '';
+    const stateHtml = !rooms.length
+        ? `<p class="text-sm text-slate-500 dark:text-slate-400">${t('groups_emotion_empty')}</p>`
+        : loading
+            ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_emotion_loading')}</p>`
+            : `<div class="grid grid-cols-2 xl:grid-cols-5 gap-3">
+                ${buildGroupsEmotionMetric('valence', state.valence)}
+                ${buildGroupsEmotionMetric('energy', state.energy)}
+                ${buildGroupsEmotionMetric('sociability', state.sociability)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_reply_count'), state.reply_count_1h)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-')}
+            </div>
+            <div class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                ${t('groups_emotion_last_reply')}：${escapeHtml(formatGroupsEmotionTimestamp(state.last_reply_at))}
+            </div>`;
+    return `<div class="h-full w-full space-y-4">
+        ${buildGroupsPanelTitle('fa-heart-pulse', 'groups_emotion_title', 'groups_emotion_desc')}
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('groups_emotion_room')}</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t('groups_emotion_room_hint')}</p>
+                    <select id="groups-emotion-room" onchange="selectGroupsEmotionRoom(this.value)"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                        ${roomOptions}
+                    </select>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="refreshGroupsEmotionState()"
+                        class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">${t('groups_emotion_refresh')}</button>
+                    <button type="button" onclick="resetGroupsEmotionState()"
+                        class="px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/30 text-xs text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 cursor-pointer transition-colors">${t('groups_emotion_reset')}</button>
+                </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">${t('groups_emotion_state')}</h4>
+                ${stateHtml}
+            </div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            ${buildGroupsImageToggle('groups-emotion-enabled', 'groups_emotion_enabled', 'groups_emotion_enabled_hint', emotion.enabled !== false)}
+            ${buildGroupsImageToggle('groups-emotion-time-rules-enabled', 'groups_emotion_time_rules_enabled', 'groups_emotion_time_rules_enabled_hint', !!emotion.free_reply_time_rules_enabled)}
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+            ${buildGroupsImageNumberField('groups-emotion-decay-minutes', 'groups_emotion_decay_minutes', 'groups_emotion_decay_minutes_hint', emotion.decay_minutes ?? 10, 1, 240)}
+            ${buildGroupsImageNumberField('groups-emotion-default-valence', 'groups_emotion_default_valence', 'groups_emotion_decay_minutes_hint', emotion.default_valence ?? 0, -1, 1)}
+            ${buildGroupsImageNumberField('groups-emotion-default-energy', 'groups_emotion_default_energy', 'groups_emotion_decay_minutes_hint', emotion.default_energy ?? 0.5, 0, 1)}
+            ${buildGroupsImageNumberField('groups-emotion-default-sociability', 'groups_emotion_default_sociability', 'groups_emotion_decay_minutes_hint', emotion.default_sociability ?? 0.45, 0, 1)}
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            ${buildGroupsImageToggle('groups-emotion-typing-delay-enabled', 'groups_emotion_typing_delay_enabled', 'groups_emotion_typing_delay_enabled_hint', emotion.free_reply_typing_delay_enabled !== false)}
+            ${buildGroupsImageNumberField('groups-emotion-typing-cps', 'groups_emotion_typing_chars_per_second', 'groups_emotion_typing_chars_per_second_hint', emotion.free_reply_typing_chars_per_second ?? 7, 1, 30)}
+        </div>
+        <label class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 block">
+            <span class="text-sm font-medium text-slate-800 dark:text-slate-100">${t('groups_emotion_time_rules')}</span>
+            <span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">${t('groups_emotion_time_rules_hint')}</span>
+            <textarea id="groups-emotion-time-rules" rows="6"
+                class="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors font-mono resize-y">${escapeHtml(rulesJson)}</textarea>
+        </label>
+        <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+            <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">${t('groups_emotion_last_decision')}</h4>
+            ${renderGroupsEmotionDecision(groupsEmotionState.lastDecision)}
+        </div>
+        <div class="flex items-center justify-end gap-3">
+            <button type="button" id="groups-emotion-save" onclick="saveGroupsEmotionConfig()"
+                class="px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                ${t('groups_emotion_save')}
+            </button>
+        </div>
+    </div>`;
+}
+
+function buildGroupsEmotionMetric(label, value) {
+    return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] px-3 py-3">
+        <div class="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">${escapeHtml(String(label))}</div>
+        <div class="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(String(value ?? '-'))}</div>
+    </div>`;
+}
+
+function parseGroupsEmotionTimeRulesInput() {
+    const raw = document.getElementById('groups-emotion-time-rules')?.value || '[]';
+    if (!raw.trim()) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+        throw new Error('time rules must be a JSON array');
+    }
+    return parsed;
+}
+
+function saveGroupsEmotionConfig() {
+    const btn = document.getElementById('groups-emotion-save');
+    if (btn) btn.disabled = true;
+    let timeRules;
+    try {
+        timeRules = parseGroupsEmotionTimeRulesInput();
+    } catch (_) {
+        showGroupsStatus(t('groups_emotion_time_rules') + ' JSON invalid', true);
+        if (btn) btn.disabled = false;
+        return;
+    }
+    fetch('/api/wechat-group/emotion/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            wechat_group_emotion_enabled: !!document.getElementById('groups-emotion-enabled')?.checked,
+            wechat_group_emotion_decay_minutes: clampNumber(document.getElementById('groups-emotion-decay-minutes')?.value, 1, 240, 10),
+            wechat_group_emotion_default_valence: clampNumber(document.getElementById('groups-emotion-default-valence')?.value, -1, 1, 0),
+            wechat_group_emotion_default_energy: clampNumber(document.getElementById('groups-emotion-default-energy')?.value, 0, 1, 0.5),
+            wechat_group_emotion_default_sociability: clampNumber(document.getElementById('groups-emotion-default-sociability')?.value, 0, 1, 0.45),
+            wechat_group_free_reply_time_rules_enabled: !!document.getElementById('groups-emotion-time-rules-enabled')?.checked,
+            wechat_group_free_reply_time_rules: timeRules,
+            wechat_group_free_reply_typing_delay_enabled: !!document.getElementById('groups-emotion-typing-delay-enabled')?.checked,
+            wechat_group_free_reply_typing_chars_per_second: clampNumber(document.getElementById('groups-emotion-typing-cps')?.value, 1, 30, 7),
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'save failed');
+        showGroupsStatus('groups_emotion_saved', false);
+        loadGroupsView();
+    }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true))
+      .finally(() => { if (btn) btn.disabled = false; });
+}
+
+function resetGroupsEmotionState() {
+    const roomId = String(groupsEmotionState.selectedRoomId || '').trim();
+    if (!roomId) {
+        showGroupsStatus('groups_emotion_empty', true);
+        return;
+    }
+    if (!window.confirm(t('groups_emotion_reset_confirm'))) return;
+    fetch('/api/wechat-group/emotion/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room_id: roomId }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'reset failed');
+        groupsEmotionState.state = data.state || null;
+        groupsEmotionState.loadedRoomId = roomId;
+        showGroupsStatus('groups_emotion_reset_done', false);
+        renderGroupsView();
+    }).catch(err => showGroupsStatus(err.message || 'groups_load_failed', true));
+}
+
+function ensureGroupsStickerLoaded(extra) {
+    const rooms = getGroupsManagedRooms(extra || {});
+    if (!rooms.length) return;
+    if (!groupsStickerState.selectedRoomId || !rooms.some(item => item.id === groupsStickerState.selectedRoomId)) {
+        groupsStickerState.selectedRoomId = rooms[0].id;
+        groupsStickerState.loadedKey = '';
+        groupsStickerState.stickers = [];
+    }
+    if (groupsStickerState.loading) return;
+    const loadKey = `${groupsStickerState.selectedRoomId}|${groupsStickerState.search.trim()}|${groupsStickerState.status}`;
+    if (groupsStickerState.loadedKey === loadKey) return;
+    refreshGroupsStickerData(groupsStickerState.selectedRoomId);
+}
+
+function selectGroupsStickerRoom(roomId) {
+    groupsStickerState.selectedRoomId = String(roomId || '');
+    groupsStickerState.loadedKey = '';
+    groupsStickerState.stickers = [];
+    renderGroupsView();
+    if (groupsStickerState.selectedRoomId) {
+        refreshGroupsStickerData(groupsStickerState.selectedRoomId);
+    }
+}
+
+function applyGroupsStickerFilters() {
+    groupsStickerState.search = (document.getElementById('groups-sticker-search')?.value || '').trim();
+    groupsStickerState.status = String(document.getElementById('groups-sticker-status')?.value || '').trim();
+    groupsStickerState.loadedKey = '';
+    refreshGroupsStickerData(groupsStickerState.selectedRoomId);
+}
+
+function refreshGroupsStickerData(roomId) {
+    const targetRoomId = String(roomId || groupsStickerState.selectedRoomId || '').trim();
+    if (!targetRoomId) return;
+    const query = groupsStickerState.search.trim();
+    const status = groupsStickerState.status.trim();
+    const loadKey = `${targetRoomId}|${query}|${status}`;
+    groupsStickerState.loading = true;
+    groupsStickerState.selectedRoomId = targetRoomId;
+    renderGroupsView();
+    fetch(`/api/wechat-group/stickers/list?room_id=${encodeURIComponent(targetRoomId)}&limit=30&q=${encodeURIComponent(query)}&status=${encodeURIComponent(status)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status !== 'success') throw new Error(data.message || 'sticker load failed');
+            groupsStickerState.stickers = Array.isArray(data.stickers) ? data.stickers : [];
+            groupsStickerState.loadedKey = loadKey;
+        })
+        .catch(err => {
+            showGroupsStatus(err.message || 'groups_load_failed', true);
+            groupsStickerState.stickers = [];
+            groupsStickerState.loadedKey = loadKey;
+        })
+        .finally(() => {
+            groupsStickerState.loading = false;
+            renderGroupsView();
+        });
+}
+
+function disableGroupsSticker(stickerId) {
+    const roomId = String(groupsStickerState.selectedRoomId || '').trim();
+    const targetStickerId = String(stickerId || '').trim();
+    if (!roomId || !targetStickerId) return;
+    if (!window.confirm(t('groups_sticker_disable_confirm'))) return;
+    fetch('/api/wechat-group/stickers/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            room_id: roomId,
+            sticker_id: targetStickerId,
+        }),
+    }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'sticker disable failed');
+        showGroupsStatus('groups_sticker_disabled_done', false);
+        groupsStickerState.loadedKey = '';
+        refreshGroupsStickerData(roomId);
+    }).catch(err => showGroupsStatus(err.message || 'groups_load_failed', true));
+}
+
+function buildGroupsStickerPanel(extra) {
+    const sticker = extra.sticker || {};
+    const rooms = getGroupsManagedRooms(extra);
+    const selectedRoomId = groupsStickerState.selectedRoomId || (rooms[0]?.id || '');
+    const loading = groupsStickerState.loading;
+    const roomOptions = rooms.length
+        ? rooms.map(room => `<option value="${escapeHtml(room.id)}" ${room.id === selectedRoomId ? 'selected' : ''}>${escapeHtml(room.name || room.id)}</option>`).join('')
+        : '';
+    const statusOptions = [
+        ['', t('groups_sticker_status_all')],
+        ['active', t('groups_sticker_status_active')],
+        ['disabled', t('groups_sticker_status_disabled')],
+    ];
+    const summaryItems = [
+        [t('groups_sticker_enabled'), sticker.enabled !== false ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_sticker_auto_collect_enabled'), sticker.auto_collect_enabled !== false ? t('groups_style_on') : t('groups_style_off')],
+        [t('groups_sticker_context_limit'), Number(sticker.context_limit ?? 5)],
+        [t('groups_sticker_max_size_mb'), Number(sticker.max_size_mb ?? 2)],
+        [t('groups_sticker_daily_send_limit'), Number(sticker.daily_send_limit ?? 20)],
+    ];
+    const contentHtml = !rooms.length
+        ? `<p class="text-sm text-slate-500 dark:text-slate-400">${t('groups_sticker_empty')}</p>`
+        : loading
+            ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_sticker_loading')}</p>`
+            : `<div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-100">${t('groups_sticker_list_title')}</h4>
+                    <span class="text-xs text-slate-400 dark:text-slate-500">${escapeHtml(String(groupsStickerState.stickers.length))}</span>
+                </div>
+                ${renderGroupsStickerCards(groupsStickerState.stickers)}
+            </div>`;
+    return `<div class="h-full w-full space-y-4">
+        ${buildGroupsPanelTitle('fa-face-laugh-squint', 'groups_sticker_title', 'groups_sticker_desc')}
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] gap-4">
+            <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('groups_sticker_room')}</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">${t('groups_sticker_room_hint')}</p>
+                    <select id="groups-sticker-room" onchange="selectGroupsStickerRoom(this.value)"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                        ${roomOptions}
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 gap-3">
+                    <label class="block">
+                        <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('groups_sticker_description')}</span>
+                        <input id="groups-sticker-search" type="text" value="${escapeHtml(groupsStickerState.search)}"
+                            placeholder="${escapeHtml(t('groups_sticker_search_placeholder'))}"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();applyGroupsStickerFilters();}"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                    </label>
+                    <label class="block">
+                        <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t('groups_sticker_status')}</span>
+                        <select id="groups-sticker-status" onchange="applyGroupsStickerFilters()"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
+                            ${statusOptions.map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === groupsStickerState.status ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}
+                        </select>
+                    </label>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="applyGroupsStickerFilters()"
+                        class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/5 cursor-pointer transition-colors">${t('groups_sticker_refresh')}</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    ${summaryItems.map(([label, value]) => `
+                        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] px-3 py-2">
+                            <div class="text-slate-400 dark:text-slate-500">${escapeHtml(String(label))}</div>
+                            <div class="mt-1 font-medium text-slate-700 dark:text-slate-200">${escapeHtml(String(value))}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="space-y-4">
+                ${contentHtml}
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderGroupsStickerCards(stickers) {
+    const list = Array.isArray(stickers) ? stickers : [];
+    if (!list.length) {
+        return `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_sticker_no_items')}</p>`;
+    }
+    return `<div class="space-y-3">${list.map(item => renderGroupsStickerCard(item)).join('')}</div>`;
+}
+
+function renderGroupsStickerCard(sticker) {
+    const stickerId = String(sticker?.sticker_id || '');
+    const previewUrl = String(sticker?.preview_url || '');
+    const mediaPath = String(sticker?.media_path || '');
+    return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+        <div class="flex flex-col xl:flex-row gap-3">
+            <div class="w-full xl:w-32 xl:flex-shrink-0">
+                ${previewUrl ? `
+                    <div class="rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">
+                        <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(t('groups_sticker_preview_alt'))}" class="w-full h-28 object-cover" onerror="this.parentElement.innerHTML='<div class=&quot;h-28 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 px-2&quot;>${escapeHtml(t('groups_sticker_preview_alt'))}</div>';">
+                    </div>
+                ` : `<div class="h-28 rounded-lg border border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500">${escapeHtml(t('groups_sticker_preview_alt'))}</div>`}
+            </div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-3 mb-2">
+                    <div class="min-w-0">
+                        <div class="text-sm font-semibold text-slate-800 dark:text-slate-100 break-all">${escapeHtml(stickerId || '-')}</div>
+                        <div class="text-xs text-slate-400 dark:text-slate-500 mt-1 break-all">${escapeHtml(mediaPath || '')}</div>
+                    </div>
+                    <span class="inline-flex items-center rounded-full bg-slate-100 dark:bg-white/10 px-2 py-0.5 text-[11px] text-slate-600 dark:text-slate-300">${escapeHtml(String(sticker?.status || ''))}</span>
+                </div>
+                <div class="space-y-1.5 text-sm text-slate-700 dark:text-slate-200 break-words">
+                    <div><span class="text-slate-500 dark:text-slate-400">${t('groups_sticker_description')}:</span> ${escapeHtml(String(sticker?.description || '-'))}</div>
+                    <div><span class="text-slate-500 dark:text-slate-400">${t('groups_sticker_file_name')}:</span> ${escapeHtml(String(sticker?.file_name || '-'))}</div>
+                    <div><span class="text-slate-500 dark:text-slate-400">${t('groups_sticker_source_message_id')}:</span> ${escapeHtml(String(sticker?.source_message_id || '-'))}</div>
+                    <div><span class="text-slate-500 dark:text-slate-400">${t('groups_sticker_use_count')}:</span> ${escapeHtml(String(sticker?.use_count ?? 0))}</div>
+                    <div><span class="text-slate-500 dark:text-slate-400">${t('groups_sticker_updated_at')}:</span> ${escapeHtml(formatGroupsEmotionTimestamp(sticker?.updated_at))}</div>
+                </div>
+                ${String(sticker?.status || '') === 'disabled' ? '' : `<div class="flex flex-wrap gap-2 mt-3">
+                    <button type="button" onclick="disableGroupsSticker('${escapeHtml(stickerId)}')"
+                        class="px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/30 text-xs text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 cursor-pointer transition-colors">${t('groups_sticker_disable')}</button>
+                </div>`}
+            </div>
+        </div>
+    </div>`;
 }
 
 function buildGroupsRoomsPanel(extra) {
@@ -8565,6 +9693,9 @@ function saveWechatGroupSettings() {
                 wechat_group_image_understanding_prompt: image.understanding_prompt,
                 wechat_group_image_understanding_cache_minutes: image.cache_minutes,
                 wechat_group_image_create_hourly_limit: image.create_hourly_limit,
+                wechat_group_video_understanding_enabled: image.video_understanding_enabled,
+                wechat_group_forward_preview_enabled: image.forward_preview_enabled,
+                wechat_group_quote_context_enabled: image.quote_context_enabled,
             },
         })
     })
@@ -8609,6 +9740,15 @@ function readWechatGroupImageSettings(saved = {}) {
             : String(saved.understanding_prompt || '').trim(),
         cache_minutes: clampNumber(document.getElementById('groups-image-cache-minutes')?.value, 1, 120, saved.cache_minutes ?? 30),
         create_hourly_limit: clampNumber(document.getElementById('groups-image-create-hourly-limit')?.value, 0, 100, saved.create_hourly_limit ?? 5),
+        video_understanding_enabled: document.getElementById('groups-video-understanding-enabled')
+            ? !!document.getElementById('groups-video-understanding-enabled').checked
+            : saved.video_understanding_enabled === true,
+        forward_preview_enabled: document.getElementById('groups-forward-preview-enabled')
+            ? !!document.getElementById('groups-forward-preview-enabled').checked
+            : saved.forward_preview_enabled !== false,
+        quote_context_enabled: document.getElementById('groups-quote-context-enabled')
+            ? !!document.getElementById('groups-quote-context-enabled').checked
+            : saved.quote_context_enabled !== false,
     };
 }
 

@@ -16,7 +16,33 @@ function stringValue(value = '') {
 }
 
 function emptyQuoteResult() {
-  return { is_quote_self: false, quote: {} }
+  return { is_quote_self: false, quote: {}, forward: {}, raw_app_type: '' }
+}
+
+function buildForwardPreview(appmsg = {}) {
+  const type = Number(appmsg?.type || 0)
+  const title = stringValue(appmsg?.title)
+  const description = stringValue(appmsg?.des)
+  const recordItem = stringValue(appmsg?.recorditem)
+  const source = stringValue(appmsg?.sourcedisplayname || appmsg?.sourceusername || appmsg?.fromusername)
+  const looksLikeForward = Boolean(
+    recordItem ||
+    type === 19 ||
+    /聊天记录|转发/iu.test(title) ||
+    /聊天记录|转发/iu.test(description),
+  )
+  if (!looksLikeForward) return {}
+  const countMatches = [
+    ...title.matchAll(/(\d+)\s*(条|段|个)/giu),
+    ...description.matchAll(/(\d+)\s*(条|段|个)/giu),
+  ]
+  return {
+    title: title.slice(0, 120),
+    description: description.slice(0, 240),
+    source: source.slice(0, 120),
+    record_count_hint: countMatches.length ? Number(countMatches[0][1]) || 0 : 0,
+    record_item: recordItem.slice(0, 2000),
+  }
 }
 
 export function detectMessageMediaType(message) {
@@ -69,20 +95,25 @@ export function extractQuotedMessageFromRawPayload(rawPayload = {}, selfId = '')
   try {
     const parsed = xmlParser.parse(content)
     const appmsg = parsed?.msg?.appmsg || {}
-    if (Number(appmsg?.type) !== APP_MESSAGE_TYPE_REFER || !appmsg?.refermsg) {
-      return emptyQuoteResult()
-    }
-    const refer = appmsg.refermsg
-    const quote = {
-      sender_id: stringValue(refer.fromusr),
-      sender_name: stringValue(refer.displayname),
-      message_id: stringValue(refer.svrid),
-      type: stringValue(refer.type),
-      content: stringValue(refer.content),
+    const appType = stringValue(appmsg?.type)
+    let quote = {}
+    let isQuoteSelf = false
+    if (Number(appmsg?.type) === APP_MESSAGE_TYPE_REFER && appmsg?.refermsg) {
+      const refer = appmsg.refermsg
+      quote = {
+        sender_id: stringValue(refer.fromusr),
+        sender_name: stringValue(refer.displayname),
+        message_id: stringValue(refer.svrid),
+        type: stringValue(refer.type),
+        content: stringValue(refer.content),
+      }
+      isQuoteSelf = Boolean(selfId && quote.sender_id === selfId)
     }
     return {
-      is_quote_self: Boolean(selfId && quote.sender_id === selfId),
+      is_quote_self: isQuoteSelf,
       quote,
+      forward: buildForwardPreview(appmsg),
+      raw_app_type: appType,
     }
   } catch {
     return emptyQuoteResult()

@@ -91,6 +91,34 @@ class WechatGroupMessageTest(unittest.TestCase):
         self.assertEqual("@bot", msg.quote["sender_id"])
         self.assertEqual("previous answer", msg.quote["content"])
 
+    def test_parse_forward_preview_metadata(self):
+        raw = {
+            "type": "message",
+            "message_id": "msg-forward",
+            "timestamp": int(time.time()),
+            "room_id": "room@@abc",
+            "room_name": "Test Room",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "@bot",
+            "self_name": "CowBot",
+            "text": "[聊天记录]",
+            "message_type": "text",
+            "raw_app_type": "19",
+            "forward": {
+                "title": "聊天记录",
+                "description": "Alice: 明天早上十点发版",
+                "source": "Alice",
+                "record_count_hint": 3,
+            },
+        }
+
+        msg = WechatGroupMessage(parse_sidecar_event(raw))
+
+        self.assertEqual("19", msg.raw_app_type)
+        self.assertEqual("聊天记录", msg.forward["title"])
+        self.assertEqual("Alice: 明天早上十点发版", msg.forward["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

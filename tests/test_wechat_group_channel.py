@@ -60,11 +60,17 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_free_reply_room_ids": conf().get("wechat_group_free_reply_room_ids"),
             "wechat_group_free_reply_names": conf().get("wechat_group_free_reply_names"),
             "wechat_group_free_reply_activity_level": conf().get("wechat_group_free_reply_activity_level"),
+            "wechat_group_emotion_enabled": conf().get("wechat_group_emotion_enabled"),
+            "wechat_group_free_reply_typing_delay_enabled": conf().get("wechat_group_free_reply_typing_delay_enabled"),
+            "wechat_group_free_reply_typing_chars_per_second": conf().get("wechat_group_free_reply_typing_chars_per_second"),
             "wechat_group_image_understanding_enabled": conf().get("wechat_group_image_understanding_enabled"),
             "wechat_group_image_understanding_comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled"),
             "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
             "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
             "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
+            "wechat_group_video_understanding_enabled": conf().get("wechat_group_video_understanding_enabled"),
+            "wechat_group_forward_preview_enabled": conf().get("wechat_group_forward_preview_enabled"),
+            "wechat_group_quote_context_enabled": conf().get("wechat_group_quote_context_enabled"),
             "image_create_prefix": conf().get("image_create_prefix"),
             "agent": conf().get("agent"),
             "skills": conf().get("skills"),
@@ -317,6 +323,30 @@ class WechatGroupChannelTest(unittest.TestCase):
             client.commands,
         )
 
+    def test_send_text_reply_can_simulate_typing_delay(self):
+        conf()["wechat_group_free_reply_typing_delay_enabled"] = True
+        conf()["wechat_group_free_reply_typing_chars_per_second"] = 7
+        client = FakeClient()
+        channel = WechatGroupChannel(client=client)
+        context = {
+            "type": ContextType.TEXT,
+            "receiver": "room@@abc",
+            "msg": Mock(
+                is_group=True,
+                actual_user_id="wxid_alice",
+                actual_user_nickname="Alice",
+            ),
+        }
+
+        with patch("channel.wechat_group.wechat_group_channel.time.sleep") as sleep:
+            channel.send(Reply(ReplyType.TEXT, "1234567"), context)
+
+        self.assertIn(call(1.0), sleep.call_args_list)
+        self.assertEqual(
+            [("send_text", "room@@abc", "1234567", ["wxid_alice"])],
+            client.commands,
+        )
+
     def test_decorated_group_reply_does_not_prefix_plain_text_at(self):
         client = FakeClient()
         channel = WechatGroupChannel(client=client)
@@ -548,6 +578,43 @@ class WechatGroupChannelTest(unittest.TestCase):
         channel.handle_text(msg)
 
         channel.free_reply_worker.submit.assert_called_once()
+        channel.produce.assert_not_called()
+
+    def test_free_reply_is_suppressed_when_emotion_service_blocks(self):
+        class FakeEmotionService:
+            def observe_message(self, room_id, text, is_at=False, now=None):
+                return {"room_id": room_id}
+
+            def adjust_free_reply_decision(self, decision, room_id, now=None):
+                adjusted = dict(decision)
+                adjusted["triggered"] = False
+                adjusted["suppressions"] = list(adjusted.get("suppressions") or []) + ["emotion_low_sociability"]
+                adjusted["emotion"] = {"interpreted_state": "withdrawn"}
+                return adjusted
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_enabled"] = True
+        conf()["wechat_group_free_reply_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_emotion_enabled"] = True
+        channel = WechatGroupChannel(client=FakeClient(), emotion_service=FakeEmotionService())
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock()
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="谁能帮我总结一下刚才群里讨论的方案？",
+            text="谁能帮我总结一下刚才群里讨论的方案？",
+            message_type="text",
+            other_user_id="room@@abc",
+            other_user_nickname="测试群",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            is_at=False,
+            create_time=100000,
+        )
+
+        channel.handle_text(msg)
+
+        channel.free_reply_worker.submit.assert_not_called()
         channel.produce.assert_not_called()
 
     def test_at_message_does_not_enter_free_reply_worker(self):
@@ -936,6 +1003,112 @@ class WechatGroupChannelTest(unittest.TestCase):
         context = channel.produce.call_args.args[0]
         self.assertEqual("room@@abc", context["receiver"])
         self.assertTrue(context["wechat_group_quote_self_triggered"])
+
+    def test_compose_context_injects_multimodal_quote_and_forward_block(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_quote_context_enabled"] = True
+        conf()["wechat_group_forward_preview_enabled"] = True
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_context=Mock(return_value={})),
+        )
+        channel._build_recent_context_block = Mock(return_value="")
+        channel._build_topic_context_block = Mock(return_value="")
+        channel._build_memory_context_block = Mock(return_value="")
+        channel._build_style_context_block = Mock(return_value="")
+        channel._build_emotion_context_block = Mock(return_value="")
+        channel.archive.get_message_by_id = Mock(return_value={
+            "message_id": "quoted-1",
+            "message_type": "text",
+            "text": "上条消息说要先回归。",
+            "media_path": "",
+            "sender_id": "wxid_bob",
+            "sender_nickname": "Bob",
+            "created_at": 99990,
+        })
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="这段转发你怎么看？",
+            text="这段转发你怎么看？",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-multi",
+            message_type="text",
+            media_path="",
+            quote={"message_id": "quoted-1", "sender_id": "wxid_bob", "sender_name": "Bob", "type": "1", "content": "上条消息说要先回归。"},
+            forward={"title": "聊天记录", "description": "Alice：明天早上十点发版", "source": "Alice", "record_count_hint": 3},
+            raw_app_type="19",
+        )
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        self.assertTrue(context["wechat_group_multimodal_injected"])
+        self.assertIn("<wechat-group-multimodal>", context.content)
+        self.assertIn("[quoted_message]", context.content)
+        self.assertIn("上条消息说要先回归。", context.content)
+        self.assertIn("[forward_preview]", context.content)
+        self.assertIn("聊天记录", context.content)
+
+    def test_handle_text_video_message_builds_text_context_when_video_understanding_enabled(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_video_understanding_enabled"] = True
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_context=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        channel._build_recent_context_block = Mock(return_value="")
+        channel._build_topic_context_block = Mock(return_value="")
+        channel._build_memory_context_block = Mock(return_value="")
+        channel._build_style_context_block = Mock(return_value="")
+        channel._build_emotion_context_block = Mock(return_value="")
+        msg = Mock(
+            ctype=ContextType.FILE,
+            content="D:/tmp/demo.mp4",
+            text="",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=True,
+            is_quote_self=False,
+            is_group=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-video",
+            message_type="video",
+            media_path="D:/tmp/demo.mp4",
+            quote={},
+            forward={},
+            raw_app_type="",
+        )
+
+        channel.handle_text(msg)
+
+        context = channel.produce.call_args.args[0]
+        self.assertEqual(ContextType.TEXT, context.type)
+        self.assertTrue(context["wechat_group_video_understanding_triggered"])
+        self.assertTrue(context["wechat_group_multimodal_injected"])
+        self.assertIn("<wechat-group-multimodal>", context.content)
+        self.assertIn("[video_message]", context.content)
+        self.assertIn("D:/tmp/demo.mp4", context.content)
 
     def test_worker_approved_task_enters_reply_context(self):
         channel = WechatGroupChannel(client=FakeClient())

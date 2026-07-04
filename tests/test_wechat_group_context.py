@@ -34,6 +34,9 @@ class WechatGroupRecentContextTest(unittest.TestCase):
             "wechat_group_profile_enabled": conf().get("wechat_group_profile_enabled"),
             "wechat_group_profile_context_limit": conf().get("wechat_group_profile_context_limit"),
             "wechat_group_group_memory_context_limit": conf().get("wechat_group_group_memory_context_limit"),
+            "wechat_group_topic_enabled": conf().get("wechat_group_topic_enabled"),
+            "wechat_group_style_enabled": conf().get("wechat_group_style_enabled"),
+            "wechat_group_emotion_enabled": conf().get("wechat_group_emotion_enabled"),
         }
         self._tmp = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self._tmp.name, "wechat_group_archive.db")
@@ -78,6 +81,34 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertEqual(1, len(rows))
         self.assertEqual("room@@a", rows[0]["room_id"])
         self.assertEqual("A 群消息", rows[0]["text"])
+
+    def test_archive_recent_messages_include_parsed_metadata(self):
+        archive = WechatGroupArchive(self.db_path)
+        archive.record_message(
+            message_id="room-a-meta",
+            room_id="room@@a",
+            room_name="A群",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            message_type="text",
+            text="引用消息",
+            is_at=True,
+            metadata={
+                "at_list": ["wxid_bot"],
+                "quote": {"message_id": "quoted-1", "content": "上一条"},
+                "forward": {"title": "聊天记录"},
+                "raw_app_type": "19",
+            },
+            created_at=1000,
+        )
+
+        rows = archive.get_recent_messages("room@@a", limit=10, minutes=60, now=2000)
+
+        self.assertEqual(1, len(rows))
+        self.assertEqual(["wxid_bot"], rows[0]["at_list"])
+        self.assertEqual("quoted-1", rows[0]["metadata"]["quote"]["message_id"])
+        self.assertEqual("聊天记录", rows[0]["metadata"]["forward"]["title"])
+        self.assertEqual("19", rows[0]["metadata"]["raw_app_type"])
 
     def test_archive_get_message_by_id_scopes_to_room(self):
         archive = WechatGroupArchive(self.db_path)
@@ -338,6 +369,79 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertLess(memory_index, request_index)
         self.assertIn("发布窗口是周五晚上", context.content)
 
+    def test_channel_injects_topic_after_recent_context_before_memory(self):
+        class FakeContextService:
+            def preview_context(self, **kwargs):
+                return {
+                    "content": (
+                        "<wechat-group-knowledge>\n"
+                        "[group_memory]\n发布窗口是周五晚上\n"
+                        "</wechat-group-knowledge>"
+                    ),
+                    "filtered_reasons": [],
+                }
+
+        class FakeTopicService:
+            def build_prompt_block_from_archive(self, archive, room_id, now=None):
+                self.args = (archive, room_id, now)
+                return (
+                    "<wechat-group-topic>\n"
+                    "[active_topic]\n"
+                    "title: 发布排期\n"
+                    "gist: 讨论本周五是否上线\n"
+                    "</wechat-group-topic>"
+                )
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_record_messages"] = True
+        conf()["wechat_group_recent_context_enabled"] = True
+        conf()["wechat_group_knowledge_enabled"] = True
+        conf()["wechat_group_profile_enabled"] = True
+        conf()["wechat_group_topic_enabled"] = True
+        archive = WechatGroupArchive(self.db_path)
+        archive.record_message(
+            message_id="msg-prev",
+            room_id="room@@abc",
+            room_name="测试群",
+            sender_id="wxid_bob",
+            sender_nickname="Bob",
+            message_type="text",
+            text="刚才讨论了发布窗口",
+            created_at=1000,
+        )
+        topic_service = FakeTopicService()
+        channel = WechatGroupChannel(
+            client=Mock(),
+            archive=archive,
+            memory_service=FakeContextService(),
+            topic_service=topic_service,
+        )
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "测试群",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot 总结一下",
+            "is_at": True,
+            "at_list": ["wxid_bot", "wxid_bob"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        recent_index = context.content.index("<recent-wechat-group-transcript>")
+        topic_index = context.content.index("<wechat-group-topic>")
+        memory_index = context.content.index("<wechat-group-knowledge>")
+        request_index = context.content.rindex("总结一下")
+        self.assertLess(recent_index, topic_index)
+        self.assertLess(topic_index, memory_index)
+        self.assertLess(memory_index, request_index)
+        self.assertEqual("room@@abc", topic_service.args[1])
+
     def test_channel_omits_memory_block_when_memory_config_disabled(self):
         class FakeContextService:
             def preview_context(self, **kwargs):
@@ -365,6 +469,123 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
 
         self.assertNotIn("<wechat-group-knowledge>", context.content)
+
+    def test_channel_injects_emotion_block_before_request(self):
+        class FakeEmotionService:
+            def build_prompt_block(self, room_id, now=None):
+                return (
+                    "<wechat-group-emotion>\n"
+                    "valence: 0.1\n"
+                    "energy: 0.7\n"
+                    "sociability: 0.8\n"
+                    "interpreted_state: engaged\n"
+                    "</wechat-group-emotion>"
+                )
+
+            def observe_message(self, room_id, text, is_at=False, now=None):
+                return {}
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_emotion_enabled"] = True
+        channel = WechatGroupChannel(
+            client=Mock(),
+            archive=WechatGroupArchive(self.db_path),
+            emotion_service=FakeEmotionService(),
+        )
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "测试群",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot 总结一下",
+            "is_at": True,
+            "at_list": ["wxid_bot"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        emotion_index = context.content.index("<wechat-group-emotion>")
+        request_index = context.content.rindex("总结一下")
+        self.assertLess(emotion_index, request_index)
+
+    def test_channel_injects_style_between_memory_and_emotion(self):
+        class FakeContextService:
+            def preview_context(self, **kwargs):
+                return {
+                    "content": (
+                        "<wechat-group-knowledge>\n"
+                        "[group_memory]\n本群喜欢先给结论\n"
+                        "</wechat-group-knowledge>"
+                    ),
+                    "filtered_reasons": [],
+                }
+
+        class FakeStyleService:
+            def build_prompt_block_from_archive(self, archive, room_id, now=None):
+                self.args = (archive, room_id, now)
+                return (
+                    "<wechat-group-style>\n"
+                    "[style_card]\n"
+                    "intent: coordination\n"
+                    "tone: direct\n"
+                    "</wechat-group-style>"
+                )
+
+        class FakeEmotionService:
+            def build_prompt_block(self, room_id, now=None):
+                return (
+                    "<wechat-group-emotion>\n"
+                    "valence: 0.1\n"
+                    "energy: 0.7\n"
+                    "sociability: 0.8\n"
+                    "interpreted_state: engaged\n"
+                    "</wechat-group-emotion>"
+                )
+
+            def observe_message(self, room_id, text, is_at=False, now=None):
+                return {}
+
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_style_enabled"] = True
+        conf()["wechat_group_emotion_enabled"] = True
+        style_service = FakeStyleService()
+        channel = WechatGroupChannel(
+            client=Mock(),
+            archive=WechatGroupArchive(self.db_path),
+            memory_service=FakeContextService(),
+            emotion_service=FakeEmotionService(),
+        )
+        channel.style_service = style_service
+        msg = WechatGroupMessage(parse_sidecar_event({
+            "type": "message",
+            "message_id": "msg-current",
+            "room_id": "room@@abc",
+            "room_name": "测试群",
+            "sender_id": "wxid_alice",
+            "sender_name": "Alice",
+            "self_id": "wxid_bot",
+            "self_name": "CowBot",
+            "text": "@CowBot 总结一下",
+            "is_at": True,
+            "at_list": ["wxid_bot"],
+            "timestamp": 1010,
+        }))
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        memory_index = context.content.index("<wechat-group-knowledge>")
+        style_index = context.content.index("<wechat-group-style>")
+        emotion_index = context.content.index("<wechat-group-emotion>")
+        request_index = context.content.rindex("总结一下")
+        self.assertLess(memory_index, style_index)
+        self.assertLess(style_index, emotion_index)
+        self.assertLess(emotion_index, request_index)
+        self.assertEqual("room@@abc", style_service.args[1])
 
     def test_channel_sets_wechat_group_memory_tool_metadata(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]

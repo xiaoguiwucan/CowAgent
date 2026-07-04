@@ -164,7 +164,7 @@ class WechatGroupArchive:
             rows = conn.execute(
                 """
                 SELECT id, message_id, room_id, room_name, sender_id, sender_nickname,
-                       message_type, text, media_path, is_at, created_at
+                       message_type, text, media_path, is_at, metadata, created_at
                 FROM wechat_group_messages
                 WHERE room_id = ? AND created_at >= ?
                 ORDER BY created_at DESC, id DESC
@@ -172,7 +172,7 @@ class WechatGroupArchive:
                 """,
                 (str(room_id), cutoff, max_limit),
             ).fetchall()
-        return [dict(row) for row in reversed(rows)]
+        return [self._message_row_to_dict(row) for row in reversed(rows)]
 
     def get_message_by_id(self, room_id: str, message_id: str) -> Optional[Dict[str, Any]]:
         if not room_id or not message_id:

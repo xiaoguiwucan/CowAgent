@@ -681,6 +681,8 @@ class AgentBridge:
             from channel.wechat_group.wechat_group_knowledge_service import WechatGroupKnowledgeService
             from channel.wechat_group.wechat_group_memory_tools import create_wechat_group_memory_tools
             from channel.wechat_group.wechat_group_profile_service import WechatGroupProfileService
+            from channel.wechat_group.wechat_group_sticker_service import WechatGroupStickerService
+            from channel.wechat_group.wechat_group_sticker_tools import create_wechat_group_sticker_tools
 
             return create_wechat_group_memory_tools(
                 knowledge_service=WechatGroupKnowledgeService(),
@@ -688,6 +690,9 @@ class AgentBridge:
                 room_id=room_id,
                 sender_id=sender_id,
                 bot_sender_id=context.get("wechat_group_bot_sender_id") or "",
+            ) + create_wechat_group_sticker_tools(
+                sticker_service=WechatGroupStickerService(),
+                room_id=room_id,
             )
         except Exception as e:
             logger.warning(f"[AgentBridge] Failed to create WeChat group memory tools: {e}")
@@ -703,6 +708,9 @@ class AgentBridge:
             "- For current group member roles, preferences, expertise, interaction "
             "style, boundaries, or profile facts, prefer calling "
             "`wechat_group_profile_get` before answering.\n"
+            "- When a sticker reply fits better than plain text, prefer calling "
+            "`wechat_group_sticker_search` first and then `wechat_group_sticker_send` "
+            "with an exact sticker_id from the search result.\n"
             "- These tools are bound to the current WeChat group by the server. "
             "Do not treat them as global memory or cross-group search tools."
         )
@@ -756,6 +764,7 @@ class AgentBridge:
             # Attach text message if present (for channels that support text+image)
             if text_response:
                 reply.text_content = text_response  # Store accompanying text
+            reply.wechat_group_sticker_id = file_info.get("sticker_id") or ""
             return reply
         
         # For all file types (document, video, audio), use FILE type
@@ -767,6 +776,7 @@ class AgentBridge:
             # Attach text message if present
             if text_response:
                 reply.text_content = text_response
+            reply.wechat_group_sticker_id = file_info.get("sticker_id") or ""
             return reply
         
         # For all other file types (tar.gz, zip, etc.), also use FILE type

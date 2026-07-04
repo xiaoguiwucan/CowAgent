@@ -66,7 +66,10 @@ class WechatGroupAgentBridgeToolsTest(unittest.TestCase):
         self.assertEqual("ok", reply.content)
         self.assertIn("wechat_group_memory_search", agent.seen_tool_names)
         self.assertIn("wechat_group_profile_get", agent.seen_tool_names)
+        self.assertIn("wechat_group_sticker_search", agent.seen_tool_names)
+        self.assertIn("wechat_group_sticker_send", agent.seen_tool_names)
         self.assertIn("wechat_group_memory_search", agent.seen_suffix)
+        self.assertIn("wechat_group_sticker_search", agent.seen_suffix)
         self.assertEqual(["dummy"], [tool.name for tool in agent.tools])
         self.assertEqual("", agent.extra_system_suffix)
 

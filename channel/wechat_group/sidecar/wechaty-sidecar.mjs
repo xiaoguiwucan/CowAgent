@@ -105,6 +105,8 @@ async function handleMessage(message) {
     at_list: mentions.map(contact => contact.id),
     is_quote_self: quoteInfo.is_quote_self,
     quote: quoteInfo.quote,
+    forward: quoteInfo.forward,
+    raw_app_type: quoteInfo.raw_app_type,
     my_msg: self ? talkerInfo.id === self.id : false,
   })
 }
