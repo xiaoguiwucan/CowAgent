@@ -1,0 +1,69 @@
+---
+title: v2.1.3
+description: CowAgent 2.1.3：修复个人微信群登录状态、二维码状态、生图路由、图片理解和生图配置清洗问题
+---
+
+🌐 [English](https://docs.cowagent.ai/releases/v2.1.3) | [中文](https://docs.cowagent.ai/zh/releases/v2.1.3)
+
+## 个人微信群通道修复
+
+本版本集中修复个人微信群真实使用中发现的接入状态和响应范围问题：
+
+- **修复“假已接入”状态**：现在明确区分 sidecar 进程启动、二维码就绪、扫码登录和真实连接状态。通道管理不再把“启动中”或“已配置”误显示为“已接入”。
+- **补齐二维码状态回传**：Web 接口现在可以返回微信群二维码状态、二维码图片、群列表、登录状态和启动错误信息，通道管理页可以展示真实扫码登录流程。
+- **登录后的 sidecar 非致命错误处理**：登录成功或已拿到群列表后出现的 sidecar 错误会记录为 warning，不再把已连接通道直接打成失败。
+- **修复手动选群范围判断**：`wechat_group_room_ids` 优先于群名判断；未选中的群会提前跳过，已选中的群不再被旧的 `group_name_white_list` 误挡。
+
+## 微信群图片理解
+
+- **支持 @ 图片直接理解**：用户 @ 机器人并发送图片时，可调用视觉工具生成 `<wechat-group-image>` 上下文。
+- **支持最近图片追问**：例如“识别这张图”“我发的图是啥内容”等文本请求，可以关联最近的群图片。
+- **图片理解结果缓存**：同一图片在配置时间窗口内复用识别摘要，减少重复视觉调用。
+- **自由回复图片理解受开关控制**：普通未 @ 图片默认只归档；只有开启专用开关后，才进入自由回复图片理解流程。
+
+## 生图路由修复
+
+- **扩展中文生图触发词**：默认支持 `生成一张`、`生成一个`、`生成一幅`、`生成张`、`生成个`、`生图`、`出图`、`绘制`、`画张`、`画个` 等常见说法。
+- **兼容常见错别字**：`花张`、`花个`、`花一张`、`花一个`、`花一幅` 会按生图请求处理，避免掉进普通 Agent 聊天并误回复“缺 API key 或依赖环境”。
+- **支持固定自定义生图厂商**：生图请求会保留配置中的 `provider=custom:<id>` 和模型名，适配自定义 OpenAI-compatible 生图接口。
+- **清理不可见字符**：在 Web 模型设置、通道调用、环境变量同步和生图脚本入口清理零宽字符与 BOM，避免复制粘贴模型名导致调用失败。
+- **兼容 Python 3.9**：生图脚本启用延迟注解解析，避免 Python 3.9 部署环境解析类型注解时报错。
+
+## 诊断日志增强
+
+生图链路新增关键日志：
+
+- 请求入队
+- 请求分发
+- 请求开始处理
+- 生图脚本启动和退出
+- 失败详情或成功图片路径
+- 微信群图片发送尝试
+
+这些日志可以快速判断问题发生在触发词识别、API 调用、脚本执行还是消息发送阶段。
+
+## 更新文件
+
+- `channel/channel.py`
+- `channel/chat_channel.py`
+- `channel/web/web_channel.py`
+- `channel/wechat_group/wechat_group_channel.py`
+- `config.py`
+- `skills/image-generation/scripts/generate.py`
+- `tests/test_models_handler.py`
+- `tests/test_wechat_group_channel.py`
+
+## 验证
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/cow_pycache COW_DATA_DIR=/private/tmp/cow-test-data /Users/zkx/Documents/一灯微信cow/CowAgent/.venv/bin/python -m unittest tests.test_wechat_group_channel tests.test_image_generation_custom_provider tests.test_models_handler
+```
+
+结果：
+
+```text
+Ran 60 tests in 3.244s
+OK
+```
+
+**发布日期**：2026.07.05 | [Full Changelog](https://github.com/xiaoguiwucan/CowAgent/compare/ddc534f...bcdc086)

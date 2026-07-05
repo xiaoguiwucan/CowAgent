@@ -1,0 +1,69 @@
+---
+title: v2.1.3
+description: CowAgent 2.1.3 - WeChat グループのログイン状態、QR 状態、画像理解、画像生成ルーティングの修正
+---
+
+🌐 [English](https://docs.cowagent.ai/releases/v2.1.3) | [中文](https://docs.cowagent.ai/zh/releases/v2.1.3)
+
+## WeChat グループチャネルの修正
+
+本リリースでは、個人 WeChat グループチャネルの実運用で見つかった接続状態と応答範囲の問題を修正しました：
+
+- **正確な接続状態**：sidecar の起動、QR コード準備、ログイン完了、実接続を区別します。実際にログインする前にチャネル管理で「接続済み」と表示される問題を修正しました。
+- **QR 状態の返却**：Web API が QR 状態、QR 画像、ルーム一覧、ログイン状態、起動エラーを返せるようになりました。
+- **ログイン後の非致命的 sidecar エラー処理**：ログイン後またはルーム一覧取得後の sidecar エラーは warning として記録し、接続済みチャネルを失敗状態に戻さないようにしました。
+- **手動選択グループのスコープ修正**：`wechat_group_room_ids` をグループ名より優先します。未選択ルームのメッセージは早期にスキップし、選択済み room id は旧 `group_name_white_list` に依存せずグループコンテキストへ入れます。
+
+## WeChat グループの画像理解
+
+- **@ 付き画像の直接解析**：ユーザーが画像付きで bot を @ した場合、vision ツールの結果を `<wechat-group-image>` コンテキストとして注入できます。
+- **直近画像への追問対応**：「识别这张图」「我发的图是啥内容」などのテキスト要求を直近のグループ画像に関連付けられます。
+- **結果キャッシュ**：設定された時間内は同一画像の理解結果を再利用し、重複した vision 呼び出しを減らします。
+- **自由返信時の画像理解を制御**：通常の非 @ 画像はデフォルトでアーカイブのみ行い、専用スイッチを有効にした場合だけ自由返信の画像理解フローに入ります。
+
+## 画像生成ルーティング
+
+- **自然な中国語プロンプトに対応**：`生成一张`、`生成一个`、`生成一幅`、`生图`、`出图`、`绘制`、`画张`、`画个` などをデフォルトの画像生成トリガーに追加しました。
+- **よくある入力ミスに対応**：`花张`、`花个`、`花一张`、`花一个`、`花一幅` を画像生成リクエストとして扱い、通常の Agent チャットへ落ちて誤った API key エラーを返すことを避けます。
+- **固定カスタム provider 対応**：画像生成時に設定済みの `provider=custom:<id>` とモデル名を保持します。
+- **不可視文字の除去**：Web モデル設定、チャネル呼び出し、環境変数同期、画像生成スクリプトでゼロ幅文字と BOM を除去し、コピー＆ペースト由来の失敗を防ぎます。
+- **Python 3.9 互換性**：画像生成スクリプトで postponed annotation evaluation を有効化し、Python 3.9 環境での型注釈解析エラーを避けます。
+
+## 診断ログ
+
+画像生成の主要ステップをログ出力するようになりました：
+
+- リクエストのキュー投入
+- リクエストのディスパッチ
+- 処理開始
+- 画像生成スクリプトの起動と終了
+- 失敗詳細または成功した画像パス
+- WeChat グループへの画像送信
+
+これにより、問題がトリガー認識、API 呼び出し、スクリプト実行、メッセージ送信のどこで発生したかを判別しやすくなります。
+
+## 変更ファイル
+
+- `channel/channel.py`
+- `channel/chat_channel.py`
+- `channel/web/web_channel.py`
+- `channel/wechat_group/wechat_group_channel.py`
+- `config.py`
+- `skills/image-generation/scripts/generate.py`
+- `tests/test_models_handler.py`
+- `tests/test_wechat_group_channel.py`
+
+## 検証
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/cow_pycache COW_DATA_DIR=/private/tmp/cow-test-data /Users/zkx/Documents/一灯微信cow/CowAgent/.venv/bin/python -m unittest tests.test_wechat_group_channel tests.test_image_generation_custom_provider tests.test_models_handler
+```
+
+結果：
+
+```text
+Ran 60 tests in 3.244s
+OK
+```
+
+**リリース日**：2026.07.05 | [Full Changelog](https://github.com/xiaoguiwucan/CowAgent/compare/ddc534f...bcdc086)

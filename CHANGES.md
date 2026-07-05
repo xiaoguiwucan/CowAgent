@@ -52,6 +52,45 @@
 
 ## 2026-07-05
 
+### v2.1.3 微信群登录状态与生图路由修复
+
+本版本补齐项目内 Release 文档：`docs/releases/v2.1.3.mdx`、`docs/zh/releases/v2.1.3.mdx`、`docs/ja/releases/v2.1.3.mdx`，并更新三语版本索引与文档导航。
+
+实际修复内容：
+- 修复个人微信群通道“启动中 / 已配置”被误显示为“已接入”的问题：区分 sidecar 启动、二维码就绪、扫码登录和真实连接状态，通道管理仅在 `logged_in` / `connected` 时显示已接入。
+- 修复个人微信群二维码状态回传不足的问题：Web 接口可返回二维码 URL、二维码图片、登录状态、群列表和启动错误信息。
+- 修复登录后 sidecar 非致命错误把通道打成失败的问题：登录成功或已有群列表后，后续 sidecar error 仅记录 warning。
+- 修复手动选择微信群后响应范围不准确的问题：`wechat_group_room_ids` 优先于群名兜底，未选中群提前跳过，已选中群不再依赖旧 `group_name_white_list`。
+- 修复微信群图片理解触发不稳定的问题：支持 @ 图片直接识别、最近图片追问识别、图片理解结果缓存，以及受开关控制的自由回复图片理解。
+- 修复“生成一张 / 生图 / 出图 / 画张”等常见中文生图请求未进入生图通道的问题。
+- 修复“花张 / 花个 / 花一张”等常见错别字掉入普通 Agent 聊天的问题，避免误回复“缺 API key 或依赖环境”。
+- 修复生图 provider / model 配置中混入零宽字符或 BOM 导致调用失败的问题，在 Web 保存、通道调用、环境变量同步和生图脚本入口进行清洗。
+- 修复自定义 OpenAI-compatible 生图厂商模型名无法稳定路由的问题：生图请求会保留 `provider=custom:<id>` 与模型名。
+- 修复生图脚本在 Python 3.9 环境下解析类型注解的兼容性问题。
+- 增强生图链路诊断日志：记录请求入队、分发、处理、脚本启动/退出、失败原因、成功图片路径和微信群图片发送。
+
+更新文件：
+- `channel/channel.py`
+- `channel/chat_channel.py`
+- `channel/web/web_channel.py`
+- `channel/wechat_group/wechat_group_channel.py`
+- `config.py`
+- `skills/image-generation/scripts/generate.py`
+- `tests/test_models_handler.py`
+- `tests/test_wechat_group_channel.py`
+- `docs/releases/v2.1.3.mdx`
+- `docs/zh/releases/v2.1.3.mdx`
+- `docs/ja/releases/v2.1.3.mdx`
+- `docs/releases/overview.mdx`
+- `docs/zh/releases/overview.mdx`
+- `docs/ja/releases/overview.mdx`
+- `docs/docs.json`
+- `CHANGES.md`
+
+验证记录：
+- `PYTHONPYCACHEPREFIX=/private/tmp/cow_pycache COW_DATA_DIR=/private/tmp/cow-test-data /Users/zkx/Documents/一灯微信cow/CowAgent/.venv/bin/python -m unittest tests.test_wechat_group_channel tests.test_image_generation_custom_provider tests.test_models_handler`
+- 结果：`Ran 60 tests in 3.244s - OK`
+
 ### 微信群图片后省略追问识图修复
 
 - 更新 `channel/wechat_group/wechat_group_channel.py`：扩展文本识图触发判断，使用户在 @ 机器人时发送“啥意思”“什么意思”这类紧跟图片的省略追问，也会进入最近群图片识别链路。
