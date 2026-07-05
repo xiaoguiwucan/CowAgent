@@ -114,6 +114,42 @@ class TestModelsHandler(unittest.TestCase):
         )
         write_file.assert_called_once_with(file_config)
 
+    def test_set_image_strips_invisible_model_chars(self):
+        from config import Config
+        import config as config_module
+        from channel.web.web_channel import ModelsHandler
+
+        local_config = Config({
+            "custom_providers": [
+                {
+                    "id": "img01",
+                    "name": "NewAPI Image",
+                    "api_key": "sk-test",
+                    "api_base": "https://newapi.example.com/v1",
+                }
+            ],
+        })
+        file_config = {"custom_providers": list(local_config["custom_providers"])}
+        handler = ModelsHandler()
+
+        with patch.object(config_module, "config", local_config):
+            with patch("channel.web.web_channel.conf", return_value=local_config):
+                with patch.object(ModelsHandler, "_read_file_config", return_value=file_config):
+                    with patch.object(ModelsHandler, "_write_file_config"):
+                        result = json.loads(handler._handle_set_capability({
+                            "capability": "image",
+                            "provider_id": "custom:img01\u200c",
+                            "model": "gpt-image-2\u200c",
+                        }))
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["provider"], "custom:img01")
+        self.assertEqual(result["model"], "gpt-image-2")
+        self.assertEqual(
+            local_config["skills"]["image-generation"]["model"],
+            "gpt-image-2",
+        )
+
     def test_set_image_rejects_unknown_custom_provider(self):
         from config import Config
         import config as config_module

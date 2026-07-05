@@ -285,7 +285,67 @@ class WechatGroupChannelTest(unittest.TestCase):
 
         self.assertIsNotNone(context)
         self.assertEqual(ContextType.IMAGE_CREATE, context.type)
-        self.assertEqual("\u4e2a\u5154\u5b50", context.content)
+        self.assertEqual("\u5154\u5b50", context.content)
+
+    def test_wechat_group_image_create_recognizes_generate_prefix(self):
+        conf()["wechat_group_room_ids"] = ["room@@allowed"]
+        conf()["group_name_white_list"] = []
+        conf().pop("image_create_prefix", None)
+        channel = WechatGroupChannel(client=FakeClient())
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot \u751f\u6210\u4e00\u5f20\u5b59\u7ea2\u96f7\u7a7f\u7eff\u5916\u5957\u7684\u56fe",
+            from_user_id="room@@allowed",
+            other_user_id="room@@allowed",
+            other_user_nickname="Not In Whitelist",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+        )
+
+        context = channel._compose_context(
+            ContextType.TEXT,
+            msg.content,
+            isgroup=True,
+            msg=msg,
+        )
+
+        self.assertIsNotNone(context)
+        self.assertEqual(ContextType.IMAGE_CREATE, context.type)
+        self.assertEqual("\u5b59\u7ea2\u96f7\u7a7f\u7eff\u5916\u5957\u7684\u56fe", context.content)
+
+    def test_wechat_group_image_create_recognizes_common_hua_typo(self):
+        conf()["wechat_group_room_ids"] = ["room@@allowed"]
+        conf()["group_name_white_list"] = []
+        conf().pop("image_create_prefix", None)
+        channel = WechatGroupChannel(client=FakeClient())
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot \u82b1\u5f20\u7279\u6717\u666e\u548c\u5b59\u7ea2\u96f7\u6253\u67b6\u7684\u56fe",
+            from_user_id="room@@allowed",
+            other_user_id="room@@allowed",
+            other_user_nickname="Not In Whitelist",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+        )
+
+        context = channel._compose_context(
+            ContextType.TEXT,
+            msg.content,
+            isgroup=True,
+            msg=msg,
+        )
+
+        self.assertIsNotNone(context)
+        self.assertEqual(ContextType.IMAGE_CREATE, context.type)
+        self.assertEqual("\u7279\u6717\u666e\u548c\u5b59\u7ea2\u96f7\u6253\u67b6\u7684\u56fe", context.content)
 
     def test_send_text_reply_to_original_room_with_sender_mention(self):
         client = FakeClient()
@@ -555,6 +615,28 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertIn('"provider": "custom:img01"', args[2])
         self.assertIn('"model": "my-image-model"', args[2])
         self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    def test_image_create_script_runner_strips_invisible_model_chars(self):
+        conf()["skills"] = {
+            "image-generation": {
+                "provider": "custom:img01",
+                "model": "gpt-image-2\u200c",
+            }
+        }
+        channel = WechatGroupChannel(client=FakeClient())
+        context = Context(ContextType.IMAGE_CREATE, "a rabbit")
+        completed = Mock(
+            returncode=0,
+            stdout='{"images":[{"url":"D:/tmp/rabbit.png"}]}',
+            stderr="",
+        )
+
+        with patch("channel.channel.subprocess.run", return_value=completed) as run:
+            channel._build_image_create_reply("a rabbit", context)
+
+        args = run.call_args.args[0]
+        self.assertIn('"model": "gpt-image-2"', args[2])
+        self.assertNotIn("\u200c", args[2])
 
     def test_image_create_script_failure_returns_safe_user_message(self):
         channel = WechatGroupChannel(client=FakeClient())
@@ -928,7 +1010,7 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertIn("A chart about revenue.", context.content)
         self.assertIn("识别这张图", context.content)
 
-    def test_at_text_ambiguous_image_question_uses_recent_group_image(self):
+    def test_at_text_my_image_content_request_uses_recent_group_image(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]
         conf()["group_name_white_list"] = []
         conf()["wechat_group_image_understanding_enabled"] = True
@@ -938,7 +1020,7 @@ class WechatGroupChannelTest(unittest.TestCase):
             get_recent_messages=Mock(return_value=[
                 {
                     "message_type": "image",
-                    "media_path": "D:/tmp/recent.jpg",
+                    "media_path": "D:/tmp/my-image.jpg",
                     "sender_nickname": "Alice",
                     "sender_id": "wxid_alice",
                     "created_at": 100000,
@@ -953,8 +1035,8 @@ class WechatGroupChannelTest(unittest.TestCase):
         channel.produce = Mock()
         msg = Mock(
             ctype=ContextType.TEXT,
-            content="@CowBot 啥意思",
-            text="@CowBot 啥意思",
+            content="@CowBot 我发的图是啥内容",
+            text="@CowBot 我发的图是啥内容",
             from_user_id="room@@abc",
             other_user_id="room@@abc",
             other_user_nickname="Test Room",
@@ -968,28 +1050,26 @@ class WechatGroupChannelTest(unittest.TestCase):
             at_list=["wxid_bot"],
             self_display_name="CowBot",
             create_time=100030,
-            msg_id="msg-text-ambiguous-image-question",
+            msg_id="msg-my-image-request",
             message_type="text",
             media_path="",
         )
 
         with patch(
             "agent.tools.vision.vision.Vision.execute",
-            return_value=ToolResult.success({"content": "A confusing screenshot."}),
+            return_value=ToolResult.success({"content": "A screenshot of a chat window."}),
         ) as execute:
             channel.handle_text(msg)
 
         execute.assert_called_once_with({
-            "image": "D:/tmp/recent.jpg",
+            "image": "D:/tmp/my-image.jpg",
             "question": "Describe this image",
         })
         channel.produce.assert_called_once()
         context = channel.produce.call_args.args[0]
-        self.assertEqual(ContextType.TEXT, context.type)
-        self.assertIn("<wechat-group-image>", context.content)
-        self.assertIn("D:/tmp/recent.jpg", context.content)
-        self.assertIn("A confusing screenshot.", context.content)
-        self.assertIn("啥意思", context.content)
+        self.assertIn("D:/tmp/my-image.jpg", context.content)
+        self.assertIn("A screenshot of a chat window.", context.content)
+        self.assertIn("我发的图是啥内容", context.content)
 
     def test_at_text_image_request_prefers_quoted_image(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]

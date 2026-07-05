@@ -14,6 +14,26 @@ from common.log import logger
 from config import conf
 
 
+def _clean_text_config_value(value):
+    """Remove invisible format chars that are easy to paste into model names."""
+    if not isinstance(value, str):
+        return ""
+    return (
+        value.replace("\u200b", "")
+        .replace("\u200c", "")
+        .replace("\u200d", "")
+        .replace("\ufeff", "")
+        .strip()
+    )
+
+
+def _preview_text(value, limit=120):
+    text = str(value or "").replace("\n", " ").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 3, 0)] + "..."
+
+
 class Channel(object):
     channel_type = ""
     NOT_SUPPORT_REPLYTYPE = [ReplyType.VOICE, ReplyType.IMAGE]
@@ -127,8 +147,8 @@ class Channel(object):
         if isinstance(skills_cfg, dict):
             image_cfg = skills_cfg.get("image-generation") or {}
             if isinstance(image_cfg, dict):
-                provider = (image_cfg.get("provider") or "").strip()
-                model = (image_cfg.get("model") or "").strip()
+                provider = _clean_text_config_value(image_cfg.get("provider"))
+                model = _clean_text_config_value(image_cfg.get("model"))
                 if provider:
                     payload["provider"] = provider
                 if model:
@@ -136,6 +156,13 @@ class Channel(object):
         if not payload["prompt"]:
             return Reply(ReplyType.ERROR, "图像生成提示词为空。")
 
+        logger.info(
+            '[Channel] image generation start: provider="{}" model="{}" prompt="{}"'.format(
+                payload.get("provider", ""),
+                payload.get("model", ""),
+                _preview_text(payload["prompt"]),
+            )
+        )
         try:
             completed = subprocess.run(
                 [sys.executable, script, json.dumps(payload, ensure_ascii=False)],
@@ -145,7 +172,9 @@ class Channel(object):
                 encoding="utf-8",
                 timeout=600,
             )
+            logger.info("[Channel] image generation script exited: code={}".format(completed.returncode))
         except subprocess.TimeoutExpired:
+            logger.warning("[Channel] image generation timed out")
             return Reply(ReplyType.ERROR, "图像生成超时，请稍后再试。")
         except Exception as e:
             logger.warning("[Channel] image generation script failed to start: {}".format(e))
@@ -160,7 +189,7 @@ class Channel(object):
                 err = err_obj.get("error") or err
             except Exception:
                 pass
-            logger.warning("[Channel] image generation failed: {}".format(err))
+            logger.warning("[Channel] image generation failed: {}".format(_preview_text(err, 500)))
             return Reply(ReplyType.ERROR, "图片生成失败，我这边没有拿到可发送的图片结果。")
 
         try:
@@ -184,6 +213,7 @@ class Channel(object):
         image_url = first.get("url") or ""
         if not image_url:
             return Reply(ReplyType.ERROR, "图像生成结果缺少图片地址。")
+        logger.info("[Channel] image generation success: first={}".format(_preview_text(image_url, 180)))
         if image_url.startswith(("http://", "https://", "file://")):
             return Reply(ReplyType.IMAGE_URL, image_url)
         return Reply(ReplyType.IMAGE, image_url)

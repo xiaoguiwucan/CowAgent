@@ -63,7 +63,29 @@ available_setting = {
     "azure_openai_dalle_api_key": "", # [optional] azure openai key for image replies; defaults to open_ai_api_key
     "azure_openai_dalle_deployment_id":"", # [optional] azure openai deployment id for image replies; defaults to text_to_image
     "image_proxy": True,  # whether an image proxy is needed; required when accessing LinkAI from mainland China
-    "image_create_prefix": ["画", "看", "找"],  # prefixes that enable image replies
+    "image_create_prefix": [
+        "生成一张",
+        "生成一个",
+        "生成一幅",
+        "生成张",
+        "生成个",
+        "生图",
+        "出图",
+        "绘制",
+        "画一张",
+        "画一个",
+        "画一幅",
+        "画张",
+        "画个",
+        "花一张",
+        "花一个",
+        "花一幅",
+        "花张",
+        "花个",
+        "画",
+        "看",
+        "找",
+    ],  # prefixes that enable image replies
     "concurrency_in_session": 1,  # max number of in-flight messages per session; values >1 may cause out-of-order replies
     "image_create_size": "256x256",  # image size, options: 256x256, 512x512, 1024x1024 (dall-e-3 defaults to 1024x1024)
     "group_chat_exit_group": False,
@@ -712,9 +734,21 @@ def _sync_skill_config_to_env(skill_section) -> int:
             env_key = "SKILL_{}_{}".format(name_part, str(key).upper())
             if env_key in os.environ:
                 continue
-            os.environ[env_key] = str(val)
+            os.environ[env_key] = _clean_env_text_value(val)
             injected += 1
     return injected
+
+
+def _clean_env_text_value(value) -> str:
+    if not isinstance(value, str):
+        return str(value)
+    return (
+        value.replace("\u200b", "")
+        .replace("\u200c", "")
+        .replace("\u200d", "")
+        .replace("\ufeff", "")
+        .strip()
+    )
 
 
 def get_root():

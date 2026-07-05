@@ -20,6 +20,8 @@ promoted to the front of the queue):
 Dependencies: requests (stdlib: json, sys, os, base64, io, abc, uuid, pathlib, urllib)
 """
 
+from __future__ import annotations
+
 import json
 import sys
 import os
@@ -62,6 +64,19 @@ _TIER_ORDER = ["1K", "2K", "4K"]
 _RATIO_DEFAULT = {"1K": "1:1", "2K": "1:1", "4K": "16:9"}
 
 _PIXEL_RE = re.compile(r"^\d+x\d+$")
+
+
+def _clean_text_config_value(value):
+    """Remove invisible format chars that are easy to paste into model names."""
+    if not isinstance(value, str):
+        return ""
+    return (
+        value.replace("\u200b", "")
+        .replace("\u200c", "")
+        .replace("\u200d", "")
+        .replace("\ufeff", "")
+        .strip()
+    )
 
 
 def resolve_size(size: str | None, aspect_ratio: str | None) -> str | None:
@@ -1188,10 +1203,10 @@ def main():
     #      config["skills"]["image-generation"]["model"] at startup)
     #   3. None → fall back to automatic provider routing (try every
     #      provider with a configured API key in global priority order)
-    model = args.get("model") or os.environ.get("SKILL_IMAGE_GENERATION_MODEL") or ""
+    model = _clean_text_config_value(args.get("model") or os.environ.get("SKILL_IMAGE_GENERATION_MODEL") or "")
     # Provider hint persisted by the Models UI; lets users pin a vendor for
     # custom model names that prefix-inference can't recognize.
-    provider_id = args.get("provider") or os.environ.get("SKILL_IMAGE_GENERATION_PROVIDER") or ""
+    provider_id = _clean_text_config_value(args.get("provider") or os.environ.get("SKILL_IMAGE_GENERATION_PROVIDER") or "")
     quality = args.get("quality")
     size = args.get("size")
     aspect_ratio = args.get("aspect_ratio")

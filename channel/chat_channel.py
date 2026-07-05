@@ -13,9 +13,38 @@ from common import memory
 from common.i18n import t as _t
 from plugins import *
 
-DEFAULT_IMAGE_CREATE_PREFIX = ["画", "看", "找"]
+DEFAULT_IMAGE_CREATE_PREFIX = [
+    "生成一张",
+    "生成一个",
+    "生成一幅",
+    "生成张",
+    "生成个",
+    "生图",
+    "出图",
+    "绘制",
+    "画一张",
+    "画一个",
+    "画一幅",
+    "画张",
+    "画个",
+    "花一张",
+    "花一个",
+    "花一幅",
+    "花张",
+    "花个",
+    "画",
+    "看",
+    "找",
+]
 
 handler_pool = ThreadPoolExecutor(max_workers=8)  # 处理消息的线程池
+
+
+def _log_preview(value, limit=120):
+    text = str(value or "").replace("\n", " ").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 3, 0)] + "..."
 
 
 # 抽象类, 它包含了与消息通道无关的通用处理逻辑
@@ -188,6 +217,14 @@ class ChatChannel(Channel):
     def _handle(self, context: Context):
         if context is None or not context.content:
             return
+        if context.type == ContextType.IMAGE_CREATE:
+            logger.info(
+                '[chat_channel] handling image-create: session="{}" receiver="{}" prompt="{}"'.format(
+                    context.get("session_id", ""),
+                    context.get("receiver", ""),
+                    _log_preview(context.content),
+                )
+            )
         logger.debug("[chat_channel] handling context: {}".format(context))
         # reply的构建步骤
         reply = self._generate_reply(context)
@@ -450,6 +487,14 @@ class ChatChannel(Channel):
 
     def produce(self, context: Context):
         session_id = context["session_id"]
+        if context.type == ContextType.IMAGE_CREATE:
+            logger.info(
+                '[chat_channel] queued image-create: session="{}" receiver="{}" prompt="{}"'.format(
+                    session_id,
+                    context.get("receiver", ""),
+                    _log_preview(context.content),
+                )
+            )
 
         # Fast path: /cancel must not enter the queue.
         if context.type == ContextType.TEXT and context.content:
@@ -495,28 +540,41 @@ class ChatChannel(Channel):
     # 消费者函数，单独线程，用于从消息队列中取出消息并处理
     def consume(self):
         while True:
-            with self.lock:
-                session_ids = list(self.sessions.keys())
-            for session_id in session_ids:
+            try:
                 with self.lock:
-                    context_queue, semaphore = self.sessions[session_id]
-                if semaphore.acquire(blocking=False):  # 等线程处理完毕才能删除
-                    if not context_queue.empty():
-                        context = context_queue.get()
-                        logger.debug("[chat_channel] consume context: {}".format(context))
-                        future: Future = handler_pool.submit(self._handle, context)
-                        future.add_done_callback(self._thread_pool_callback(session_id, context=context))
-                        with self.lock:
-                            if session_id not in self.futures:
-                                self.futures[session_id] = []
-                            self.futures[session_id].append(future)
-                    elif semaphore._initial_value == semaphore._value + 1:  # 除了当前，没有任务再申请到信号量，说明所有任务都处理完毕
-                        with self.lock:
-                            self.futures[session_id] = [t for t in self.futures[session_id] if not t.done()]
-                            assert len(self.futures[session_id]) == 0, "thread pool error"
-                            del self.sessions[session_id]
-                    else:
-                        semaphore.release()
+                    session_ids = list(self.sessions.keys())
+                for session_id in session_ids:
+                    with self.lock:
+                        if session_id not in self.sessions:
+                            continue
+                        context_queue, semaphore = self.sessions[session_id]
+                    if semaphore.acquire(blocking=False):  # 等线程处理完毕才能删除
+                        if not context_queue.empty():
+                            context = context_queue.get()
+                            if context.type == ContextType.IMAGE_CREATE:
+                                logger.info(
+                                    '[chat_channel] dispatch image-create: session="{}" receiver="{}" prompt="{}"'.format(
+                                        session_id,
+                                        context.get("receiver", ""),
+                                        _log_preview(context.content),
+                                    )
+                                )
+                            logger.debug("[chat_channel] consume context: {}".format(context))
+                            future: Future = handler_pool.submit(self._handle, context)
+                            future.add_done_callback(self._thread_pool_callback(session_id, context=context))
+                            with self.lock:
+                                if session_id not in self.futures:
+                                    self.futures[session_id] = []
+                                self.futures[session_id].append(future)
+                        elif semaphore._initial_value == semaphore._value + 1:  # 除了当前，没有任务再申请到信号量，说明所有任务都处理完毕
+                            with self.lock:
+                                self.futures[session_id] = [t for t in self.futures[session_id] if not t.done()]
+                                assert len(self.futures[session_id]) == 0, "thread pool error"
+                                del self.sessions[session_id]
+                        else:
+                            semaphore.release()
+            except Exception as e:
+                logger.exception("[chat_channel] consume loop error: {}".format(e))
             time.sleep(0.2)
 
     # 取消session_id对应的所有任务，只能取消排队的消息和已提交线程池但未执行的任务
