@@ -67,6 +67,7 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_image_understanding_comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled"),
             "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
             "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
+            "wechat_group_free_reply_image_understanding_enabled": conf().get("wechat_group_free_reply_image_understanding_enabled"),
             "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
             "wechat_group_video_understanding_enabled": conf().get("wechat_group_video_understanding_enabled"),
             "wechat_group_forward_preview_enabled": conf().get("wechat_group_forward_preview_enabled"),
@@ -759,6 +760,7 @@ class WechatGroupChannelTest(unittest.TestCase):
         conf()["wechat_group_room_ids"] = ["room@@abc"]
         conf()["group_name_white_list"] = []
         conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_free_reply_image_understanding_enabled"] = False
         channel = WechatGroupChannel(client=FakeClient())
         channel.produce = Mock()
         channel.free_reply_worker = Mock()
@@ -787,6 +789,55 @@ class WechatGroupChannelTest(unittest.TestCase):
 
         channel.produce.assert_not_called()
         channel.free_reply_worker.submit.assert_not_called()
+
+    def test_non_at_image_message_queues_free_reply_when_image_switch_enabled(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["group_name_white_list"] = []
+        conf()["wechat_group_free_reply_enabled"] = True
+        conf()["wechat_group_free_reply_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_activity_level"] = "normal"
+        conf()["wechat_group_emotion_enabled"] = False
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_free_reply_image_understanding_enabled"] = True
+        archive = Mock(get_recent_messages=Mock(return_value=[]))
+        channel = WechatGroupChannel(client=FakeClient(), archive=archive)
+        channel.produce = Mock()
+        channel.free_reply_worker = Mock(submit=Mock(return_value=True))
+        channel._ensure_free_reply_worker_started = Mock()
+        msg = Mock(
+            ctype=ContextType.IMAGE,
+            content="D:/tmp/cat.jpg",
+            text="",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=False,
+            is_quote_self=False,
+            is_group=True,
+            at_list=[],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-image-free-reply",
+            message_type="image",
+            media_path="D:/tmp/cat.jpg",
+            my_msg=False,
+        )
+
+        with patch("agent.tools.vision.vision.Vision.execute") as execute:
+            channel.handle_text(msg)
+
+        execute.assert_not_called()
+        channel.produce.assert_not_called()
+        channel._ensure_free_reply_worker_started.assert_called_once()
+        channel.free_reply_worker.submit.assert_called_once()
+        task = channel.free_reply_worker.submit.call_args.args[0]
+        self.assertIs(task["msg"], msg)
+        self.assertEqual("[图片] D:/tmp/cat.jpg", task["text"])
+        self.assertTrue(task["local_decision"]["triggered"])
+        self.assertIn("media_payload_allowed", task["local_decision"]["reasons"])
 
     def test_at_text_image_request_uses_recent_group_image(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]
@@ -1177,6 +1228,60 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertTrue(context["wechat_group_free_reply_triggered"])
         self.assertTrue(context["suppress_mention"])
         self.assertTrue(context["no_need_at"])
+
+    def test_worker_approved_image_free_reply_injects_vision_summary(self):
+        conf()["wechat_group_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_free_reply_enabled"] = True
+        conf()["wechat_group_free_reply_room_ids"] = ["room@@abc"]
+        conf()["wechat_group_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_comment_enabled"] = True
+        conf()["wechat_group_free_reply_image_understanding_enabled"] = True
+        conf()["wechat_group_image_understanding_prompt"] = "Describe this image"
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_prompt_memories_sync=Mock(return_value={})),
+        )
+        channel.produce = Mock()
+        msg = Mock(
+            ctype=ContextType.IMAGE,
+            content="D:/tmp/cat.jpg",
+            text="",
+            from_user_id="room@@abc",
+            other_user_id="room@@abc",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            to_user_nickname="CowBot",
+            is_at=False,
+            is_group=True,
+            at_list=[],
+            self_display_name="CowBot",
+            create_time=100000,
+            msg_id="msg-image-free-reply-approved",
+            message_type="image",
+            media_path="D:/tmp/cat.jpg",
+        )
+        task = {"msg": msg, "text": "[图片] D:/tmp/cat.jpg", "local_decision": {"triggered": True, "score": 50}}
+
+        with patch(
+            "agent.tools.vision.vision.Vision.execute",
+            return_value=ToolResult.success({"content": "A cat on the sofa."}),
+        ) as execute:
+            channel._submit_free_reply_after_judge(task, {"approved": True, "confidence": 0.9})
+
+        execute.assert_called_once_with({
+            "image": "D:/tmp/cat.jpg",
+            "question": "Describe this image",
+        })
+        channel.produce.assert_called_once()
+        context = channel.produce.call_args.args[0]
+        self.assertEqual(ContextType.TEXT, context.type)
+        self.assertTrue(context["wechat_group_free_reply_triggered"])
+        self.assertTrue(context["wechat_group_image_understanding_triggered"])
+        self.assertTrue(context["suppress_mention"])
+        self.assertIn("<wechat-group-image>", context.content)
+        self.assertIn("A cat on the sofa.", context.content)
 
     def test_worker_approved_free_reply_bypasses_group_at_filter(self):
         conf()["wechat_group_room_ids"] = ["room@@abc"]

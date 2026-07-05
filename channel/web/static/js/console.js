@@ -411,6 +411,8 @@ const I18N = {
         groups_image_understanding_enabled_hint: '仅在图片直接 @ 或引用机器人时调用既有视觉工具。',
         groups_image_comment_enabled: '允许纯图片评论',
         groups_image_comment_enabled_hint: '用户只发图片也可基于视觉摘要生成简短回复。',
+        groups_image_free_reply_understanding_enabled: '启用自由回复图片理解',
+        groups_image_free_reply_understanding_enabled_hint: '普通群图片先经过自由回复判定，通过后才调用视觉工具生成回复。',
         groups_image_prompt: '图片理解提示词',
         groups_image_prompt_hint: '发送给既有图片理解工具的问题。',
         groups_image_cache_minutes: '摘要缓存分钟数',
@@ -1028,6 +1030,8 @@ const I18N = {
         groups_image_understanding_enabled_hint: 'Calls the existing vision tool only when an image directly mentions or quotes the bot.',
         groups_image_comment_enabled: 'Allow image-only comments',
         groups_image_comment_enabled_hint: 'Let the bot produce a short reply from the vision summary when the user sends only an image.',
+        groups_image_free_reply_understanding_enabled: 'Enable image understanding for free replies',
+        groups_image_free_reply_understanding_enabled_hint: 'Ambient group images are judged by free-reply rules before the vision tool is called.',
         groups_image_prompt: 'Image understanding prompt',
         groups_image_prompt_hint: 'Question sent to the existing vision tool.',
         groups_image_cache_minutes: 'Summary cache minutes',
@@ -7587,6 +7591,7 @@ function buildGroupsImagePanel(extra) {
     const image = extra.image || {};
     const understandingEnabled = image.understanding_enabled !== false;
     const commentEnabled = image.comment_enabled !== false;
+    const freeReplyUnderstandingEnabled = image.free_reply_understanding_enabled === true;
     const prompt = String(image.understanding_prompt || '');
     const cacheMinutes = Number(image.cache_minutes || 30);
     const createHourlyLimit = Number(image.create_hourly_limit ?? 5);
@@ -7595,9 +7600,10 @@ function buildGroupsImagePanel(extra) {
     const quoteContextEnabled = image.quote_context_enabled !== false;
     return `<div class="h-full w-full space-y-4">
         ${buildGroupsPanelTitle('fa-image', 'groups_image_title', 'groups_image_desc')}
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
             ${buildGroupsImageToggle('groups-image-understanding-enabled', 'groups_image_understanding_enabled', 'groups_image_understanding_enabled_hint', understandingEnabled)}
             ${buildGroupsImageToggle('groups-image-comment-enabled', 'groups_image_comment_enabled', 'groups_image_comment_enabled_hint', commentEnabled)}
+            ${buildGroupsImageToggle('groups-image-free-reply-understanding-enabled', 'groups_image_free_reply_understanding_enabled', 'groups_image_free_reply_understanding_enabled_hint', freeReplyUnderstandingEnabled)}
         </div>
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
             ${buildGroupsImageToggle('groups-video-understanding-enabled', 'groups_video_understanding_enabled', 'groups_video_understanding_enabled_hint', videoUnderstandingEnabled)}
@@ -9797,6 +9803,7 @@ function saveWechatGroupSettings() {
                 wechat_group_image_understanding_comment_enabled: image.comment_enabled,
                 wechat_group_image_understanding_prompt: image.understanding_prompt,
                 wechat_group_image_understanding_cache_minutes: image.cache_minutes,
+                wechat_group_free_reply_image_understanding_enabled: image.free_reply_understanding_enabled,
                 wechat_group_image_create_hourly_limit: image.create_hourly_limit,
                 wechat_group_video_understanding_enabled: image.video_understanding_enabled,
                 wechat_group_forward_preview_enabled: image.forward_preview_enabled,
@@ -9844,6 +9851,9 @@ function readWechatGroupImageSettings(saved = {}) {
             ? String(document.getElementById('groups-image-understanding-prompt').value || '').trim()
             : String(saved.understanding_prompt || '').trim(),
         cache_minutes: clampNumber(document.getElementById('groups-image-cache-minutes')?.value, 1, 120, saved.cache_minutes ?? 30),
+        free_reply_understanding_enabled: document.getElementById('groups-image-free-reply-understanding-enabled')
+            ? !!document.getElementById('groups-image-free-reply-understanding-enabled').checked
+            : saved.free_reply_understanding_enabled === true,
         create_hourly_limit: clampNumber(document.getElementById('groups-image-create-hourly-limit')?.value, 0, 100, saved.create_hourly_limit ?? 5),
         video_understanding_enabled: document.getElementById('groups-video-understanding-enabled')
             ? !!document.getElementById('groups-video-understanding-enabled').checked

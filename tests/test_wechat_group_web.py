@@ -66,6 +66,7 @@ class WechatGroupWebTest(unittest.TestCase):
             "wechat_group_image_understanding_comment_enabled": conf().get("wechat_group_image_understanding_comment_enabled"),
             "wechat_group_image_understanding_prompt": conf().get("wechat_group_image_understanding_prompt"),
             "wechat_group_image_understanding_cache_minutes": conf().get("wechat_group_image_understanding_cache_minutes"),
+            "wechat_group_free_reply_image_understanding_enabled": conf().get("wechat_group_free_reply_image_understanding_enabled"),
             "wechat_group_image_create_hourly_limit": conf().get("wechat_group_image_create_hourly_limit"),
             "wechat_group_video_understanding_enabled": conf().get("wechat_group_video_understanding_enabled"),
             "wechat_group_forward_preview_enabled": conf().get("wechat_group_forward_preview_enabled"),
@@ -158,6 +159,7 @@ class WechatGroupWebTest(unittest.TestCase):
                 "comment_enabled": True,
                 "understanding_prompt": "请简洁描述这张图片中的关键信息，并指出可能需要回复的内容。",
                 "cache_minutes": 30,
+                "free_reply_understanding_enabled": False,
                 "create_hourly_limit": 5,
                 "video_understanding_enabled": False,
                 "forward_preview_enabled": True,
@@ -359,6 +361,7 @@ class WechatGroupWebTest(unittest.TestCase):
                 "wechat_group_image_understanding_comment_enabled": False,
                 "wechat_group_image_understanding_prompt": "  describe\nbriefly  ",
                 "wechat_group_image_understanding_cache_minutes": "999",
+                "wechat_group_free_reply_image_understanding_enabled": True,
                 "wechat_group_image_create_hourly_limit": "999",
                 "wechat_group_video_understanding_enabled": True,
                 "wechat_group_forward_preview_enabled": False,
@@ -376,6 +379,7 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertFalse(conf()["wechat_group_image_understanding_comment_enabled"])
         self.assertEqual("describe\nbriefly", conf()["wechat_group_image_understanding_prompt"])
         self.assertEqual(120, conf()["wechat_group_image_understanding_cache_minutes"])
+        self.assertTrue(conf()["wechat_group_free_reply_image_understanding_enabled"])
         self.assertEqual(100, conf()["wechat_group_image_create_hourly_limit"])
         self.assertTrue(conf()["wechat_group_video_understanding_enabled"])
         self.assertFalse(conf()["wechat_group_forward_preview_enabled"])
@@ -468,7 +472,9 @@ class WechatGroupWebTest(unittest.TestCase):
 
         self.assertIn("function readWechatGroupImageSettings", console_js)
         self.assertIn("groups-image-understanding-enabled", console_js)
+        self.assertIn("groups-image-free-reply-understanding-enabled", console_js)
         self.assertIn("groups-image-create-hourly-limit", console_js)
+        self.assertIn("wechat_group_free_reply_image_understanding_enabled", console_js)
         self.assertIn("wechat_group_image_create_hourly_limit", console_js)
         self.assertIn("groups-video-understanding-enabled", console_js)
         self.assertIn("groups-forward-preview-enabled", console_js)

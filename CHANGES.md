@@ -2,6 +2,18 @@
 
 ## 2026-07-05
 
+### 微信群自由回复图片理解开关
+
+- 更新 `config.py` 与 `config-template.json`：新增 `wechat_group_free_reply_image_understanding_enabled`，默认关闭，避免升级后自动增加视觉模型调用。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：在「群聊 / 图片与生图」面板新增「启用自由回复图片理解」开关，并接入 Web 配置读取、保存和布尔归一化。
+- 更新 `channel/wechat_group/wechat_group_channel.py` 与 `channel/wechat_group/wechat_group_free_reply.py`：非 @ 图片仅在新开关开启时进入自由回复候选；先通过自由回复门控和大模型判定，批准后再复用现有图片理解生成 `<wechat-group-image>` 上下文。
+- 更新 `tests/test_wechat_group_channel.py` 与 `tests/test_wechat_group_web.py`：覆盖默认关闭旧行为、开启后先排队不提前识图、批准后注入视觉摘要，以及 Web 配置/UI 字段。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_non_at_image_message_is_archived_without_reply_context tests.test_wechat_group_channel.WechatGroupChannelTest.test_non_at_image_message_queues_free_reply_when_image_switch_enabled tests.test_wechat_group_channel.WechatGroupChannelTest.test_worker_approved_image_free_reply_injects_vision_summary tests.test_wechat_group_web.WechatGroupWebTest.test_channels_api_lists_wechat_group_as_qr_channel tests.test_wechat_group_web.WechatGroupWebTest.test_channels_save_wechat_group_image_config tests.test_wechat_group_web.WechatGroupWebTest.test_console_contains_wechat_group_image_settings`
+- `python -m unittest tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_free_reply`
+- `node --check .\channel\web\static\js\console.js`
+
 ### 微信群画像常用词噪声修复
 
 - 更新 `channel/wechat_group/wechat_group_learner.py`：为群友画像自动学习的 `common_words` 增加噪声过滤，排除 `amp`、`size`、`biztype`、短十六进制片段等 HTML/XML/微信消息元数据残留，同时保留 `api`、`nas`、`docker` 等有效技术词。

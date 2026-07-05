@@ -222,6 +222,25 @@ class WechatGroupChannel(ChatChannel):
         direct_reply = getattr(msg, "is_at", False) is True or getattr(msg, "is_quote_self", False) is True
         if msg.ctype == ContextType.IMAGE:
             if not direct_reply:
+                if not conf().get("wechat_group_free_reply_image_understanding_enabled", False):
+                    return
+                image_text = self._build_free_reply_image_text(msg)
+                should_enqueue, decision = self._should_enqueue_free_reply_message(
+                    msg,
+                    allow_media_payload=True,
+                    text_override=image_text,
+                )
+                if not should_enqueue:
+                    return
+                self._ensure_free_reply_worker_started()
+                submitted = self.free_reply_worker.submit(
+                    self._build_free_reply_task(msg, decision, text=image_text)
+                )
+                if submitted:
+                    self.free_reply_state.mark_triggered(msg.other_user_id, now=decision.get("timestamp"))
+                    self._log_free_reply_decision(decision, "queued")
+                else:
+                    self._log_free_reply_decision(decision, "queue_full")
                 return
             content = self._build_image_understanding_content(msg)
             if not content:
@@ -365,10 +384,14 @@ class WechatGroupChannel(ChatChannel):
             actual_user_id=item.get("sender_id") or "",
         )
 
-    def _build_image_understanding_content(self, msg: WechatGroupMessage) -> str:
+    def _build_image_understanding_content(self, msg: WechatGroupMessage, allow_image_only=False) -> str:
         if not conf().get("wechat_group_image_understanding_enabled", True):
             return ""
-        if not getattr(msg, "text", "") and not conf().get("wechat_group_image_understanding_comment_enabled", True):
+        if (
+            not getattr(msg, "text", "")
+            and not allow_image_only
+            and not conf().get("wechat_group_image_understanding_comment_enabled", True)
+        ):
             return ""
         image_path = getattr(msg, "media_path", "") or getattr(msg, "content", "")
         if not image_path:
@@ -993,8 +1016,14 @@ class WechatGroupChannel(ChatChannel):
         self.free_reply_worker.start()
         self._free_reply_worker_started = True
 
-    def _should_enqueue_free_reply_message(self, msg: WechatGroupMessage):
+    @staticmethod
+    def _build_free_reply_image_text(msg: WechatGroupMessage) -> str:
+        image_path = getattr(msg, "media_path", "") or getattr(msg, "content", "")
+        return "[图片] {}".format(image_path).strip()
+
+    def _should_enqueue_free_reply_message(self, msg: WechatGroupMessage, allow_media_payload=False, text_override=None):
         cfg = get_wechat_group_free_reply_config()
+        text = text_override if text_override is not None else (getattr(msg, "text", None) or msg.content)
         if not self._is_selected_room(msg):
             decision = {
                 "triggered": False,
@@ -1007,7 +1036,7 @@ class WechatGroupChannel(ChatChannel):
                 "room_name": getattr(msg, "other_user_nickname", ""),
                 "sender_id": getattr(msg, "actual_user_id", ""),
                 "sender_name": getattr(msg, "actual_user_nickname", ""),
-                "text_preview": getattr(msg, "text", "") or getattr(msg, "content", ""),
+                "text_preview": text,
                 "timestamp": time.time(),
             }
         else:
@@ -1028,7 +1057,7 @@ class WechatGroupChannel(ChatChannel):
                 room_name=msg.other_user_nickname,
                 sender_id=msg.actual_user_id,
                 sender_name=msg.actual_user_nickname,
-                text=getattr(msg, "text", None) or msg.content,
+                text=text,
                 recent_messages=recent_messages,
                 state=state,
                 now=time.time(),
@@ -1036,6 +1065,7 @@ class WechatGroupChannel(ChatChannel):
                 blocked_sender_ids=conf().get("wechat_group_blocked_sender_ids", []) or [],
                 bot_names=[getattr(msg, "self_display_name", ""), getattr(msg, "to_user_nickname", ""), self.name],
                 message_type=getattr(msg, "message_type", None),
+                allow_media_payload=allow_media_payload,
             )
             if conf().get("wechat_group_emotion_enabled", True):
                 try:
@@ -1053,13 +1083,14 @@ class WechatGroupChannel(ChatChannel):
             return False, decision
         return True, decision
 
-    def _build_free_reply_task(self, msg: WechatGroupMessage, decision: dict) -> dict:
+    def _build_free_reply_task(self, msg: WechatGroupMessage, decision: dict, text=None) -> dict:
+        task_text = text if text is not None else (getattr(msg, "text", None) or msg.content)
         return {
             "room_id": msg.other_user_id,
             "room_name": msg.other_user_nickname,
             "sender_id": msg.actual_user_id,
             "sender_name": msg.actual_user_nickname,
-            "text": getattr(msg, "text", None) or msg.content,
+            "text": task_text,
             "msg": msg,
             "local_decision": decision,
             "queued_at": time.time(),
@@ -1068,9 +1099,20 @@ class WechatGroupChannel(ChatChannel):
 
     def _submit_free_reply_after_judge(self, task, llm_decision):
         msg = task["msg"]
+        context_type = msg.ctype
+        content = msg.content
+        image_understanding_triggered = False
+        if msg.ctype == ContextType.IMAGE:
+            if not conf().get("wechat_group_free_reply_image_understanding_enabled", False):
+                return
+            content = self._build_image_understanding_content(msg, allow_image_only=True)
+            if not content:
+                return
+            context_type = ContextType.TEXT
+            image_understanding_triggered = True
         context = self._compose_context(
-            msg.ctype,
-            msg.content,
+            context_type,
+            content,
             isgroup=True,
             msg=msg,
             wechat_group_force_reply=True,
@@ -1080,6 +1122,8 @@ class WechatGroupChannel(ChatChannel):
         context["wechat_group_free_reply_triggered"] = True
         context["wechat_group_free_reply_decision"] = task.get("local_decision") or {}
         context["wechat_group_free_reply_llm_decision"] = llm_decision or {}
+        if image_understanding_triggered:
+            context["wechat_group_image_understanding_triggered"] = True
         context["suppress_mention"] = True
         context["no_need_at"] = True
         self.produce(context)

@@ -238,22 +238,26 @@ def evaluate_wechat_group_free_reply(
     blocked_sender_ids=None,
     bot_names=None,
     message_type=None,
+    allow_media_payload=False,
 ) -> dict:
     now = time.time() if now is None else now
     state = state or {}
     suppressions = []
     normalized_text = _normalize_text(text or "")
     media_payload = _is_media_payload(normalized_text, message_type=message_type)
+    level = config.get("activity_level") or "normal"
+    profile = (config.get("profiles") or DEFAULT_FREE_REPLY_PROFILES).get(level, DEFAULT_FREE_REPLY_PROFILES["normal"])
+    threshold = int(profile.get("min_score", 50))
     if media_payload:
-        score, reasons = 0, []
+        if allow_media_payload:
+            score, reasons = threshold, ["media_payload_allowed"]
+        else:
+            score, reasons = 0, []
     else:
         score, reasons = _score_text(normalized_text, bot_names=bot_names)
         if "group_question" in reasons and len(recent_messages or []) >= 2:
             score += 25
             reasons.append("unanswered_question")
-    level = config.get("activity_level") or "normal"
-    profile = (config.get("profiles") or DEFAULT_FREE_REPLY_PROFILES).get(level, DEFAULT_FREE_REPLY_PROFILES["normal"])
-    threshold = int(profile.get("min_score", 50))
 
     if not config.get("enabled"):
         suppressions.append("disabled")
@@ -263,9 +267,9 @@ def evaluate_wechat_group_free_reply(
         suppressions.append("self_message")
     if sender_id and sender_id in (blocked_sender_ids or []):
         suppressions.append("blocked_sender")
-    if _is_low_information(text or ""):
+    if _is_low_information(text or "") and not (media_payload and allow_media_payload):
         suppressions.append("low_information")
-    if media_payload:
+    if media_payload and not allow_media_payload:
         suppressions.append("media_payload")
     if _is_sensitive_or_dangerous(text or ""):
         suppressions.append("sensitive_or_dangerous")
