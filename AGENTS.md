@@ -241,7 +241,9 @@ current user message:
 识图触发规则：
 
 - 当群内直接发送图片并触发机器人回复时，通道优先对本张图片调用 `Vision().execute({"image": image_path, "question": question})` 生成视觉摘要，再注入 `<wechat-group-image>`。
-- 当用户发送文本类识图请求，例如“识别这张图”“看看这张图片”，通道不会盲目下载文本消息文件；它会在归档中查找目标图片，再把找到的图片转成同样的 `<wechat-group-image>` 上下文。
+- 最近图片识别只处理文本消息，且必须直接触发机器人回复：`is_at = true` 或 `is_quote_self = true`。未 @ 机器人、未引用机器人回复的普通文本，不会直接进入最近图片识别链路，而是按自由回复或普通文本逻辑处理。
+- 当用户发送文本类识图请求，例如“识别这张图”“看看这张图片”“图里有什么”“图片上是什么”“啥意思”“什么意思”，通道不会盲目下载文本消息文件；它会在归档中查找目标图片，再把找到的图片转成同样的 `<wechat-group-image>` 上下文。
+- 文本识图意图当前由 `_looks_like_image_understanding_request()` 判断：`识别/看看/看下/看一下/分析/描述/总结/解释` 后 20 字内出现 `图/图片/照片/截图/这张/这个`，或文本包含 `这张图/这张图片/这张照片/这张截图`、`图里/图上/图片里/图片上`、`啥意思/什么意思`。
 - 直接图片没有附带文本时，是否自动评论由 `wechat_group_image_understanding_comment_enabled` 控制；总开关由 `wechat_group_image_understanding_enabled` 控制。
 - 图片理解 prompt 来自 `wechat_group_image_understanding_prompt`，为空时使用默认简洁描述提示；相同 `image_path + question` 的结果按 `wechat_group_image_understanding_cache_minutes` 做短期缓存。
 
@@ -250,6 +252,7 @@ current user message:
 1. 如果本条文本是回复引用消息，且 `quote.message_id` 存在，先按 `room_id + message_id` 精确查找归档图片；命中后只识别被引用的那张图片。
 2. 如果引用消息 ID 查不到图片，再按引用发送者 `quote.sender_id` 或 `quote.sender_name` 在当前群最近 30 分钟、最多 20 条归档消息中倒序查找该发送者最近发过的图片。
 3. 如果没有可用引用或引用匹配失败，最后才回退到当前群最近 10 分钟、最多 10 条归档消息中的最新图片。
+4. 候选图片必须是当前群归档中的 `message_type = image`，且 `media_path` 非空；找到第一张满足条件的图片后立即停止继续查找。
 
 维护约束：
 
