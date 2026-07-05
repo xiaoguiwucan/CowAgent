@@ -933,6 +933,43 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertNotIn("room_id", result["profiles"][0])
         self.assertEqual(("alice", 5, "room@@abc"), fake.args)
 
+    def test_profiles_api_fills_missing_room_names_from_selected_config(self):
+        from channel.web.web_channel import WechatGroupMemoriesHandler
+
+        class FakeConfig:
+            def get(self, key, default=None):
+                data = {
+                    "wechat_group_room_ids": ["@@room_a"],
+                    "wechat_group_names": ["Product Launch Group"],
+                }
+                return data.get(key, default)
+
+        class FakeProfileService:
+            def list_profiles(self, query="", limit=20, room_id=""):
+                return [{
+                    "sender_id": "wxid_alice",
+                    "primary_nickname": "Alice",
+                    "room_summaries": [{
+                        "room_id": "@@room_a",
+                        "room_name": "",
+                        "display_names": ["Alice"],
+                        "last_seen_at": 300,
+                        "name_count": 1,
+                    }],
+                }]
+
+        handler = WechatGroupMemoriesHandler()
+        with patch("channel.web.web_channel._require_auth"), \
+                patch("channel.web.web_channel.conf", return_value=FakeConfig()), \
+                patch.object(WechatGroupMemoriesHandler, "_get_profile_service", return_value=FakeProfileService()), \
+                patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(
+                    room_id="", sender_id="", status="active", limit="20", offset="0", q="",
+                )):
+            result = json.loads(handler.GET("profiles"))
+
+        self.assertEqual("success", result["status"])
+        self.assertEqual("Product Launch Group", result["profiles"][0]["room_summaries"][0]["room_name"])
+
     def test_wechat_group_memory_disable_api_uses_service(self):
         from channel.web.web_channel import WechatGroupMemoriesHandler
 

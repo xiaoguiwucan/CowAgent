@@ -2,6 +2,19 @@
 
 ## 2026-07-05
 
+### 微信群全局画像群名展示修复
+
+- 更新 `channel/wechat_group/wechat_group_archive.py`：新增按 `room_id` 查询最近非空群名的归档读取能力，覆盖消息归档和助手回复归档。
+- 更新 `channel/wechat_group/wechat_group_profile_service.py` 与 `channel/web/web_channel.py`：全局画像的“出现过的群”缺少 `room_name` 时，依次从画像记录、已保存群名、运行态房间列表和归档中补齐群名。
+- 更新 `channel/web/static/js/console.js`：群记忆/全局画像房间列表使用 `selected_room_names` 兜底；画像详情没有群名时显示“未命名群”，群 ID 保留在下一行用于诊断。
+- 更新 `tests/test_wechat_group_profile_service.py`、`tests/test_wechat_group_web.py` 与 `tests/test_wechat_group_memory_ui.py`：增加群名补齐和前端兜底回归测试。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_web tests.test_wechat_group_memory_ui`
+- `python -m py_compile channel\wechat_group\wechat_group_archive.py channel\wechat_group\wechat_group_profile_service.py channel\web\web_channel.py`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
 ### 微信群自由回复参数布局压缩
 
 - 更新 `channel/web/static/js/console.js`：将自由回复「活跃档位」下的 7 个数字参数合并到同一个紧凑字段组，避免桌面端拆成两行占用过多高度。

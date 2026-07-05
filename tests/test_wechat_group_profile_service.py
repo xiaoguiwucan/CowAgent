@@ -219,6 +219,31 @@ class WechatGroupProfileServiceTest(unittest.TestCase):
         self.assertEqual("Group A", rows[0]["room_summaries"][0]["room_name"])
         self.assertEqual(rows[0]["last_seen_at"], rows[0]["room_summaries"][0]["last_seen_at"])
 
+    def test_room_summaries_fill_missing_room_name_from_archive(self):
+        self.service.upsert_manual_profile(
+            sender_id="wxid_alice",
+            primary_nickname="Alice",
+            speak_style="direct",
+            interests=[],
+            common_words=[],
+            aliases=["Alice A"],
+            room_id="@@room_a",
+            room_name="",
+        )
+        self.archive.record_message(
+            message_id="m-room-name",
+            room_id="@@room_a",
+            room_name="Product Launch Group",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            text="hello",
+            created_at=300,
+        )
+
+        rows = self.service.list_profiles(limit=20)
+
+        self.assertEqual("Product Launch Group", rows[0]["room_summaries"][0]["room_name"])
+
     def test_resolve_profiles_filters_sender_and_bot_from_mentions(self):
         self.service.upsert_manual_profile(
             sender_id="wxid_alice",

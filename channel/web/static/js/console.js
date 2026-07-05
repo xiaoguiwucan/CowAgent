@@ -8547,10 +8547,11 @@ function buildGroupsPersonaPanel(extra) {
 function getGroupsMemoryRooms(extra) {
     const rooms = Array.isArray(extra.rooms) ? extra.rooms : [];
     const selectedIds = Array.isArray(extra.selected_room_ids) ? extra.selected_room_ids.map(String).filter(Boolean) : [];
+    const selectedNames = Array.isArray(extra.selected_room_names) ? extra.selected_room_names : [];
     const roomNameById = new Map(rooms.map(room => [String(room.id || ''), String(room.name || '')]));
     return selectedIds.map((id, idx) => ({
         id,
-        name: roomNameById.get(id) || t('groups_room_saved').replace('{n}', String(idx + 1)),
+        name: roomNameById.get(id) || selectedNames[idx] || t('groups_room_saved').replace('{n}', String(idx + 1)),
     }));
 }
 
@@ -8703,7 +8704,7 @@ function buildGroupsProfilesDetail(profile) {
                 ${roomSummaries.length ? roomSummaries.map(item => `
                     <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(item.room_name || item.room_id || '')}</span>
+                            <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(item.room_name || t('groups_room_unnamed'))}</span>
                             <span class="ml-auto text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${escapeHtml(formatGroupsProfileTimestamp(item.last_seen_at || 0))}</span>
                         </div>
                         <div class="mt-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 break-all">${escapeHtml(item.room_id || '')}</div>

@@ -57,6 +57,15 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
 
         self.assertIn("console.js?v=20260704-global-profile-memory", chat_html)
 
+    def test_groups_memory_rooms_use_saved_room_names_as_fallback(self):
+        console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
+        start = console_js.index("function getGroupsMemoryRooms(extra)")
+        end = console_js.index("function ensureGroupsMemoryLoaded", start)
+        body = console_js[start:end]
+
+        self.assertIn("selected_room_names", body)
+        self.assertIn("selectedNames[idx]", body)
+
 
 if __name__ == "__main__":
     unittest.main()

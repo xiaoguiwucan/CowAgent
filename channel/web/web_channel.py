@@ -4580,13 +4580,13 @@ class WechatGroupMemoriesHandler:
             if action == "groups":
                 knowledge_service = self._get_knowledge_service()
                 selected_ids = conf().get("wechat_group_room_ids", []) or []
-                selected_names = conf().get("wechat_group_names", []) or []
+                room_name_map = self._get_room_name_map()
                 rooms = [
                     {
                         "id": str(room_id),
-                        "name": selected_names[idx] if idx < len(selected_names) else str(room_id),
+                        "name": room_name_map.get(str(room_id)) or self._resolve_room_name(room_id) or str(room_id),
                     }
-                    for idx, room_id in enumerate(selected_ids)
+                    for room_id in selected_ids
                     if str(room_id or "").strip()
                 ]
                 return self._json({
@@ -4615,6 +4615,7 @@ class WechatGroupMemoriesHandler:
                     limit=limit,
                     room_id=params.room_id or "",
                 )
+                data = self._enrich_profile_room_names(data)
                 return self._json({"status": "success", "profiles": data})
             if action == "learn/runs":
                 data = self._get_knowledge_store().list_learning_runs(
@@ -4783,6 +4784,61 @@ class WechatGroupMemoriesHandler:
         for key in keys:
             if not str(body.get(key) or "").strip():
                 raise ValueError(f"{key} is required")
+
+    @classmethod
+    def _get_room_name_map(cls):
+        result = {}
+        selected_ids = conf().get("wechat_group_room_ids", []) or []
+        selected_names = conf().get("wechat_group_names", []) or []
+        for idx, room_id in enumerate(selected_ids):
+            room_text = str(room_id or "").strip()
+            name = str(selected_names[idx] if idx < len(selected_names) else "").strip()
+            if room_text and name:
+                result[room_text] = name
+        running_ch = ChannelsHandler._get_running_wechat_group_channel()
+        rooms = getattr(running_ch, "rooms", []) if running_ch else []
+        if isinstance(rooms, list):
+            for room in rooms:
+                if not isinstance(room, dict):
+                    continue
+                room_text = str(room.get("id") or "").strip()
+                name = str(room.get("name") or "").strip()
+                if room_text and name:
+                    result[room_text] = name
+        return result
+
+    @classmethod
+    def _resolve_room_name(cls, room_id, fallback=""):
+        fallback_text = str(fallback or "").strip()
+        if fallback_text:
+            return fallback_text
+        room_text = str(room_id or "").strip()
+        if not room_text:
+            return ""
+        name = cls._get_room_name_map().get(room_text, "")
+        if name:
+            return name
+        try:
+            return cls._get_archive().find_room_name(room_text)
+        except Exception:
+            return ""
+
+    @classmethod
+    def _enrich_profile_room_names(cls, profiles):
+        enriched = []
+        for profile in profiles or []:
+            item = dict(profile)
+            summaries = []
+            for summary in item.get("room_summaries") or []:
+                room_item = dict(summary)
+                room_item["room_name"] = cls._resolve_room_name(
+                    room_item.get("room_id"),
+                    room_item.get("room_name"),
+                )
+                summaries.append(room_item)
+            item["room_summaries"] = summaries
+            enriched.append(item)
+        return enriched
 
     @staticmethod
     def _run_async(coro):

@@ -219,7 +219,7 @@ class WechatGroupProfileService:
         if room_text and room_member_name and not any(str(item.get("room_id") or "") == room_text for item in room_summaries):
             room_summaries.insert(0, {
                 "room_id": room_text,
-                "room_name": "",
+                "room_name": self._resolve_room_name(room_text),
                 "display_names": [room_member_name],
                 "last_seen_at": latest_seen_at,
                 "name_count": 1,
@@ -316,8 +316,7 @@ class WechatGroupProfileService:
                 return display_name
         return str(sender_id or "").strip()
 
-    @staticmethod
-    def _build_room_summaries(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_room_summaries(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         grouped: Dict[str, Dict[str, Any]] = {}
         for record in records:
             room_id = str(record.get("room_id") or "").strip()
@@ -338,10 +337,19 @@ class WechatGroupProfileService:
                 summary["display_names"].append(display_name)
             summary["name_count"] += 1
             summary["last_seen_at"] = max(int(summary["last_seen_at"] or 0), int(record.get("last_seen_at") or 0))
+        for summary in grouped.values():
+            if not str(summary.get("room_name") or "").strip():
+                summary["room_name"] = self._resolve_room_name(summary.get("room_id"))
         return sorted(
             grouped.values(),
             key=lambda item: (-int(item.get("last_seen_at") or 0), item.get("room_id") or ""),
         )
+
+    def _resolve_room_name(self, room_id: Any) -> str:
+        try:
+            return self.archive.find_room_name(str(room_id or "").strip())
+        except Exception:
+            return ""
 
     @staticmethod
     def _format_profile_content(profile: Dict[str, Any]) -> str:

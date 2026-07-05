@@ -326,6 +326,27 @@ class WechatGroupArchive:
             }
         return None
 
+    def find_room_name(self, room_id: str) -> str:
+        room_text = str(room_id or "").strip()
+        if not room_text:
+            return ""
+        for table in ("wechat_group_messages", "wechat_group_assistant_replies"):
+            with self._lock, closing(self._connect()) as conn:
+                row = conn.execute(
+                    f"""
+                    SELECT room_name
+                    FROM {table}
+                    WHERE room_id = ?
+                      AND COALESCE(room_name, '') != ''
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (room_text,),
+                ).fetchone()
+            if row and str(row[0] or "").strip():
+                return str(row[0] or "").strip()
+        return ""
+
     def create_distill_run(
         self,
         room_id: str,
