@@ -78,7 +78,7 @@ def _looks_like_image_understanding_request(text: str) -> bool:
     value = str(text or "").strip()
     if not value:
         return False
-    return bool(re.search(r"(识别|看看|看下|看一下|分析|描述|总结|解释).{0,20}(图|图片|照片|截图|这张|这个)|这张(图|图片|照片|截图)|图里|图上|图片里|图片上", value))
+    return bool(re.search(r"(识别|看看|看下|看一下|分析|描述|总结|解释).{0,20}(图|图片|照片|截图|这张|这个)|这张(图|图片|照片|截图)|图里|图上|图片里|图片上|啥意思|什么意思", value))
 
 
 def _is_archived_image_message(item) -> bool:

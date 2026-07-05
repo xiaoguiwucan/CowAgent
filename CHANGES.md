@@ -2,6 +2,15 @@
 
 ## 2026-07-05
 
+### 微信群图片后省略追问识图修复
+
+- 更新 `channel/wechat_group/wechat_group_channel.py`：扩展文本识图触发判断，使用户在 @ 机器人时发送“啥意思”“什么意思”这类紧跟图片的省略追问，也会进入最近群图片识别链路。
+- 更新 `tests/test_wechat_group_channel.py`：新增回归测试覆盖群里最近有图片后，用户 @ 机器人问“啥意思”时会调用视觉工具并注入 `<wechat-group-image>` 上下文。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_at_text_ambiguous_image_question_uses_recent_group_image`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
 ### 微信群全局画像群名展示修复
 
 - 更新 `channel/wechat_group/wechat_group_archive.py`：新增按 `room_id` 查询最近非空群名的归档读取能力，覆盖消息归档和助手回复归档。
