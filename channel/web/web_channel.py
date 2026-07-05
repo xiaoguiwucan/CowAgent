@@ -3221,11 +3221,25 @@ class ModelsHandler:
             )
         return json.dumps({"status": "error", "message": f"capability not editable: {capability}"})
 
+    @staticmethod
+    def _clean_model_text(value) -> str:
+        if not isinstance(value, str):
+            return ""
+        return (
+            value.replace("\u200b", "")
+            .replace("\u200c", "")
+            .replace("\u200d", "")
+            .replace("\ufeff", "")
+            .strip()
+        )
+
     def _set_image(self, provider_id: str, model: str) -> str:
         # Source of truth: skills.image-generation.{provider, model}. The
         # provider field is persisted so users picking a custom model under
         # a specific vendor still get routed there — runtime falls back to
         # model-name prefix inference only when provider is empty.
+        provider_id = self._clean_model_text(provider_id)
+        model = self._clean_model_text(model)
         custom_provider = None
         if provider_id.startswith("custom:"):
             from models.custom_provider import parse_custom_bot_type
@@ -3699,6 +3713,11 @@ class ChannelsHandler:
             mgr = getattr(app_module, '_channel_mgr', None) if app_module else None
             if mgr:
                 ch = mgr.get_channel(channel_name)
+                status_getter = getattr(ch, 'get_login_status', None) if ch else None
+                if callable(status_getter):
+                    status = status_getter()
+                    if isinstance(status, str):
+                        return status
                 if ch and hasattr(ch, 'status'):
                     return ch.status
         except Exception:
@@ -3734,6 +3753,36 @@ class ChannelsHandler:
         except Exception:
             pass
         return None
+
+    @classmethod
+    def _get_wechat_group_status_info(cls) -> dict:
+        running_ch = cls._get_running_wechat_group_channel()
+        if not running_ch:
+            return {
+                "configured": "wechat_group" in cls._active_channel_set(),
+                "login_status": "idle",
+                "runtime_active": False,
+                "connected": False,
+                "message": "",
+            }
+        status_getter = getattr(running_ch, "get_login_status", None)
+        if callable(status_getter):
+            login_status = status_getter()
+            if not isinstance(login_status, str):
+                login_status = getattr(running_ch, "status", "unknown")
+        else:
+            login_status = getattr(running_ch, "status", "unknown")
+        connected = login_status in ("logged_in", "connected")
+        message = getattr(running_ch, "last_error", "") or ""
+        if not isinstance(message, str):
+            message = str(message)
+        return {
+            "configured": "wechat_group" in cls._active_channel_set(),
+            "login_status": login_status,
+            "runtime_active": True,
+            "connected": connected,
+            "message": message,
+        }
 
     @staticmethod
     def _normalize_string_list(value) -> list:
@@ -4103,18 +4152,23 @@ class ChannelsHandler:
                         "value": display_val,
                         "default": f.get("default", ""),
                     })
+                runtime_active = ch_name in active_channels
+                if ch_name == "wechat_group":
+                    wg_status = self._get_wechat_group_status_info()
+                    runtime_active = bool(wg_status.get("connected"))
                 ch_info = {
                     "name": ch_name,
                     "label": ch_def["label"],
                     "icon": ch_def["icon"],
                     "color": ch_def["color"],
-                    "active": ch_name in active_channels,
+                    "active": runtime_active,
+                    "configured": ch_name in active_channels,
                     "fields": fields_out,
                 }
                 if ch_name == "weixin" and ch_name in active_channels:
                     ch_info["login_status"] = self._get_weixin_login_status()
                 if ch_name == "wechat_group" and ch_name in active_channels:
-                    ch_info["login_status"] = self._get_channel_status("wechat_group")
+                    ch_info.update(self._get_wechat_group_status_info())
                 if ch_name == "wechat_group":
                     ch_info["extra"] = self._wechat_group_extra()
                 channels.append(ch_info)
@@ -4516,11 +4570,21 @@ class WechatGroupQrHandler:
                 }, ensure_ascii=False)
 
             qr_code = getattr(running_ch, "qr_code", "") or ""
-            login_status = getattr(running_ch, "status", "unknown")
+            status_getter = getattr(running_ch, "get_login_status", None)
+            if callable(status_getter):
+                login_status = status_getter()
+                if not isinstance(login_status, str):
+                    login_status = getattr(running_ch, "status", "unknown")
+            else:
+                login_status = getattr(running_ch, "status", "unknown")
+            message = getattr(running_ch, "last_error", "") or ""
+            if not isinstance(message, str):
+                message = str(message)
             result = {
                 "status": "success",
                 "login_status": login_status,
                 "rooms": getattr(running_ch, "rooms", []) or [],
+                "message": message,
                 "extra": ChannelsHandler._wechat_group_extra(),
             }
             if qr_code:
@@ -4580,13 +4644,13 @@ class WechatGroupMemoriesHandler:
             if action == "groups":
                 knowledge_service = self._get_knowledge_service()
                 selected_ids = conf().get("wechat_group_room_ids", []) or []
-                room_name_map = self._get_room_name_map()
+                selected_names = conf().get("wechat_group_names", []) or []
                 rooms = [
                     {
                         "id": str(room_id),
-                        "name": room_name_map.get(str(room_id)) or self._resolve_room_name(room_id) or str(room_id),
+                        "name": selected_names[idx] if idx < len(selected_names) else str(room_id),
                     }
-                    for room_id in selected_ids
+                    for idx, room_id in enumerate(selected_ids)
                     if str(room_id or "").strip()
                 ]
                 return self._json({
@@ -4615,7 +4679,6 @@ class WechatGroupMemoriesHandler:
                     limit=limit,
                     room_id=params.room_id or "",
                 )
-                data = self._enrich_profile_room_names(data)
                 return self._json({"status": "success", "profiles": data})
             if action == "learn/runs":
                 data = self._get_knowledge_store().list_learning_runs(
@@ -4784,61 +4847,6 @@ class WechatGroupMemoriesHandler:
         for key in keys:
             if not str(body.get(key) or "").strip():
                 raise ValueError(f"{key} is required")
-
-    @classmethod
-    def _get_room_name_map(cls):
-        result = {}
-        selected_ids = conf().get("wechat_group_room_ids", []) or []
-        selected_names = conf().get("wechat_group_names", []) or []
-        for idx, room_id in enumerate(selected_ids):
-            room_text = str(room_id or "").strip()
-            name = str(selected_names[idx] if idx < len(selected_names) else "").strip()
-            if room_text and name:
-                result[room_text] = name
-        running_ch = ChannelsHandler._get_running_wechat_group_channel()
-        rooms = getattr(running_ch, "rooms", []) if running_ch else []
-        if isinstance(rooms, list):
-            for room in rooms:
-                if not isinstance(room, dict):
-                    continue
-                room_text = str(room.get("id") or "").strip()
-                name = str(room.get("name") or "").strip()
-                if room_text and name:
-                    result[room_text] = name
-        return result
-
-    @classmethod
-    def _resolve_room_name(cls, room_id, fallback=""):
-        fallback_text = str(fallback or "").strip()
-        if fallback_text:
-            return fallback_text
-        room_text = str(room_id or "").strip()
-        if not room_text:
-            return ""
-        name = cls._get_room_name_map().get(room_text, "")
-        if name:
-            return name
-        try:
-            return cls._get_archive().find_room_name(room_text)
-        except Exception:
-            return ""
-
-    @classmethod
-    def _enrich_profile_room_names(cls, profiles):
-        enriched = []
-        for profile in profiles or []:
-            item = dict(profile)
-            summaries = []
-            for summary in item.get("room_summaries") or []:
-                room_item = dict(summary)
-                room_item["room_name"] = cls._resolve_room_name(
-                    room_item.get("room_id"),
-                    room_item.get("room_name"),
-                )
-                summaries.append(room_item)
-            item["room_summaries"] = summaries
-            enriched.append(item)
-        return enriched
 
     @staticmethod
     def _run_async(coro):

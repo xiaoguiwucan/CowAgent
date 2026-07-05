@@ -78,7 +78,14 @@ def _looks_like_image_understanding_request(text: str) -> bool:
     value = str(text or "").strip()
     if not value:
         return False
-    return bool(re.search(r"(识别|看看|看下|看一下|分析|描述|总结|解释).{0,20}(图|图片|照片|截图|这张|这个)|这张(图|图片|照片|截图)|图里|图上|图片里|图片上|啥意思|什么意思", value))
+    return bool(re.search(
+        r"(识别|看看|看下|看一下|分析|描述|总结|解释).{0,20}(图|图片|照片|截图|这张|这个)"
+        r"|这张(图|图片|照片|截图)"
+        r"|(图|图片|照片|截图).{0,20}(是啥|是什么|什么内容|啥内容|有啥|有什么|讲啥|讲什么|内容)"
+        r"|((我|刚才|上面|前面|之前|刚发|发的).{0,12}(图|图片|照片|截图))"
+        r"|图里|图上|图片里|图片上",
+        value,
+    ))
 
 
 def _is_archived_image_message(item) -> bool:
@@ -157,12 +164,31 @@ class WechatGroupChannel(ChatChannel):
         self.free_reply_judge = WechatGroupFreeReplyJudge()
         self.free_reply_worker = self._create_free_reply_worker()
         self._free_reply_worker_started = False
+        self.last_error = ""
         if get_wechat_group_free_reply_config()["enabled"]:
             self._ensure_free_reply_worker_started()
 
+    def get_login_status(self) -> str:
+        error = self.client.poll_error() if hasattr(self.client, "poll_error") else ""
+        if error and self.status not in (self.STATUS_IDLE, self.STATUS_CONNECTED, self.STATUS_LOGGED_IN):
+            self.status = self.STATUS_ERROR
+            self.last_error = error
+            self.report_startup_error(error)
+        return self.status
+
     def startup(self):
         self.status = self.STATUS_STARTING
+        self.last_error = ""
         self.client.start()
+        if hasattr(self.client, "poll_error"):
+            error = self.client.poll_error()
+            if error:
+                self.status = self.STATUS_ERROR
+                self.last_error = error
+                self.report_startup_error(error)
+                return
+        # The sidecar process is alive; QR/login completion is reported later
+        # through sidecar events. Do not treat this as WeChat login success.
         self.report_startup_success()
 
     def stop(self):
@@ -187,13 +213,24 @@ class WechatGroupChannel(ChatChannel):
             self.status = event.get("status") or self.status
             self.name = event.get("self_name") or self.name
             self.user_id = event.get("self_id") or self.user_id
+            if self.status in (self.STATUS_LOGGED_IN, self.STATUS_CONNECTED):
+                self.last_error = ""
             return True
         if event.type == SidecarEventType.ROOMS:
             self.rooms = event.get("rooms", [])
+            if self.status in (self.STATUS_STARTING, self.STATUS_QR_READY, self.STATUS_LOGGED_IN, self.STATUS_ERROR):
+                self.status = self.STATUS_CONNECTED
+                self.last_error = ""
             return True
         if event.type == SidecarEventType.ERROR:
-            self.status = self.STATUS_ERROR
-            logger.error("[wechat_group] sidecar error: {}".format(event.payload))
+            self.last_error = event.get("message") or str(event.payload)
+            if self.status not in (self.STATUS_LOGGED_IN, self.STATUS_CONNECTED) and not self.rooms:
+                self.status = self.STATUS_ERROR
+                self.report_startup_error(self.last_error)
+                logger.error("[wechat_group] sidecar startup error: {}".format(event.payload))
+            else:
+                self.last_error = ""
+                logger.warning("[wechat_group] sidecar non-fatal error after login: {}".format(event.payload))
             return True
         return False
 
@@ -613,6 +650,12 @@ class WechatGroupChannel(ChatChannel):
             self.client.send_text(receiver, reply.content, mention_ids=mention_ids)
             self._record_assistant_reply(context, reply, mention_ids)
         elif reply.type in (ReplyType.IMAGE, ReplyType.IMAGE_URL):
+            logger.info(
+                '[wechat_group] sending image reply: room="{}" path="{}"'.format(
+                    receiver,
+                    _wechat_group_log_preview(reply.content, 180),
+                )
+            )
             self.client.send_image(receiver, self._normalize_sidecar_media_path(reply.content))
             self._record_assistant_reply(context, reply, [])
         elif reply.type == ReplyType.VOICE:
