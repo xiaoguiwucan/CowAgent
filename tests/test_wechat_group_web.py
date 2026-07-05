@@ -477,6 +477,16 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("wechat_group_forward_preview_enabled", console_js)
         self.assertIn("wechat_group_quote_context_enabled", console_js)
 
+    def test_console_labels_profile_common_words_as_common_words(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("groups_memory_common_words: '常用词'", console_js)
+        self.assertIn("groups_memory_common_words: 'Common words'", console_js)
+        self.assertIn("groups-profiles-detail-common-words", console_js)
+        self.assertNotIn("groups-profiles-detail-expertise", console_js)
+        self.assertNotIn("groups_memory_expertise: '专业背景'", console_js)
+
     def test_wechat_group_extra_returns_running_free_reply_status(self):
         from channel.web.web_channel import ChannelsHandler
 

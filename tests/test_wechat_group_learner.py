@@ -64,6 +64,36 @@ class WechatGroupLearnerTest(unittest.TestCase):
         self.assertEqual("wxid_bob", profile["sender_id"])
         self.assertNotIn("pending", str(profile))
 
+    def test_learner_filters_markup_noise_from_common_words(self):
+        noisy_text = (
+            "<msg biztype='1' size='123' bizid='x'><emoji cd='df' ecd='fa' duration='2' /></msg> "
+            "<revokemsg>撤回消息</revokemsg> "
+            "今天继续聊 NAS、API 和 Docker 部署，NAS 方案继续确认，API 接口继续确认。 "
+            "&amp;nbsp; fffcab dd ef"
+        )
+        self.archive.record_message(
+            message_id="m-noise",
+            room_id="room@@a",
+            sender_id="wxid_noise",
+            sender_nickname="Noise",
+            text=noisy_text,
+            created_at=105,
+        )
+
+        self.learner.run_once("room@@a", mode="profile")
+        profile = self.profile_service.get_profile("wxid_noise")
+
+        self.assertIsNotNone(profile)
+        self.assertNotIn("amp", profile["common_words"])
+        self.assertNotIn("size", profile["common_words"])
+        self.assertNotIn("biztype", profile["common_words"])
+        self.assertNotIn("df", profile["common_words"])
+        self.assertNotIn("ecd", profile["common_words"])
+        self.assertNotIn("bizid", profile["common_words"])
+        self.assertNotIn("duration", profile["common_words"])
+        self.assertNotIn("revokemsg", profile["common_words"])
+        self.assertTrue(set(profile["common_words"]).issubset({"nas", "api", "docker", "接口"}))
+
     def test_learner_prefers_real_nickname_over_raw_sender_id(self):
         self.archive.record_message(
             message_id="m31",

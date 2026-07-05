@@ -1,5 +1,45 @@
 # CHANGES
 
+## 2026-07-05
+
+### 微信群画像常用词噪声修复
+
+- 更新 `channel/wechat_group/wechat_group_learner.py`：为群友画像自动学习的 `common_words` 增加噪声过滤，排除 `amp`、`size`、`biztype`、短十六进制片段等 HTML/XML/微信消息元数据残留，同时保留 `api`、`nas`、`docker` 等有效技术词。
+- 更新 `channel/web/static/js/console.js`：将全局画像编辑页中误标为“专业背景 / Expertise”的字段改为“常用词 / Common words”，继续沿用既有 `common_words` 接口字段，避免误导为独立专业背景。
+- 更新 `tests/test_wechat_group_learner.py` 与 `tests/test_wechat_group_web.py`：新增回归测试覆盖噪声词过滤和前端字段文案契约。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_learner.WechatGroupLearnerTest.test_learner_filters_markup_noise_from_common_words`
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_labels_profile_common_words_as_common_words`
+- `python -m unittest tests.test_wechat_group_learner tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_profile_store`
+- `node --check .\channel\web\static\js\console.js`
+
+### 微信群表情包普通图片误收集修复
+
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：补齐 Wechaty `Emoticon=5` 到 `sticker` 的类型映射，并支持字符串类型 `Emoticon` / `Sticker` 识别，避免表情消息被退化为普通文本或图片类型。
+- 更新 `channel/wechat_group/wechat_group_message.py` 与 `channel/wechat_group/wechat_group_channel.py`：保留 `sticker` 媒体消息进入渠道上下文的能力，但自动表情包收集只接收 `message_type="sticker"`，不再把普通图片自动加入表情包资产。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs` 与 `tests/test_wechat_group_channel.py`：新增回归测试覆盖 sidecar 表情类型识别、普通图片跳过收集和表情消息正常收集。
+
+验证记录：
+
+- `python -m unittest tests.test_wechat_group_channel.WechatGroupChannelTest.test_sticker_collection_skips_normal_images tests.test_wechat_group_channel.WechatGroupChannelTest.test_sticker_collection_accepts_sticker_messages`
+- `node --test .\wechaty-sidecar-core.test.mjs`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_sticker_service`
+- `node --check .\wechaty-sidecar-core.mjs`
+
+### 群聊 WebUI 中文化
+
+- 更新 `channel/web/static/js/console.js`：补齐群聊页中文文案，将自由回复决策、后台任务状态、活跃档位、情绪指标、群记忆学习运行记录等动态展示里的英文改为中文展示。
+- 增加群聊状态栏常见英文错误映射，避免直接展示 `room_id is required`、`save failed`、`load failed` 等接口或前端兜底英文。
+- 新增并回写 `plans/wechat_group_webui_chinese_20260705.md`：记录本次排查范围、实际改动、验证结果和剩余事项。
+
+验证记录：
+
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_web`
+
 ## 2026-07-04
 
 ### 微信群拟人化增强 Phase 0 配置骨架

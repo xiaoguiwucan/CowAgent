@@ -12,6 +12,23 @@ from channel.wechat_group.wechat_group_knowledge_store import WechatGroupKnowled
 from channel.wechat_group.wechat_group_profile_service import WechatGroupProfileService
 
 
+_COMMON_WORD_STOPWORDS = {
+    "今天", "晚上", "一下", "继续", "确认", "本群", "统一",
+    "amp", "lt", "gt", "quot", "apos", "nbsp",
+    "biztype", "size", "msg", "emoji", "xml", "html", "span", "div",
+    "src", "href", "http", "https", "www", "com", "md",
+    "bizid", "duration", "revokemsg",
+}
+
+_COMMON_WORD_ASCII_ALLOWLIST = {
+    "ai", "api", "asr", "css", "dns", "gpt", "ios", "ip", "js", "kfc",
+    "llm", "nas", "npm", "pt", "qa", "rag", "sql", "ssh", "ssl", "tcl",
+    "tts", "tv", "ui", "ux", "vpn", "vps",
+    "appletv", "docker", "fastapi", "flask", "linux", "next", "python",
+    "react", "sqlite", "vite", "vue", "wechat", "wechaty",
+}
+
+
 class WechatGroupLearner:
     def __init__(
         self,
@@ -180,15 +197,34 @@ def _infer_interests(text: str) -> List[str]:
 
 def _top_terms(text: str, limit: int = 3) -> List[str]:
     tokens = re.findall(r"[A-Za-z]{2,}|[\u4e00-\u9fff]{2,}", text or "")
-    stopwords = {"今天", "晚上", "一下", "继续", "确认", "本群", "统一"}
     counts: Dict[str, int] = {}
     for token in tokens:
-        lowered = token.lower()
-        if lowered in stopwords:
+        normalized = _normalize_common_word_token(token)
+        if not normalized:
             continue
-        counts[lowered] = counts.get(lowered, 0) + 1
+        counts[normalized] = counts.get(normalized, 0) + 1
     ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     return [token for token, _ in ordered[:limit]]
+
+
+def _normalize_common_word_token(token: str) -> str:
+    text = str(token or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in _COMMON_WORD_STOPWORDS:
+        return ""
+    if re.fullmatch(r"[\u4e00-\u9fff]{2,}", text):
+        return text
+    if not re.fullmatch(r"[a-z0-9]+", lowered):
+        return ""
+    if re.fullmatch(r"[0-9]+", lowered):
+        return ""
+    if re.fullmatch(r"[0-9a-f]{2,}", lowered) and lowered not in _COMMON_WORD_ASCII_ALLOWLIST:
+        return ""
+    if len(lowered) <= 3 and lowered not in _COMMON_WORD_ASCII_ALLOWLIST:
+        return ""
+    return lowered
 
 
 def _looks_like_group_memory(text: str) -> bool:

@@ -906,7 +906,7 @@ class WechatGroupChannel(ChatChannel):
             return
         if not conf().get("wechat_group_sticker_auto_collect_enabled", True):
             return
-        if str(getattr(msg, "message_type", "") or "").lower() != "image":
+        if str(getattr(msg, "message_type", "") or "").lower() != "sticker":
             return
         media_path = str(getattr(msg, "media_path", "") or "").strip()
         if not media_path:

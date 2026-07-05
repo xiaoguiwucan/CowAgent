@@ -5,6 +5,7 @@ const APP_MESSAGE_TYPE_REFER = 57
 const MESSAGE_TYPE_NAMES = {
   1: 'file',
   2: 'audio',
+  5: 'sticker',
   6: 'image',
   7: 'text',
   15: 'video',
@@ -56,6 +57,7 @@ export function detectMessageMediaType(message) {
     return MESSAGE_TYPE_NAMES[rawType] || 'text'
   }
   const normalized = String(rawType || '').trim().toLowerCase()
+  if (normalized.includes('emoticon') || normalized.includes('sticker')) return 'sticker'
   if (normalized.includes('image')) return 'image'
   if (normalized.includes('audio') || normalized.includes('voice')) return 'audio'
   if (normalized.includes('video')) return 'video'
@@ -76,6 +78,7 @@ export function sanitizeMediaFilePart(value = '') {
 function mediaExtension(fileName = '', mediaType = '') {
   const ext = path.extname(String(fileName || '')).toLowerCase().replace('.', '')
   if (ext) return ext
+  if (mediaType === 'sticker') return 'gif'
   if (mediaType === 'image') return 'jpg'
   if (mediaType === 'audio') return 'mp3'
   if (mediaType === 'video') return 'mp4'

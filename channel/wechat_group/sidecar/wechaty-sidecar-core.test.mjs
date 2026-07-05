@@ -313,6 +313,11 @@ test('detectMessageMediaType identifies image messages from numeric or string me
   assert.equal(detectMessageMediaType({ type: () => 'Text' }), 'text')
 })
 
+test('detectMessageMediaType distinguishes stickers from normal images', () => {
+  assert.equal(detectMessageMediaType({ type: () => 5 }), 'sticker')
+  assert.equal(detectMessageMediaType({ type: () => 'Emoticon' }), 'sticker')
+})
+
 test('detectMessageMediaType treats numeric text messages as text', () => {
   assert.equal(detectMessageMediaType({ type: () => 7 }), 'text')
 })

@@ -71,6 +71,8 @@ class WechatGroupChannelTest(unittest.TestCase):
             "wechat_group_video_understanding_enabled": conf().get("wechat_group_video_understanding_enabled"),
             "wechat_group_forward_preview_enabled": conf().get("wechat_group_forward_preview_enabled"),
             "wechat_group_quote_context_enabled": conf().get("wechat_group_quote_context_enabled"),
+            "wechat_group_sticker_enabled": conf().get("wechat_group_sticker_enabled"),
+            "wechat_group_sticker_auto_collect_enabled": conf().get("wechat_group_sticker_auto_collect_enabled"),
             "image_create_prefix": conf().get("image_create_prefix"),
             "agent": conf().get("agent"),
             "skills": conf().get("skills"),
@@ -382,6 +384,50 @@ class WechatGroupChannelTest(unittest.TestCase):
                 {"type": "send_audio", "room_id": "room@@abc", "path": "D:/tmp/a.mp3"},
             ],
             client.sent,
+        )
+
+    def test_sticker_collection_skips_normal_images(self):
+        conf()["wechat_group_sticker_enabled"] = True
+        conf()["wechat_group_sticker_auto_collect_enabled"] = True
+        sticker_service = Mock()
+        channel = WechatGroupChannel(client=FakeClient(), sticker_service=sticker_service)
+
+        msg = Mock(
+            message_type="image",
+            media_path="D:/tmp/photo.jpg",
+            other_user_id="room@@abc",
+            msg_id="msg-image",
+            text="",
+            create_time=100,
+        )
+
+        channel._collect_sticker_from_message(msg)
+
+        sticker_service.collect_from_message.assert_not_called()
+
+    def test_sticker_collection_accepts_sticker_messages(self):
+        conf()["wechat_group_sticker_enabled"] = True
+        conf()["wechat_group_sticker_auto_collect_enabled"] = True
+        sticker_service = Mock()
+        channel = WechatGroupChannel(client=FakeClient(), sticker_service=sticker_service)
+
+        msg = Mock(
+            message_type="sticker",
+            media_path="D:/tmp/reaction.gif",
+            other_user_id="room@@abc",
+            msg_id="msg-sticker",
+            text="happy",
+            create_time=100,
+        )
+
+        channel._collect_sticker_from_message(msg)
+
+        sticker_service.collect_from_message.assert_called_once_with(
+            room_id="room@@abc",
+            media_path="D:/tmp/reaction.gif",
+            source_message_id="msg-sticker",
+            description="happy",
+            now=100,
         )
 
     def test_send_voice_reply_uses_audio_command(self):

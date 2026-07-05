@@ -182,7 +182,7 @@ const I18N = {
         wechat_group_scan_loading: '正在启动微信群通道...', wechat_group_scan_success: '微信群通道已连接',
         wechat_group_scan_fail: '启动微信群通道失败', wechat_group_qr_tip: '扫码后将在群聊中响应 @ 消息',
         wechat_group_rooms_title: '目标群',
-        wechat_group_rooms_hint: '优先按 room ID 精确限制，群名只作为兜底。',
+        wechat_group_rooms_hint: '优先按群 ID 精确限制，群名只作为兜底。',
         wechat_group_rooms_refresh: '刷新群列表',
         wechat_group_rooms_empty: '登录后刷新群列表，或先填写群名兜底。',
         wechat_group_room_names_label: '群名兜底',
@@ -243,7 +243,7 @@ const I18N = {
         groups_rooms_no_match: '没有匹配的群',
         groups_rooms_none_selected: '尚未选择目标群',
         groups_rooms_remove: '移除群',
-        groups_rooms_fallback_hint: '群名兜底只在 room ID 不可用时使用，每行一个群名。',
+        groups_rooms_fallback_hint: '群名兜底只在群 ID 不可用时使用，每行一个群名。',
         groups_room_unnamed: '未命名群',
         groups_room_saved: '已保存群 {n}',
         wechat_group_free_reply_title: '自由回复',
@@ -256,27 +256,42 @@ const I18N = {
         wechat_group_free_reply_interval: '最小间隔（秒）',
         wechat_group_free_reply_hourly: '每小时上限',
         wechat_group_free_reply_consecutive: '连续发言上限',
-        wechat_group_free_reply_ttl: '排队 TTL（秒）',
-        wechat_group_free_reply_worker_title: 'worker 池',
-        wechat_group_free_reply_worker_max_workers: 'worker 并发数',
+        wechat_group_free_reply_ttl: '排队有效期（秒）',
+        wechat_group_free_reply_worker_title: '后台任务池',
+        wechat_group_free_reply_worker_max_workers: '后台任务并发数',
         wechat_group_free_reply_worker_queue_size: '队列长度上限',
-        wechat_group_free_reply_llm_title: 'LLM 二次判定',
-        wechat_group_free_reply_llm_enabled: '启用 LLM 二次判定',
+        wechat_group_free_reply_llm_title: '大模型二次判定',
+        wechat_group_free_reply_llm_enabled: '启用大模型二次判定',
         wechat_group_free_reply_llm_timeout: '判定超时（秒）',
         wechat_group_free_reply_llm_confidence: '最低置信度',
         wechat_group_free_reply_rules: '评分规则',
         wechat_group_free_reply_last_decision: '最近判定',
-        wechat_group_free_reply_no_decision: '还没有自由回复判定。开启后，普通群消息会先经过本地评分和 LLM 二次判定。',
-        wechat_group_free_reply_worker_status: 'worker 状态',
+        wechat_group_free_reply_no_decision: '还没有自由回复判定。开启后，普通群消息会先经过本地评分和大模型二次判定。',
+        wechat_group_free_reply_worker_status: '后台任务状态',
         wechat_group_free_reply_running: '运行中',
         wechat_group_free_reply_stopped: '未运行',
         wechat_group_free_reply_room_access: '需先属于目标群范围',
+        wechat_group_free_reply_level_quiet: '安静',
+        wechat_group_free_reply_level_normal: '普通',
+        wechat_group_free_reply_level_active: '活跃',
+        wechat_group_free_reply_level_crazy: '高频',
+        wechat_group_free_reply_decision_score: '评分',
+        wechat_group_free_reply_decision_threshold: '阈值',
+        wechat_group_free_reply_decision_reasons: '触发原因',
+        wechat_group_free_reply_decision_suppressions: '抑制原因',
+        wechat_group_free_reply_decision_preview: '内容预览',
+        wechat_group_free_reply_worker_queue: '队列',
+        wechat_group_free_reply_worker_approved: '已通过',
+        wechat_group_free_reply_worker_rejected: '已拒绝',
+        wechat_group_free_reply_worker_dropped: '已丢弃',
+        wechat_group_free_reply_worker_expired: '已过期',
+        wechat_group_free_reply_worker_active: '运行任务',
         groups_image_title: '图片与生图',
         groups_image_desc: '控制微信群图片理解，以及每个群每小时可受理的生图次数。',
         groups_topic_title: '话题追踪',
         groups_topic_desc: '查看当前群最近讨论的活动话题，并搜索历史归档话题。',
         groups_topic_room: '目标群',
-        groups_topic_room_hint: '话题摘要按 room_id 隔离，切换群可查看不同群的上下文焦点。',
+        groups_topic_room_hint: '话题摘要按群 ID 隔离，切换群可查看不同群的上下文焦点。',
         groups_topic_empty: '请先在“群聊开关”里选择至少一个目标群。',
         groups_topic_loading: '正在读取当前群话题...',
         groups_topic_refresh: '刷新摘要',
@@ -302,7 +317,7 @@ const I18N = {
         groups_style_title: '风格卡片',
         groups_style_desc: '审核群聊里沉淀出来的表达风格，只把启用卡片注入到回复上下文。',
         groups_style_room: '目标群',
-        groups_style_room_hint: '风格卡片按 room_id 隔离，切换群可查看当前候选和启用卡片。',
+        groups_style_room_hint: '风格卡片按群 ID 隔离，切换群可查看当前候选和启用卡片。',
         groups_style_empty: '请先在“群聊开关”里选择至少一个目标群。',
         groups_style_loading: '正在读取当前群的风格卡片...',
         groups_style_refresh: '刷新候选',
@@ -331,7 +346,7 @@ const I18N = {
         groups_emotion_title: '情绪与主动性',
         groups_emotion_desc: '查看当前群情绪状态，调整时段规则与打字节奏。',
         groups_emotion_room: '目标群',
-        groups_emotion_room_hint: '情绪状态按 room_id 隔离，切换群可查看实时状态。',
+        groups_emotion_room_hint: '情绪状态按群 ID 隔离，切换群可查看实时状态。',
         groups_emotion_empty: '请先在“群聊开关”里选择至少一个目标群。',
         groups_emotion_loading: '正在读取当前群情绪状态...',
         groups_emotion_state: '当前情绪',
@@ -343,9 +358,9 @@ const I18N = {
         groups_emotion_enabled_hint: '关闭后不再根据群状态调节主动性。',
         groups_emotion_decay_minutes: '衰减周期（分钟）',
         groups_emotion_decay_minutes_hint: '多久向默认情绪回归一次。',
-        groups_emotion_default_valence: '默认 valence',
-        groups_emotion_default_energy: '默认 energy',
-        groups_emotion_default_sociability: '默认 sociability',
+        groups_emotion_default_valence: '默认情绪正负值',
+        groups_emotion_default_energy: '默认活跃度',
+        groups_emotion_default_sociability: '默认社交倾向',
         groups_emotion_time_rules_enabled: '启用时段规则',
         groups_emotion_time_rules_enabled_hint: '未命中的时间段会抑制自由回复。',
         groups_emotion_time_rules: '时段规则 JSON',
@@ -360,10 +375,14 @@ const I18N = {
         groups_emotion_reset_done: '当前群情绪状态已重置',
         groups_emotion_save: '保存情绪配置',
         groups_emotion_saved: '情绪配置已保存',
+        groups_emotion_metric_valence: '情绪正负值',
+        groups_emotion_metric_energy: '活跃度',
+        groups_emotion_metric_sociability: '社交倾向',
+        groups_emotion_time_rules_invalid: '时段规则 JSON 格式不正确',
         groups_sticker_title: '表情包',
         groups_sticker_desc: '查看当前群沉淀的表情包资产，支持搜索、预览和停用。',
         groups_sticker_room: '目标群',
-        groups_sticker_room_hint: '表情包资产按 room_id 隔离，停用后不会再被当前群检索到。',
+        groups_sticker_room_hint: '表情包资产按群 ID 隔离，停用后不会再被当前群检索到。',
         groups_sticker_empty: '请先在“群聊开关”里选择至少一个目标群。',
         groups_sticker_loading: '正在读取当前群表情包...',
         groups_sticker_refresh: '刷新列表',
@@ -393,7 +412,7 @@ const I18N = {
         groups_image_comment_enabled: '允许纯图片评论',
         groups_image_comment_enabled_hint: '用户只发图片也可基于视觉摘要生成简短回复。',
         groups_image_prompt: '图片理解提示词',
-        groups_image_prompt_hint: '发送给既有 vision 工具的图片理解问题。',
+        groups_image_prompt_hint: '发送给既有图片理解工具的问题。',
         groups_image_cache_minutes: '摘要缓存分钟数',
         groups_image_cache_minutes_hint: '同一图片摘要的缓存时间，范围 1-120。',
         groups_image_create_hourly_limit: '生图每小时上限',
@@ -412,7 +431,7 @@ const I18N = {
         groups_profiles_desc: '按全局浏览群友画像，并按群过滤查看其出现范围。',
         groups_profiles_room_filter: '群过滤',
         groups_profiles_room_all: '全部群',
-        groups_profiles_search_placeholder: '搜索 sender ID、昵称或别名',
+        groups_profiles_search_placeholder: '搜索发送者 ID、昵称或别名',
         groups_profiles_search: '搜索画像',
         groups_profiles_result_count: '共 {count} 条',
         groups_profiles_no_data: '暂无画像数据',
@@ -430,7 +449,7 @@ const I18N = {
         groups_profiles_metric_messages: '消息数',
         groups_profiles_metric_activity: '活跃度',
         groups_profiles_metric_intimacy: '熟悉度',
-        groups_memory_no_room: '请先在“群聊开关”中选择至少一个 room ID。',
+        groups_memory_no_room: '请先在“群聊开关”中选择至少一个群 ID。',
         groups_memory_group_title: '群记忆',
         groups_memory_group_hint: '保存当前群长期稳定信息，例如群规、偏好、长期项目和约定。',
         groups_memory_content_label: '群记忆正文',
@@ -449,17 +468,17 @@ const I18N = {
         groups_memory_profiles_hint: '同一微信号只维护一份全局画像；当前群只影响命名来源和学习入口。',
         groups_memory_profiles_moved_hint: '群友画像已迁移到“全局画像”，这里仅保留群记忆、注入预览和学习运行。',
         groups_memory_member_lookup_label: '检索群友',
-        groups_memory_member_lookup_placeholder: '输入微信 ID、sender ID 或昵称',
-        groups_memory_member_lookup_hint: '从当前群已归档聊天记录中检索；没有结果时仍可手动填写 sender ID。',
+        groups_memory_member_lookup_placeholder: '输入微信 ID、发送者 ID 或昵称',
+        groups_memory_member_lookup_hint: '从当前群已归档聊天记录中检索；没有结果时仍可手动填写发送者 ID。',
         groups_memory_member_lookup_empty: '未找到匹配群友',
         groups_memory_member_lookup_searching: '检索中...',
         groups_memory_member_lookup_select: '选择',
-        groups_memory_sender_id: 'sender ID',
+        groups_memory_sender_id: '发送者 ID',
         groups_memory_sender_name: '昵称',
         groups_memory_aliases: '别名',
         groups_memory_role: '身份/角色',
         groups_memory_preferences: '长期偏好',
-        groups_memory_expertise: '专业背景',
+        groups_memory_common_words: '常用词',
         groups_memory_interaction: '互动风格',
         groups_memory_boundaries: '已知边界',
         groups_memory_evidence: '更新依据',
@@ -469,9 +488,9 @@ const I18N = {
         groups_memory_revisions_title: '历史版本',
         groups_memory_revisions_empty: '点击画像后查看历史版本',
         groups_memory_preview_title: '注入预览',
-        groups_memory_preview_hint: '只读查看本轮将注入的 <wechat-group-knowledge>，不会调用模型或写入记忆。',
+        groups_memory_preview_hint: '只读查看本轮将注入的微信群知识上下文，不会调用模型或写入记忆。',
         groups_memory_preview_query: '模拟问题',
-        groups_memory_preview_mentions: '被 @ 的 sender IDs',
+        groups_memory_preview_mentions: '被 @ 的发送者 ID',
         groups_memory_preview_run: '生成预览',
         groups_memory_preview_empty: '暂无可注入记忆',
         groups_memory_tab_manual: '记忆维护',
@@ -512,6 +531,21 @@ const I18N = {
         groups_memory_auto_status_approved: '已批准',
         groups_memory_auto_status_rejected: '已驳回',
         groups_memory_auto_status_failed: '失败',
+        groups_memory_run_messages: '消息数',
+        groups_memory_run_profiles: '画像数',
+        groups_memory_run_memories: '群记忆数',
+        groups_error_summary_load_failed: '群聊汇总加载失败',
+        groups_error_memory_load_failed: '群记忆加载失败',
+        groups_error_runs_load_failed: '运行记录加载失败',
+        groups_error_save_failed: '保存失败',
+        groups_error_disable_failed: '停用失败',
+        groups_error_preview_failed: '预览生成失败',
+        groups_error_learning_failed: '学习运行失败',
+        groups_error_approve_failed: '批准失败',
+        groups_error_reject_failed: '驳回失败',
+        groups_error_room_required: '请选择目标群',
+        groups_error_sender_required: '请填写发送者 ID',
+        groups_error_unknown_action: '未知操作',
         wecom_scan_btn: '扫码创建企微机器人', wecom_scan_desc: '使用企业微信扫码，一键创建智能机器人',
         wecom_scan_success: '创建成功，正在启动通道...',
         wecom_scan_fail: '创建失败',
@@ -854,6 +888,21 @@ const I18N = {
         wechat_group_free_reply_running: 'Running',
         wechat_group_free_reply_stopped: 'Stopped',
         wechat_group_free_reply_room_access: 'Must also be in target group scope',
+        wechat_group_free_reply_level_quiet: 'Quiet',
+        wechat_group_free_reply_level_normal: 'Normal',
+        wechat_group_free_reply_level_active: 'Active',
+        wechat_group_free_reply_level_crazy: 'High frequency',
+        wechat_group_free_reply_decision_score: 'Score',
+        wechat_group_free_reply_decision_threshold: 'Threshold',
+        wechat_group_free_reply_decision_reasons: 'Reasons',
+        wechat_group_free_reply_decision_suppressions: 'Suppressions',
+        wechat_group_free_reply_decision_preview: 'Preview',
+        wechat_group_free_reply_worker_queue: 'Queue',
+        wechat_group_free_reply_worker_approved: 'Approved',
+        wechat_group_free_reply_worker_rejected: 'Rejected',
+        wechat_group_free_reply_worker_dropped: 'Dropped',
+        wechat_group_free_reply_worker_expired: 'Expired',
+        wechat_group_free_reply_worker_active: 'Active workers',
         groups_image_title: 'Images',
         groups_image_desc: 'Control WeChat group image understanding and per-group hourly image generation quota.',
         groups_topic_title: 'Topics',
@@ -943,6 +992,10 @@ const I18N = {
         groups_emotion_reset_done: 'Current room emotion state reset',
         groups_emotion_save: 'Save emotion settings',
         groups_emotion_saved: 'Emotion settings saved',
+        groups_emotion_metric_valence: 'Valence',
+        groups_emotion_metric_energy: 'Energy',
+        groups_emotion_metric_sociability: 'Sociability',
+        groups_emotion_time_rules_invalid: 'Time-rule JSON is invalid',
         groups_sticker_title: 'Stickers',
         groups_sticker_desc: 'Inspect collected room stickers, with search, preview, and disable controls.',
         groups_sticker_room: 'Target room',
@@ -1042,7 +1095,7 @@ const I18N = {
         groups_memory_aliases: 'Aliases',
         groups_memory_role: 'Role',
         groups_memory_preferences: 'Preferences',
-        groups_memory_expertise: 'Expertise',
+        groups_memory_common_words: 'Common words',
         groups_memory_interaction: 'Interaction style',
         groups_memory_boundaries: 'Known boundaries',
         groups_memory_evidence: 'Evidence',
@@ -1095,6 +1148,21 @@ const I18N = {
         groups_memory_auto_status_approved: 'Approved',
         groups_memory_auto_status_rejected: 'Rejected',
         groups_memory_auto_status_failed: 'Failed',
+        groups_memory_run_messages: 'Messages',
+        groups_memory_run_profiles: 'Profiles',
+        groups_memory_run_memories: 'Memories',
+        groups_error_summary_load_failed: 'Summary load failed',
+        groups_error_memory_load_failed: 'Memory load failed',
+        groups_error_runs_load_failed: 'Runs load failed',
+        groups_error_save_failed: 'Save failed',
+        groups_error_disable_failed: 'Disable failed',
+        groups_error_preview_failed: 'Preview failed',
+        groups_error_learning_failed: 'Learning failed',
+        groups_error_approve_failed: 'Approve failed',
+        groups_error_reject_failed: 'Reject failed',
+        groups_error_room_required: 'Select a target room',
+        groups_error_sender_required: 'Sender ID is required',
+        groups_error_unknown_action: 'Unknown action',
         wecom_scan_btn: 'Scan to Create WeCom Bot', wecom_scan_desc: 'Scan with WeCom to create a bot instantly',
         wecom_scan_success: 'Bot created, starting channel...',
         wecom_scan_fail: 'Bot creation failed',
@@ -7339,8 +7407,9 @@ function getWechatGroupChannel() {
 function showGroupsStatus(keyOrText, isError) {
     const el = document.getElementById('groups-status');
     if (!el) return;
-    const hasTranslation = (I18N[currentLang] && I18N[currentLang][keyOrText]) || I18N.en[keyOrText];
-    el.textContent = hasTranslation ? t(keyOrText) : String(keyOrText || '');
+    const translated = translateGroupsStatusText(keyOrText);
+    const hasTranslation = (I18N[currentLang] && I18N[currentLang][translated]) || I18N.en[translated];
+    el.textContent = hasTranslation ? t(translated) : String(translated || '');
     el.classList.toggle('text-red-500', !!isError);
     el.classList.toggle('text-primary-500', !isError);
     el.classList.remove('opacity-0');
@@ -7350,6 +7419,42 @@ function showGroupsStatus(keyOrText, isError) {
         el.classList.add('opacity-0');
         el.classList.remove('opacity-100');
     }, 2500);
+}
+
+function translateGroupsStatusText(keyOrText) {
+    const text = String(keyOrText || '').trim();
+    if (!text) return '';
+    if ((I18N[currentLang] && I18N[currentLang][text]) || I18N.en[text]) return text;
+    const normalized = text.toLowerCase();
+    if (normalized === 'room_id is required') return 'groups_error_room_required';
+    if (normalized === 'sender_id is required') return 'groups_error_sender_required';
+    if (normalized === 'summary load failed') return 'groups_error_summary_load_failed';
+    if (normalized === 'memory load failed') return 'groups_error_memory_load_failed';
+    if (normalized === 'runs load failed') return 'groups_error_runs_load_failed';
+    if (normalized === 'save failed') return 'groups_error_save_failed';
+    if (normalized === 'disable failed') return 'groups_error_disable_failed';
+    if (normalized === 'preview failed') return 'groups_error_preview_failed';
+    if (normalized === 'learning failed') return 'groups_error_learning_failed';
+    if (normalized === 'approve failed') return 'groups_error_approve_failed';
+    if (normalized === 'reject failed') return 'groups_error_reject_failed';
+    if (normalized.includes('load failed')) return 'groups_load_failed';
+    if (normalized.includes('refresh failed')) return 'groups_load_failed';
+    if (normalized.includes('review failed')) return 'channels_save_error';
+    if (normalized.includes('disable failed')) return 'groups_error_disable_failed';
+    if (normalized.startsWith('unknown action')) return 'groups_error_unknown_action';
+    return text;
+}
+
+function translateWechatGroupActivityLevel(level) {
+    const key = `wechat_group_free_reply_level_${String(level || '').trim()}`;
+    const translated = t(key);
+    return translated === key ? String(level || '-') : translated;
+}
+
+function translateGroupsMemoryRunStatus(status) {
+    const key = `groups_memory_auto_status_${String(status || '').trim()}`;
+    const translated = t(key);
+    return translated === key ? String(status || '') : translated;
 }
 
 function renderGroupsView() {
@@ -7984,13 +8089,13 @@ function renderGroupsEmotionDecision(decision = {}) {
     const suppressions = Array.isArray(decision.suppressions) ? decision.suppressions : [];
     return `<div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <span>score: ${escapeHtml(String(decision.score ?? 0))}</span>
-            <span>threshold: ${escapeHtml(String(decision.threshold ?? 0))}</span>
-            <span>${t('wechat_group_free_reply_level')}: ${escapeHtml(String(decision.activity_level || '-'))}</span>
+            <span>${t('wechat_group_free_reply_decision_score')}: ${escapeHtml(String(decision.score ?? 0))}</span>
+            <span>${t('wechat_group_free_reply_decision_threshold')}: ${escapeHtml(String(decision.threshold ?? 0))}</span>
+            <span>${t('wechat_group_free_reply_level')}: ${escapeHtml(translateWechatGroupActivityLevel(decision.activity_level || '-'))}</span>
         </div>
-        <div><span class="text-slate-500 dark:text-slate-400">reasons：</span>${reasons.length ? reasons.map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
-        <div><span class="text-slate-500 dark:text-slate-400">suppressions：</span>${suppressions.length ? suppressions.map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
-        <div class="break-words"><span class="text-slate-500 dark:text-slate-400">preview：</span>${escapeHtml(String(decision.text_preview || ''))}</div>
+        <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_reasons')}：</span>${reasons.length ? reasons.map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
+        <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_suppressions')}：</span>${suppressions.length ? suppressions.map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(String(item))}</span>`).join('') : '-'}</div>
+        <div class="break-words"><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_preview')}：</span>${escapeHtml(String(decision.text_preview || ''))}</div>
     </div>`;
 }
 
@@ -8009,9 +8114,9 @@ function buildGroupsEmotionPanel(extra) {
         : loading
             ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_emotion_loading')}</p>`
             : `<div class="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                ${buildGroupsEmotionMetric('valence', state.valence)}
-                ${buildGroupsEmotionMetric('energy', state.energy)}
-                ${buildGroupsEmotionMetric('sociability', state.sociability)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_valence'), state.valence)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_energy'), state.energy)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_sociability'), state.sociability)}
                 ${buildGroupsEmotionMetric(t('groups_emotion_reply_count'), state.reply_count_1h)}
                 ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-')}
             </div>
@@ -8099,7 +8204,7 @@ function saveGroupsEmotionConfig() {
     try {
         timeRules = parseGroupsEmotionTimeRulesInput();
     } catch (_) {
-        showGroupsStatus(t('groups_emotion_time_rules') + ' JSON invalid', true);
+        showGroupsStatus('groups_emotion_time_rules_invalid', true);
         if (btn) btn.disabled = false;
         return;
     }
@@ -8609,7 +8714,7 @@ function buildGroupsProfilesDetail(profile) {
                 ${buildGroupsMemoryInput('groups-profiles-detail-aliases', 'groups_memory_aliases', aliases.join(', '))}
                 ${buildGroupsMemoryInput('groups-profiles-detail-role', 'groups_memory_role', profile.speak_style || '')}
                 ${buildGroupsMemoryInput('groups-profiles-detail-preferences', 'groups_memory_preferences', Array.isArray(profile.interests) ? profile.interests.join(', ') : '')}
-                ${buildGroupsMemoryInput('groups-profiles-detail-expertise', 'groups_memory_expertise', Array.isArray(profile.common_words) ? profile.common_words.join(', ') : '')}
+                ${buildGroupsMemoryInput('groups-profiles-detail-common-words', 'groups_memory_common_words', Array.isArray(profile.common_words) ? profile.common_words.join(', ') : '')}
             </div>
             <div class="flex justify-end mt-3">
                 <button type="button" onclick="saveGroupsProfileDetail()" class="px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -8687,7 +8792,7 @@ function saveGroupsProfileDetail() {
             aliases: document.getElementById('groups-profiles-detail-aliases')?.value || '',
             speak_style: document.getElementById('groups-profiles-detail-role')?.value || '',
             interests: document.getElementById('groups-profiles-detail-preferences')?.value || '',
-            common_words: document.getElementById('groups-profiles-detail-expertise')?.value || '',
+            common_words: document.getElementById('groups-profiles-detail-common-words')?.value || '',
         }),
     }).then(r => r.json()).then(data => {
         if (data.status !== 'success') throw new Error(data.message || 'save failed');
@@ -8891,13 +8996,13 @@ function buildGroupsMemoryLearningPanel(roomId, extra) {
         <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
             <div class="flex flex-wrap items-center gap-2 text-xs">
                 <span class="font-mono text-slate-500 dark:text-slate-400">${escapeHtml(run.run_id || '')}</span>
-                <span class="rounded-full px-2 py-0.5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400">${escapeHtml(run.status || '')}</span>
+                <span class="rounded-full px-2 py-0.5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400">${escapeHtml(translateGroupsMemoryRunStatus(run.status))}</span>
                 <span class="ml-auto text-slate-400 dark:text-slate-500">${escapeHtml(String(run.started_at || ''))}</span>
             </div>
             <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <span>messages ${escapeHtml(String(run.batch_message_count || 0))}</span>
-                <span>profiles ${escapeHtml(String(run.profile_update_count || 0))}</span>
-                <span>memories ${escapeHtml(String(run.group_memory_upsert_count || 0))}</span>
+                <span>${t('groups_memory_run_messages')} ${escapeHtml(String(run.batch_message_count || 0))}</span>
+                <span>${t('groups_memory_run_profiles')} ${escapeHtml(String(run.profile_update_count || 0))}</span>
+                <span>${t('groups_memory_run_memories')} ${escapeHtml(String(run.group_memory_upsert_count || 0))}</span>
                 <span>${escapeHtml(run.failed_reason || '')}</span>
             </div>
         </div>
@@ -8973,9 +9078,9 @@ function refreshGroupsMemoryData(roomId) {
         fetch(`/api/wechat-group/memories/group?room_id=${encoded}&q=${query}`).then(r => r.json()),
         fetch(`/api/wechat-group/memories/learn/runs?room_id=${encoded}`).then(r => r.json()),
     ]).then(([summaryData, memoryData, runsData]) => {
-        if (summaryData.status !== 'success') throw new Error(summaryData.message || 'summary load failed');
-        if (memoryData.status !== 'success') throw new Error(memoryData.message || 'memory load failed');
-        if (runsData.status !== 'success') throw new Error(runsData.message || 'runs load failed');
+        if (summaryData.status !== 'success') throw new Error(summaryData.message || 'groups_error_summary_load_failed');
+        if (memoryData.status !== 'success') throw new Error(memoryData.message || 'groups_error_memory_load_failed');
+        if (runsData.status !== 'success') throw new Error(runsData.message || 'groups_error_runs_load_failed');
         groupsMemoryState.summary = summaryData.summary || {};
         groupsMemoryState.memories = memoryData.memories || [];
         groupsMemoryState.runs = runsData.runs || [];
@@ -9017,7 +9122,7 @@ function addGroupsGroupMemory() {
             source_summary: summaryEl?.value || '',
         }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'save failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_save_failed');
         if (contentEl) contentEl.value = '';
         if (summaryEl) summaryEl.value = '';
         showGroupsStatus('groups_memory_saved', false);
@@ -9041,7 +9146,7 @@ function disableGroupsGroupMemory(memoryId) {
             memory_id: memoryId,
         }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'disable failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_disable_failed');
         showGroupsStatus('groups_memory_disabled', false);
         groupsMemoryState.loadedRoomId = '';
         refreshGroupsMemoryData(roomId);
@@ -9074,7 +9179,7 @@ function runGroupsMemoryPreview() {
             mentioned_sender_ids: splitGroupsMemoryIds(document.getElementById('groups-memory-preview-mentioned-ids')?.value || ''),
         }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'preview failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_preview_failed');
         groupsMemoryState.preview = data.preview || {};
         const pre = document.getElementById('groups-memory-preview-content');
         if (pre) pre.textContent = groupsMemoryState.preview.content || t('groups_memory_preview_empty');
@@ -9121,7 +9226,7 @@ function saveGroupsMemoryAutoConfig() {
             },
         })
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'save failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_save_failed');
         showGroupsStatus('groups_memory_auto_saved', false);
         loadGroupsView();
     }).catch(err => showGroupsStatus(err.message || 'channels_save_error', true))
@@ -9142,7 +9247,7 @@ function runGroupsMemoryLearning() {
             mode: 'all',
         }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'learning failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_learning_failed');
         showGroupsStatus('groups_memory_auto_ran', false);
         groupsMemoryState.loadedRoomId = '';
         refreshGroupsMemoryData(roomId);
@@ -9161,7 +9266,7 @@ function legacyApproveGroupsMemory(candidateId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room_id: roomId, candidate_id: candidateId }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'approve failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_approve_failed');
         showGroupsStatus('groups_memory_auto_approved', false);
         groupsMemoryState.loadedRoomId = '';
         refreshGroupsMemoryData(roomId);
@@ -9177,7 +9282,7 @@ function legacyRejectGroupsMemory(candidateId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room_id: roomId, candidate_id: candidateId, review_note: reviewNote }),
     }).then(r => r.json()).then(data => {
-        if (data.status !== 'success') throw new Error(data.message || 'reject failed');
+        if (data.status !== 'success') throw new Error(data.message || 'groups_error_reject_failed');
         showGroupsStatus('groups_memory_auto_rejected', false);
         groupsMemoryState.loadedRoomId = '';
         refreshGroupsMemoryData(roomId);
@@ -9385,19 +9490,19 @@ function renderWechatGroupFreeReplySettings(extra = {}) {
     const lastHtml = Object.keys(last).length ? `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
             <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_threshold')}：</span>${escapeHtml(String(last.score ?? 0))}/${escapeHtml(String(last.threshold ?? 0))}</div>
-            <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_level')}：</span>${escapeHtml(String(last.activity_level || ''))}</div>
-            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">reasons：</span>${(last.reasons || []).map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
-            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">suppressions：</span>${(last.suppressions || []).map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
-            <div class="md:col-span-2 break-words"><span class="text-slate-500 dark:text-slate-400">preview：</span>${escapeHtml(last.text_preview || '')}</div>
+            <div><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_level')}：</span>${escapeHtml(translateWechatGroupActivityLevel(last.activity_level || '-'))}</div>
+            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_reasons')}：</span>${(last.reasons || []).map(item => `<span class="inline-block rounded bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
+            <div class="md:col-span-2"><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_suppressions')}：</span>${(last.suppressions || []).map(item => `<span class="inline-block rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 mr-1 mb-1">${escapeHtml(item)}</span>`).join('') || '-'}</div>
+            <div class="md:col-span-2 break-words"><span class="text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_decision_preview')}：</span>${escapeHtml(last.text_preview || '')}</div>
         </div>` : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('wechat_group_free_reply_no_decision')}</p>`;
     const workerHtml = `<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-300">
         <span>${t('wechat_group_free_reply_worker_status')}: ${worker.running ? t('wechat_group_free_reply_running') : t('wechat_group_free_reply_stopped')}</span>
-        <span>queue: ${Number(worker.queue_size || 0)}/${Number(worker.queue_limit || free.worker_queue_size || 0)}</span>
-        <span>approved: ${Number(worker.approved_total || 0)}</span>
-        <span>rejected: ${Number(worker.rejected_total || 0)}</span>
-        <span>dropped: ${Number(worker.dropped_total || 0)}</span>
-        <span>expired: ${Number(worker.expired_total || 0)}</span>
-        <span>active: ${Number(worker.active_workers || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_queue')}: ${Number(worker.queue_size || 0)}/${Number(worker.queue_limit || free.worker_queue_size || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_approved')}: ${Number(worker.approved_total || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_rejected')}: ${Number(worker.rejected_total || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_dropped')}: ${Number(worker.dropped_total || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_expired')}: ${Number(worker.expired_total || 0)}</span>
+        <span>${t('wechat_group_free_reply_worker_active')}: ${Number(worker.active_workers || 0)}</span>
         <span class="break-words">${escapeHtml(worker.last_error || '')}</span>
     </div>`;
     const rulesHtml = [...(rules.positive || []), ...(rules.negative || [])].map(rule => `
@@ -9434,7 +9539,7 @@ function renderWechatGroupFreeReplySettings(extra = {}) {
             <label class="block text-sm font-medium text-slate-800 dark:text-slate-100 mb-1.5">${t('wechat_group_free_reply_level')}</label>
             <select id="free-reply-activity-level" onchange="syncFreeReplyProfileFields((getWechatGroupChannel() || {}).extra?.free_reply || {})"
                 class="w-full md:w-64 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
-                ${['quiet', 'normal', 'active', 'crazy'].map(item => `<option value="${item}" ${item === level ? 'selected' : ''}>${item}</option>`).join('')}
+                ${['quiet', 'normal', 'active', 'crazy'].map(item => `<option value="${item}" ${item === level ? 'selected' : ''}>${escapeHtml(translateWechatGroupActivityLevel(item))}</option>`).join('')}
             </select>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
                 ${buildFreeReplyNumberField('free-reply-min-score', 'wechat_group_free_reply_threshold', profile.min_score ?? 50, 0, 100, 1)}
