@@ -9547,13 +9547,11 @@ function renderWechatGroupFreeReplySettings(extra = {}) {
                 class="w-full md:w-64 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500">
                 ${['quiet', 'normal', 'active', 'crazy'].map(item => `<option value="${item}" ${item === level ? 'selected' : ''}>${escapeHtml(translateWechatGroupActivityLevel(item))}</option>`).join('')}
             </select>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+            <div class="free-reply-compact-grid mt-3">
                 ${buildFreeReplyNumberField('free-reply-min-score', 'wechat_group_free_reply_threshold', profile.min_score ?? 50, 0, 100, 1)}
                 ${buildFreeReplyNumberField('free-reply-min-interval', 'wechat_group_free_reply_interval', profile.min_interval_seconds ?? 10, 0, 3600, 1)}
                 ${buildFreeReplyNumberField('free-reply-hourly-limit', 'wechat_group_free_reply_hourly', profile.hourly_limit ?? 0, 0, 999, 1)}
                 ${buildFreeReplyNumberField('free-reply-consecutive-limit', 'wechat_group_free_reply_consecutive', profile.consecutive_limit ?? 0, 0, 99, 1)}
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                 ${buildFreeReplyNumberField('free-reply-queue-ttl', 'wechat_group_free_reply_ttl', free.queue_ttl_seconds ?? 120, 10, 600, 1)}
                 ${buildFreeReplyNumberField('free-reply-worker-max-workers', 'wechat_group_free_reply_worker_max_workers', free.worker_max_workers ?? 2, 1, 8, 1)}
                 ${buildFreeReplyNumberField('free-reply-worker-queue-size', 'wechat_group_free_reply_worker_queue_size', free.worker_queue_size ?? 100, 1, 1000, 1)}
@@ -9588,7 +9586,7 @@ function renderWechatGroupFreeReplySettings(extra = {}) {
 }
 
 function buildFreeReplyNumberField(id, labelKey, value, min, max, step) {
-    return `<label class="block">
+    return `<label class="free-reply-number-field block">
         <span class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">${t(labelKey)}</span>
         <input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${Number(value)}"
             class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#111111] text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-primary-500 transition-colors">

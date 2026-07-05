@@ -697,6 +697,34 @@
     border-color: #64748b;
 }
 
+.free-reply-compact-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.free-reply-number-field,
+.free-reply-number-field input {
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .free-reply-compact-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1280px) {
+    .free-reply-compact-grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .free-reply-number-field input {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}
+
 /* Custom dropdown */
 .cfg-dropdown {
     position: relative;

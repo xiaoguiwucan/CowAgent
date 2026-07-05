@@ -2,6 +2,17 @@
 
 ## 2026-07-05
 
+### 微信群自由回复参数布局压缩
+
+- 更新 `channel/web/static/js/console.js`：将自由回复「活跃档位」下的 7 个数字参数合并到同一个紧凑字段组，避免桌面端拆成两行占用过多高度。
+- 更新 `channel/web/static/css/console.css`：新增自由回复紧凑网格样式，桌面宽度使用 7 列一行，平板和小屏继续响应式换行。
+- 更新 `tests/test_wechat_group_web.py`：新增前端资源结构回归断言，锁定自由回复数字参数使用同一个 compact grid。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_compacts_free_reply_number_fields_in_one_desktop_row`（先在旧布局下确认失败，再恢复实现后通过）
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_web`
+
 ### 微信群自由回复图片理解开关
 
 - 更新 `config.py` 与 `config-template.json`：新增 `wechat_group_free_reply_image_understanding_enabled`，默认关闭，避免升级后自动增加视觉模型调用。
@@ -45,7 +56,7 @@
 
 - 更新 `channel/web/static/js/console.js`：补齐群聊页中文文案，将自由回复决策、后台任务状态、活跃档位、情绪指标、群记忆学习运行记录等动态展示里的英文改为中文展示。
 - 增加群聊状态栏常见英文错误映射，避免直接展示 `room_id is required`、`save failed`、`load failed` 等接口或前端兜底英文。
-- 新增并回写 `plans/wechat_group_webui_chinese_20260705.md`：记录本次排查范围、实际改动、验证结果和剩余事项。
+- 新增并回写 `plans/20260705_微信群网页界面中文化.md`：记录本次排查范围、实际改动、验证结果和剩余事项。
 
 验证记录：
 
@@ -136,14 +147,14 @@
 ### 微信群拟人化增强 Phase 6 Web 管理 UI 与阶段回归
 - 更新 `channel/web/web_channel.py`：补齐 `/api/wechat-group/topics/*`、`/api/wechat-group/styles/*`、`/api/wechat-group/emotion/*`、`/api/wechat-group/stickers/*` 运维接口。
 - 更新 `channel/web/static/js/console.js`：在 groups 视图中完成话题追踪、风格卡片、情绪与主动性、表情包、图片与多模态配置等子页，补齐加载、空状态、错误状态和写操作反馈。
-- 更新 `plans/wechat_group_humanization_upgrade_plan_20260704.md`：回写 Phase 2、Phase 4、Phase 5、Phase 6 实际进度、验证命令和剩余 Phase 7 收尾项。
+- 更新 `plans/20260704_微信群拟人化升级方案.md`：回写 Phase 2、Phase 4、Phase 5、Phase 6 实际进度、验证命令和剩余 Phase 7 收尾项。
 
 验证记录：
 - `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_context tests.test_wechat_group_web tests.test_wechat_group_agent_bridge_tools tests.test_wechat_group_sticker_service`
 - `node --check .\\channel\\web\\static\\js\\console.js`
 
 ### 微信群拟人化增强 Phase 7 收尾回归
-- 更新 `plans/wechat_group_humanization_upgrade_plan_20260704.md`：标记 Phase 7 完成，补充 sidecar 真实扫码链路手动验证说明。
+- 更新 `plans/20260704_微信群拟人化升级方案.md`：标记 Phase 7 完成，补充 sidecar 真实扫码链路手动验证说明。
 - 更新 `CHANGES.md`：记录本轮拟人化增强 Phase 2/4/5/6/7 的代码交付与验证结果。
 
 验证记录：
@@ -167,7 +178,7 @@
 - 新增 `agent/chat/history_migration.py`，支持读取 BaiLongmaPro `conversations` 表并转换为 CowAgent `sessions` / `messages` 结构。
 - 新增 `scripts/migrate_legacy_chat_history.py`，支持默认 dry-run、`--apply` 正式写入和写入前 SQLite 备份。
 - 新增 `tests/test_chat_history_migration.py`，覆盖来源渠道与外部对象聚合、Web 归档会话写入、原始时间戳保留、纯 assistant 源会话占位、重复导入阻断和脚本独立运行。
-- 新增 `plans/chat_history_migration_20260704.md`，记录迁移范围、实际导入结果、验证命令和剩余手动验证项。
+- 新增 `plans/20260704_聊天历史迁移.md`，记录迁移范围、实际导入结果、验证命令和剩余手动验证项。
 - 已执行真实迁移：`D:\JiangShuai\SourceCode\BaiLongmaPro\data\jarvis.db` 中 `41` 条旧聊天记录导入到 `C:\Users\clancy\cow\memory\long-term\index.db`，生成 `5` 个 Web 归档会话和 `43` 条目标消息。
 - 正式写入前已创建备份：`C:\Users\clancy\cow\memory\long-term\index.migration-backup-20260704090946.db`。
 
@@ -222,7 +233,7 @@
 - `git diff --check`
 
 ### 微信群图片理解与生图限流
-- 新增 `plans/wechat_group_image_multimodal_plan_20260703.md`，记录微信群图片理解、生图限流和 Web 配置方案，并在开发完成后回写实际改动、验证结果和剩余事项。
+- 新增 `plans/20260703_微信群图片多模态方案.md`，记录微信群图片理解、生图限流和 Web 配置方案，并在开发完成后回写实际改动、验证结果和剩余事项。
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`、`wechaty-sidecar.mjs` 与 sidecar 测试：识别图片消息、规整媒体文件名、下载媒体到外部目录，并向 Python 上报 `message_type` 与 `file_path`。
 - 修复真实 wechat4u 链路中文本消息 `MessageType.Text = 7` 被误判为文件的问题，避免普通文本消息触发 `toFileBox()` 并报 `text message no file`。
 - 修复“回复引用图片并 @ 机器人识别这张图”的实际群聊链路：直接触发的文本识图请求会优先使用引用消息指向的图片；引用 ID 查不到时按引用发送者匹配当前群最近图片，最后才回退到当前群 10 分钟内最近图片。
@@ -241,7 +252,7 @@
 - 未执行真实微信群手动验证；仍需扫码登录后在目标群验证 @ 图片评论、生图返回和超额拒绝。
 
 ### 微信群引用机器人消息触发
-- 新增 `plans/wechat_group_quote_self_trigger_20260703.md`，记录引用机器人消息按被 @ 处理的实现方案、风险与验证结果。
+- 新增 `plans/20260703_微信群引用自身触发.md`，记录引用机器人消息按被 @ 处理的实现方案、风险与验证结果。
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：通过 wechat4u raw `appmsg type=57` 解析 `refermsg.fromusr`，当引用发送者等于当前机器人 ID 时上报 `is_quote_self` 和引用摘要。
 - 更新 `channel/wechat_group/wechat_group_message.py`、`channel/wechat_group/wechat_group_channel.py` 与 `channel/chat_channel.py`：保存引用元数据，并将引用机器人消息纳入微信群直接回复链路，同时保留普通引用消息跳过逻辑。
 - 扩展 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`、`tests/test_wechat_group_message.py` 和 `tests/test_wechat_group_channel.py`，覆盖引用机器人、引用他人、引用文本过滤绕过和自由回复绕过场景。
@@ -259,7 +270,7 @@
 - 新增 `upstream = git@github.com:zhayujie/CowAgent.git` 远端并合并 `upstream/master` 的 6 个提交。
 - 吸收上游 Claude 默认模型更新：新增 `claude-sonnet-5` 常量，更新 Claude 推荐模型、视觉工具默认候选、Web 控制台模型列表及多语言模型文档。
 - 吸收桌面端更新：新增 macOS 签名/公证相关 `desktop/electron-builder.js`、`desktop/build/entitlements.mac.plist`、静态资源类型声明和桌面端品牌 logo；保留本 fork 的微信群、记忆、搜索与日志改动。
-- 新增 `plans/upstream_sync_20260703.md` 记录本次同步分析、执行步骤与验证结果。
+- 新增 `plans/20260703_上游同步.md` 记录本次同步分析、执行步骤与验证结果。
 验证记录：
 - `npm run build`（在 `desktop/` 目录）
 - `python -m unittest tests.test_models_handler tests.test_web_search_providers tests.test_chat_gpt_logging`
@@ -422,7 +433,7 @@
 ### 微信群运行时群友画像昵称兜底
 - 更新 `channel/wechat_group/wechat_group_memory.py`：在真实 `at_list` 过滤后没有群友 ID 时，按当前群 active 群友画像的 `sender_nickname` 做唯一精确兜底；唯一命中时注入 `matched_by="nickname"`，同名歧义时不注入并返回诊断原因。参考 BaiLongmaPro 后修正 `at_list` 为空的真实链路，避免 `message.mentionList()` 未返回成员时跳过昵称画像召回。
 - 更新 `tests/test_wechat_group_memory.py`：覆盖“只 @ 机器人但正文包含群友昵称”可注入画像、`at_list` 为空但正文包含群友昵称仍可注入画像，以及同昵称多画像时跳过注入。
-- 新增 `plans/wechat_group_runtime_member_profile_lookup_20260702.md`：记录本次运行时昵称兜底方案、BaiLongmaPro 对照结论、边界、验证结果和剩余真实链路手动验证项。
+- 新增 `plans/20260702_微信群运行时成员画像查询.md`：记录本次运行时昵称兜底方案、BaiLongmaPro 对照结论、边界、验证结果和剩余真实链路手动验证项。
 
 验证记录：
 - `python -m unittest tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_injects_unique_profile_by_nickname_when_only_bot_is_mentioned tests.test_wechat_group_memory.WechatGroupMemoryServiceTest.test_preview_skips_nickname_profile_when_match_is_ambiguous`
@@ -507,7 +518,7 @@
 - 更新 `channel/web/web_channel.py`、`config.py`、`config-template.json`：新增自动蒸馏配置返回/保存和 `/api/wechat-group/memories/distill/*` 手动运行、运行列表、候选列表、批准、驳回、来源消息查询接口。
 - 更新 `channel/web/static/js/console.js` 与 `channel/web/chat.html`：在 Web 控制台“群聊 -> 永久记忆”当前群详情中新增“自动生成”标签页，提供配置保存、手动运行、运行记录和候选审核入口，并更新脚本缓存版本。
 - 新增 `tests/test_wechat_group_memory_distiller.py`，扩展 `tests/test_wechat_group_web.py`：覆盖置信度分流、跨群证据拒绝、非法成员拒绝、自动写入、候选审核和 Web API。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.7 首个手动触发切片的完成进度、验证结果和剩余第二切片事项。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：回写 4.3.7 首个手动触发切片的完成进度、验证结果和剩余第二切片事项。
 
 验证记录：
 
@@ -544,7 +555,7 @@
 - 更新 `agent/memory/storage.py` 与 `channel/wechat_group/wechat_group_memory.py`：补齐 scoped chunk 软停用、群记忆摘要、按群摘要列表、群记忆停用和群友画像停用能力。
 - 更新 `channel/web/web_channel.py`：补齐 `/api/wechat-group/memories/summary`、`groups` 和 `disable` 后端分支，形成列表、搜索、新增、更新、停用、版本查看和预览的 API 闭环。
 - 更新 `tests/test_wechat_group_memory.py`、`tests/test_wechat_group_web.py`、`tests/test_wechat_group_memory_ui.py`：覆盖停用隔离、按群摘要、summary/disable Web API、Web 控制台永久记忆入口、搜索、停用和 revision 入口。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.2/4.3.3/4.3.6 最新完成进度、实际改动、验证结果与剩余手动验证事项。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：回写 4.3.2/4.3.3/4.3.6 最新完成进度、实际改动、验证结果与剩余手动验证事项。
 
 验证记录：
 
@@ -562,7 +573,7 @@
 - 新增 `channel/wechat_group/wechat_group_memory.py`：提供 `WechatGroupMemoryService`，支持群永久记忆、群友画像 active profile、画像 revision 审计和 `<wechat-group-memory>` 预览装配。
 - 更新 `channel/wechat_group/wechat_group_channel.py`：在最近群聊上下文之后、用户真实问题之前注入 `<wechat-group-memory>`，配置关闭、无命中或异常时不注入空块。
 - 更新 `channel/web/web_channel.py`：新增 `/api/wechat-group/memories/(.*)` 后端 handler，完成 group、profiles、profiles/revisions 与 preview 的最小 API 闭环。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：回写 4.3.1 和 4.3.2 已完成进度、实际改动、验证结果与剩余事项。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：回写 4.3.1 和 4.3.2 已完成进度、实际改动、验证结果与剩余事项。
 
 验证记录：
 
@@ -576,7 +587,7 @@
 
 ### 个人微信群 4.3 开发计划与 UI 设计细化
 
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：在 4.3 群永久记忆与群友画像章节新增待确认细化方案，覆盖通用作用域记忆升级、`WechatGroupMemoryService` 适配层、上下文注入链路、后端 Web API、配置边界和不做项。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：在 4.3 群永久记忆与群友画像章节新增待确认细化方案，覆盖通用作用域记忆升级、`WechatGroupMemoryService` 适配层、上下文注入链路、后端 Web API、配置边界和不做项。
 - 细化 4.3 UI 设计：明确“永久记忆”入口放在群聊管理页子菜单，采用按群分组的信息架构，并拆分群记忆、群友画像、诊断预览三个面板；补充加载、错误、空状态、长 ID 展示、loading/disabled 和可访问性约束。
 - 补充 4.3 待确认点：包括 Web 控制台与桌面端交付范围、群友画像表单形态、API 路径命名和画像 revision 存储方式。
 
@@ -586,7 +597,7 @@
 
 ### New API 自定义渠道计划修正
 
-- 更新 `plans/newapi_capability_routing_plan_20260702.md`：将方案从“新增独立 `newapi` provider”修正为“把 QuantumNous/new-api 作为现有 `custom:<id>` 自定义 OpenAI-compatible 渠道使用”。
+- 更新 `plans/20260702_新接口能力路由方案.md`：将方案从“新增独立 `newapi` provider”修正为“把 QuantumNous/new-api 作为现有 `custom:<id>` 自定义 OpenAI-compatible 渠道使用”。
 - 明确不新增 `newapi_api_key` / `newapi_api_base`，改为增强现有自定义渠道覆盖图像理解、图像生成、语音识别、语音合成和向量五类能力。
 
 验证记录：
@@ -597,7 +608,7 @@
 ### 个人微信群 4.3 记忆上下文链路文档
 
 - 更新 `AGENTS.md`：将个人微信群 LLM 请求上下文链路扩展为 4.3 目标结构，明确 `<wechat-group-memory>` 应注入当前群记忆、当前发言人群友画像和本轮被 @ 群友画像，并补充 `room_id` / `sender_id` 隔离规则。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：在 4.3 群永久记忆与群友画像章节列出下一步开发任务，覆盖 `WechatGroupMemoryService` 装配入口、通道注入位置、被 @ 群友画像召回和测试要求。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：在 4.3 群永久记忆与群友画像章节列出下一步开发任务，覆盖 `WechatGroupMemoryService` 装配入口、通道注入位置、被 @ 群友画像召回和测试要求。
 
 验证记录：
 
@@ -650,7 +661,7 @@
 - 更新 `desktop/src/renderer/src/pages/ChannelsPage.tsx`：个人微信群通道卡片不再展示群聊细项设置，仅保留接入、扫码、连接和断开入口。
 - 更新 `desktop/src/renderer/src/types.ts` 与 `desktop/src/renderer/src/i18n.ts`：补充微信群最近上下文配置类型和群聊管理页中英文文案。
 - 更新 `AGENTS.md`：补充个人微信群通道请求 LLM 前的实际上下文链路，明确其是在原 `ChatChannel` / Agent 主链路基础上叠加 `<wechat-group-persona>` 与 `<recent-wechat-group-transcript>`。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：细化 4.3 群永久记忆与群友画像的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：细化 4.3 群永久记忆与群友画像的首轮边界、上下文注入格式、服务接口、UI 运维范围和测试要求。
 - 继续补充 4.3 记忆方案：明确微信群群记忆与群友画像进入 CowAgent 通用作用域记忆体系，通过 `scope_type`、`scope_id`、`channel_type`、`subject_id` 兼容扩展保持旧记忆行为不变。
 - 细化 4.3 UI 展示要求：永久记忆页必须按群分类展示记忆内容；选中某个群后再区分群记忆与按成员展示的群友画像，并补充对应测试要求。
 - 根据通用作用域记忆方案修订 4.3 任务五、任务六与相邻章节：明确群友画像采用单份 active profile + revision 审计模型，提示词装配必须通过 `WechatGroupMemoryService` / `MemoryScope` 获取已过滤结果，UI 分类数据必须来自统一记忆 API 的 scope 聚合结果，并补充作用域记忆验证命令。
@@ -668,7 +679,7 @@
 - Web 群聊页新增 4.2 最近上下文三个配置项、群名检索下拉多选、自定义人设设置；个人微信群通道卡片不再展示群聊细项设置。
 - 为 Web 控制台 `console.js` 引用增加版本参数，避免浏览器缓存旧脚本导致重启后看不到新 UI。
 - 修复 Web 群聊页状态提示误引用不存在的 `TRANSLATIONS` 对象导致的运行时异常，并补齐移除最后一个已选群后的空状态提示。
-- 新增 `plans/wechat_group_ui_management_plan_20260702.md`：记录群聊管理页双栏紧凑布局、三个左侧子菜单和 4.2 配置迁移范围。
+- 新增 `plans/20260702_微信群管理界面方案.md`：记录群聊管理页双栏紧凑布局、三个左侧子菜单和 4.2 配置迁移范围。
 - 更新 `channel/web/web_channel.py`：`wechat_group.extra` 返回 `recent_context`，并支持保存 `wechat_group_recent_context_enabled`、`wechat_group_recent_context_limit`、`wechat_group_recent_context_minutes`。
 - 更新 `tests/test_wechat_group_web.py`：覆盖最近上下文配置返回与保存。
 
@@ -685,7 +696,7 @@
 - 更新 `channel/wechat_group/wechat_group_channel.py`：在微信群消息进入 CowAgent 回复链路前按配置注入当前群最近上下文，并在发送回复后记录助手出站内容。
 - 更新 `channel/wechat_group/wechat_group_message.py`：保留 `message_type`、原始文本和媒体路径字段，供归档与后续多模态阶段复用。
 - 新增 `tests/test_wechat_group_context.py`：覆盖按 `room_id` 查询隔离、上下文块格式和通道注入/归档闭环。
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：标记 4.2 最小闭环完成并记录当前实现边界。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：标记 4.2 最小闭环完成并记录当前实现边界。
 - 补充 4.2 架构论证：明确专用 SQLite 表是微信群通道短期归档/最近上下文，不等同于 CowAgent 长期记忆；4.3 再通过 `WechatGroupMemoryService` 在 `room_id` / `sender_id` 隔离前提下复用 CowAgent 记忆能力组件。
 - 消除微信群 4.2 回归测试中的环境 warning：`ChatChannel` 改用 `thread.daemon = True`，并把 `voice.audio_convert.any_to_wav` 改为语音分支懒加载，避免文本测试导入链路触发 pydub 的 ffmpeg 探测 warning。
 
@@ -701,7 +712,7 @@
 
 ### 微信群迁移计划
 
-- 更新 `plans/wechat_group_robot_migration_plan_20260701.md`：在 4.1 微信群通道闭环中补充“人设设定与生效规则”，参考 BaiLongmaPro 的 `personaPrompt` / `personaPresetId` 方案，明确内置预设、自定义人设、保存生效、prompt 注入和管理员优先级边界。
+- 更新 `plans/20260701_微信群机器人迁移方案.md`：在 4.1 微信群通道闭环中补充“人设设定与生效规则”，参考 BaiLongmaPro 的 `personaPrompt` / `personaPresetId` 方案，明确内置预设、自定义人设、保存生效、prompt 注入和管理员优先级边界。
 - 同步补充文件级任务、建议配置项、UI 范围、测试覆盖、手动验证和首轮交付边界，确保人设功能进入开发计划但不进入本次实际实现。
 
 验证记录：

@@ -466,6 +466,28 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("free-reply-activity-level", console_js)
         self.assertIn("syncFreeReplyProfileFields(extra.free_reply || {})", console_js)
 
+    def test_console_compacts_free_reply_number_fields_in_one_desktop_row(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+        with open("channel/web/static/css/console.css", "r", encoding="utf-8") as f:
+            console_css = f.read()
+
+        compact_grid_index = console_js.find('class="free-reply-compact-grid mt-3"')
+        self.assertGreater(compact_grid_index, -1)
+        for field_id in [
+            "free-reply-min-score",
+            "free-reply-min-interval",
+            "free-reply-hourly-limit",
+            "free-reply-consecutive-limit",
+            "free-reply-queue-ttl",
+            "free-reply-worker-max-workers",
+            "free-reply-worker-queue-size",
+        ]:
+            self.assertGreater(console_js.find(field_id, compact_grid_index), compact_grid_index)
+
+        self.assertIn(".free-reply-compact-grid", console_css)
+        self.assertIn("repeat(7, minmax(0, 1fr))", console_css)
+
     def test_console_contains_wechat_group_image_settings(self):
         with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
             console_js = f.read()
