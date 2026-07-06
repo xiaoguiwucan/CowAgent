@@ -57,7 +57,8 @@ class WechatGroupClient:
         self.send_command(SidecarCommand(SidecarCommandType.RELOGIN))
 
     def send_text(self, room_id: str, text: str, mention_ids=None):
-        self.send_command(build_send_text_command(room_id, text, mention_ids))
+        cooldown_minutes = conf().get("wechat_group_alias_sync_cooldown_minutes", 1)
+        self.send_command(build_send_text_command(room_id, text, mention_ids, int(cooldown_minutes or 1)))
 
     def send_file(self, room_id: str, path: str):
         self.send_command(SidecarCommand(SidecarCommandType.SEND_FILE, {
@@ -121,6 +122,7 @@ class WechatGroupClient:
             "media_dir": media_dir,
             "room_ids": conf().get("wechat_group_room_ids", []),
             "room_names": conf().get("wechat_group_names", []),
+            "alias_sync_cooldown_minutes": conf().get("wechat_group_alias_sync_cooldown_minutes", 1),
         }
         return json.dumps(config, ensure_ascii=False)
 

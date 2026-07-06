@@ -3819,6 +3819,9 @@ class ChannelsHandler:
                 "limit": conf().get("wechat_group_recent_context_limit", 20),
                 "minutes": conf().get("wechat_group_recent_context_minutes", 60),
             },
+            "basic": {
+                "alias_sync_cooldown_minutes": conf().get("wechat_group_alias_sync_cooldown_minutes", 1),
+            },
             "memory": {
                 "knowledge_enabled": conf().get("wechat_group_knowledge_enabled", True),
                 "profile_enabled": conf().get("wechat_group_profile_enabled", True),
@@ -3890,6 +3893,7 @@ class ChannelsHandler:
             "wechat_group_names",
             "wechat_group_persona_prompt",
             "wechat_group_persona_preset_id",
+            "wechat_group_alias_sync_cooldown_minutes",
             "wechat_group_recent_context_enabled",
             "wechat_group_recent_context_limit",
             "wechat_group_recent_context_minutes",
@@ -3996,6 +4000,8 @@ class ChannelsHandler:
                 value = cls._clamp_int(value, 1, 120, 30)
             elif key == "wechat_group_image_create_hourly_limit":
                 value = cls._clamp_int(value, 0, 100, 5)
+            elif key == "wechat_group_alias_sync_cooldown_minutes":
+                value = cls._clamp_int(value, 1, 1440, 1)
             elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
                 value = max(1, int(value))
             elif key in (

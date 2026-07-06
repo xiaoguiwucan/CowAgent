@@ -2,6 +2,42 @@
 
 ## 2026-07-06
 
+### 微信群学习运行时间格式修复
+
+- 更新 `channel/web/static/js/console.js`：为「群聊 -> 永久记忆 -> 学习运行 -> 运行记录」新增运行时间格式化，将秒级/毫秒级时间戳展示为 `yyyy-MM-dd HH:mm:ss`。
+- 更新 `channel/web/chat.html`：刷新 `console.js` 缓存版本，避免浏览器继续使用旧脚本。
+- 更新 `tests/test_wechat_group_memory_ui.py`：新增回归断言，锁定运行记录 `started_at` 不能直接显示原始时间戳。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_learning_runs_format_started_at_as_full_datetime`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+
+### 微信群 @ 人优先使用群昵称
+
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：当 `room.alias(contact)` 首次未取到群昵称时，先执行一次 `room.sync()` 刷新群成员数据，再重试 alias，避免在 wechat4u 可见 @ 文本里过早退回到联系人实际昵称。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`：新增回归测试，覆盖“首次 alias 为空、刷新后拿到群昵称”的发送场景，锁定群昵称优先级。
+
+验证记录：
+- `node --test .\channel\wechat_group\sidecar\wechaty-sidecar-core.test.mjs`
+- `node --check .\channel\wechat_group\sidecar\wechaty-sidecar-core.mjs`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
+### 微信群群昵称补同步节流
+
+- 更新 `channel/wechat_group/protocol.py`、`channel/wechat_group/wechat_group_client.py` 与 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：新增 `wechat_group_alias_sync_cooldown_minutes` 配置，默认 `1` 分钟，按 `room_id` 节流群昵称补同步；只有 `room.alias(contact)` 为空时才考虑刷新，命中冷却窗口则直接回退当前可用名称，不重复触发 `room.sync()`。
+- 更新 `config.py` 与 `config-template.json`：持久化该配置，并将数值归一化到 `1..1440` 分钟。
+- 更新 `channel/web/web_channel.py` 与 `channel/web/static/js/console.js`：在「群聊 -> 基础设置」新增“群昵称补同步冷却分钟数”可配置项，保存后当前运行态通过发送命令实时下发到 sidecar，无需重启通道。
+- 更新 `tests/test_wechat_group_channel.py`、`tests/test_wechat_group_web.py` 与 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`：补充命令透传、Web 保存/UI 展示和按群节流回归测试。
+- 更新 `plans/20260706_微信群群昵称补同步节流.md`：回写本次实施结果、验证记录和剩余注意事项。
+
+验证记录：
+- `node --test .\channel\wechat_group\sidecar\wechaty-sidecar-core.test.mjs`
+- `node --check .\channel\wechat_group\sidecar\wechaty-sidecar-core.mjs`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+
 ### 微信群正文显式 @ 别名自动学习
 
 - 更新 `channel/wechat_group/wechat_group_learner.py`：新增正文显式 mention 别名学习，只在“一个非机器人目标成员 + 一个非机器人显式 mention 文本”时，将称呼学习到被提及成员画像，避免多目标误学。
@@ -13,6 +49,7 @@
 - `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_learner`
 - `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_profile_service tests.test_wechat_group_learner`
 - `python -m py_compile channel\wechat_group\wechat_group_profile_service.py channel\wechat_group\wechat_group_learner.py channel\wechat_group\wechat_group_channel.py`
+
 ## 2026-07-05
 
 ### 微信群图片后省略追问识图修复

@@ -81,6 +81,7 @@ available_setting = {
     "wechat_group_record_messages": True,
     "wechat_group_media_dir": "",
     "wechat_group_guard_enabled": True,
+    "wechat_group_alias_sync_cooldown_minutes": 1,
     "wechat_group_sidecar_start_timeout": 60,
     "wechat_group_persona_preset_id": "owner-digital-twin",
     "wechat_group_persona_prompt": "",

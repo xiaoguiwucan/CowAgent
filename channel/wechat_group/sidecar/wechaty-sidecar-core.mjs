@@ -10,6 +10,8 @@ const MESSAGE_TYPE_NAMES = {
   7: 'text',
   15: 'video',
 }
+const DEFAULT_ALIAS_SYNC_COOLDOWN_MINUTES = 1
+const aliasSyncCooldownByRoom = new Map()
 
 function stringValue(value = '') {
   if (value === null || value === undefined) return ''
@@ -221,12 +223,50 @@ function buildMsgSourceXml(targetIds = []) {
   return `<msgsource><atuserlist>${ids.map(escapeMsgSourceXml).join(',')}</atuserlist></msgsource>`
 }
 
-export async function resolveMentionTargets(room, mentionIds, findContact) {
+function normalizeAliasSyncCooldownMinutes(value) {
+  const minutes = Number(value)
+  if (!Number.isFinite(minutes) || minutes < 1) return DEFAULT_ALIAS_SYNC_COOLDOWN_MINUTES
+  return minutes
+}
+
+function shouldRefreshRoomAlias(roomId, cooldownMinutes, cooldownStore, nowMs) {
+  const normalizedRoomId = String(roomId || '').trim()
+  if (!normalizedRoomId) return false
+  const store = cooldownStore || aliasSyncCooldownByRoom
+  const currentNowMs = Number(nowMs)
+  const safeNowMs = Number.isFinite(currentNowMs) ? currentNowMs : Date.now()
+  const cooldownMs = normalizeAliasSyncCooldownMinutes(cooldownMinutes) * 60 * 1000
+  const hasLastSync = store.has(normalizedRoomId)
+  const lastSyncAt = hasLastSync ? Number(store.get(normalizedRoomId)) : 0
+  if (hasLastSync && Number.isFinite(lastSyncAt) && safeNowMs - lastSyncAt < cooldownMs) {
+    return false
+  }
+  store.set(normalizedRoomId, safeNowMs)
+  return true
+}
+
+export async function resolveMentionTargets(room, mentionIds, findContact, options = {}) {
   const mentions = await resolveMentionContacts(room, mentionIds, findContact)
   const targets = []
+  let aliasRefreshAttempted = false
+  const cooldownMinutes = options.aliasSyncCooldownMinutes
+  const cooldownStore = options.aliasSyncCooldownStore
+  const nowMs = options.nowMs
   for (const contact of mentions) {
     let name = ''
     try { name = await room.alias(contact) || '' } catch {}
+    if (
+      !name &&
+      !aliasRefreshAttempted &&
+      room?.sync &&
+      shouldRefreshRoomAlias(room?.id, cooldownMinutes, cooldownStore, nowMs)
+    ) {
+      aliasRefreshAttempted = true
+      try {
+        await room.sync()
+        name = await room.alias(contact) || ''
+      } catch {}
+    }
     if (!name) {
       try { name = contact.name() || '' } catch {}
     }
@@ -292,6 +332,11 @@ export async function sendText(command, deps) {
     room,
     command.mention_ids || [],
     deps.findContact,
+    {
+      aliasSyncCooldownMinutes: command.alias_sync_cooldown_minutes,
+      aliasSyncCooldownStore: deps.aliasSyncCooldownStore,
+      nowMs: deps.nowMs?.(),
+    },
   )
   const wechat4u = deps.getWechat4u?.()
   const useVisibleMentionText = mentionTargets.length && (deps.isWechat4u?.() || wechat4u)
