@@ -29,6 +29,8 @@ class WechatGroupStickerService:
         path_text = str(media_path or "").strip()
         if not room_text or not path_text or not os.path.isfile(path_text):
             return {}
+        if os.path.getsize(path_text) <= 0:
+            return {}
         if self._is_too_large(path_text):
             return {}
         return self.store.upsert_sticker(

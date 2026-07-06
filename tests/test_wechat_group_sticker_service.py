@@ -45,6 +45,25 @@ class WechatGroupStickerServiceTest(unittest.TestCase):
         self.assertEqual(0, row["use_count"])
         self.assertTrue(row["file_hash"])
 
+    def test_collect_from_message_skips_empty_sticker_file(self):
+        from channel.wechat_group.wechat_group_sticker_service import WechatGroupStickerService
+        from channel.wechat_group.wechat_group_sticker_store import WechatGroupStickerStore
+
+        empty_path = os.path.join(self._tmp.name, "empty.gif")
+        open(empty_path, "wb").close()
+        service = WechatGroupStickerService(store=WechatGroupStickerStore(self.db_path))
+
+        row = service.collect_from_message(
+            room_id="room@@abc",
+            media_path=empty_path,
+            source_message_id="msg-empty",
+            description="empty reaction",
+            now=100,
+        )
+
+        self.assertEqual({}, row)
+        self.assertEqual([], service.list_stickers("room@@abc", status=""))
+
     def test_collect_from_message_dedupes_same_file_in_same_room(self):
         from channel.wechat_group.wechat_group_sticker_service import WechatGroupStickerService
         from channel.wechat_group.wechat_group_sticker_store import WechatGroupStickerStore

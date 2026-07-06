@@ -232,6 +232,21 @@ current user message:
 - 技能、工具 schema、运行时信息和上下文压缩逻辑仍由 Agent 主链路处理。
 - 自主进化仍会记录微信群用户轮次并参与 idle evolution；群聊场景通常不设置主动推送 `receiver`，避免进化结果主动打扰群。
 
+### 个人微信群自由回复与情绪主动性链路
+
+微信群自由回复和“情绪与主动性”不是两套互相竞争的回复引擎，而是串联关系：
+
+- 自由回复负责判断普通非 @ 群消息“要不要接话”。默认配置 `wechat_group_free_reply_enabled = false`，只有开启后且当前群命中 `wechat_group_free_reply_room_ids` 或 `wechat_group_free_reply_names`，普通非 @ 文本才会进入自由回复判定。
+- 情绪与主动性负责维护当前群的运行时情绪状态，并影响自由回复概率、回复节奏和最终 LLM 上下文。默认配置 `wechat_group_emotion_enabled = true`；它本身不会独立发起群消息，也不绕过自由回复或 @ 必回链路。
+- 普通非 @ 文本先经过 `evaluate_wechat_group_free_reply()` 本地评分、群范围、冷却、小时上限、连续上限、低信息和风险抑制；本地通过后进入 `WechatGroupFreeReplyWorkerPool`，再由 `WechatGroupFreeReplyJudge` 做轻量 LLM JSON 二次判定。
+- worker 判定通过后，通道用 `wechat_group_force_reply = true` 重新走 `_compose_context()` / `produce()`，绕过通用群聊“必须 @ / 前缀 / 关键词”的过滤，但最终回复仍复用 `ChatChannel`、`Bridge` 和 Agent 主链路。
+- 自由回复发送时设置 `suppress_mention = true` 和 `no_need_at = true`，因此默认不真实 mention 原发送者；@ 机器人或引用机器人回复仍走直接回复链路，不进入自由回复 worker。
+- 情绪服务在消息进入主链路前调用 `observe_message()` 更新 `valence / energy / sociability`；在自由回复本地判定后调用 `adjust_free_reply_decision()` 叠加低社交、低能量、负面情绪加阈值和时段规则等修正。
+- 情绪状态会通过 `<wechat-group-emotion>` 块注入当前 user message，影响模型语气与接话状态感知；每次成功发送回复后调用 `mark_replied()` 记录回复次数并降低 energy，减少连续插话倾向。
+- `wechat_group_free_reply_time_rules_enabled` 与 `wechat_group_free_reply_time_rules` 只作为自由回复调度的时段门控；规则不命中时会给自由回复判定增加 `time_rule_blocked` 抑制，不影响 @ 必回。
+- `wechat_group_free_reply_typing_delay_enabled` 和 `wechat_group_free_reply_typing_chars_per_second` 当前在微信群文本发送路径统一生效，不只影响自由回复；如需限定为自由回复专属延迟，需要单独改造发送上下文判断。
+- 两者的设计边界是“自由回复决定是否接话，情绪主动性只调节接话门槛、时段和上下文”。后续不要新增第二套独立主动发言调度器；若要扩大主动发言能力，必须先更新本节规则和对应计划文档，并补充防刷屏、跨群隔离和 @ 必回不受影响的回归测试。
+
 ### 个人微信群图片理解链路
 
 微信群图片理解仍然是渠道适配能力，不是一套独立视觉模型链路。sidecar 只负责识别微信图片消息、下载媒体文件并上报 `message_type = image`、`file_path` / `media_path` 等事件字段；Python 通道负责把图片转换为当前消息的上下文增强，视觉理解必须复用既有 `agent.tools.vision.vision.Vision` 能力。
@@ -267,6 +282,16 @@ current user message:
 - 4.3 完成后，`<wechat-group-memory>` 必须通过 `WechatGroupMemoryService` 或等价适配层装配，统一从 CowAgent 作用域记忆读取已过滤结果，不允许在通道层绕过 `room_id` / `sender_id` 校验直接拼接原始记忆。
 - Agent 模式会预持久化传入的 `query`；微信群增强后的 `context.content` 可能进入 Agent 会话历史。后续如需避免 prompt 块污染长期会话，应单独设计 no-persist 或原文/增强 prompt 分离机制。
 - 正文别名自动学习当前只允许在归档学习阶段处理“一个非机器人目标成员 + 一个非机器人显式 `@称呼` 文本”的高置信场景；不把普通文本昵称猜测、多目标映射或跨群自由匹配作为默认能力。
+- 当前正文别名自动学习的内部逻辑如下：
+  - 数据来源只看归档文本消息：`message_type = text`，且消息里必须同时具备有效 `sender_id`、正文 `text`，以及 `metadata.at_list`；机器人自身 ID 来自 `metadata.self_id`，机器人展示名来自 `metadata.self_display_name`。
+  - 目标成员筛选先基于 `at_list` 做强约束：从 `at_list` 中排除当前发言人 `sender_id` 和机器人 `self_id` 后，必须只剩 1 个目标成员；如果剩余为 0 个或大于 1 个，整条消息直接放弃正文别名学习。
+  - 正文称呼抽取只识别显式 mention 片段：使用 `@` / `＠` 起始的文本片段作为候选称呼，按现有正则规则截取连续非空白、非常见中文标点的内容，不从普通自然语言里猜测昵称。
+  - 机器人 mention 会被二次排除：抽取出的显式称呼在归一化后若等于 `self_display_name`，视为机器人称呼，不计入候选；只有“非机器人显式称呼”最终也恰好只剩 1 个时，才继续学习。
+  - 别名归一化会做最小清洗：统一空白、移除开头 `@`、裁掉两侧常见标点、限制最大长度，并拒绝原始 ID 形态（如 `wxid_*`、与 `sender_id` 相同的串、明显账号串）以及单个无意义符号。
+  - 入库映射不做猜测：唯一保留的“目标成员 sender_id”与唯一保留的“显式称呼 alias”一一对应，调用 `merge_learned_aliases()` 写入全局画像；不存在多目标 mention 与多个正文称呼之间的推断映射。
+  - 画像更新只合并 alias，不覆盖既有画像主体字段：`merge_learned_aliases()` 仅更新 `last_seen_at`，并在主昵称为空时才允许用 alias 兜底 `primary_nickname`；已有 `speak_style`、`interests`、`common_words`、分数统计保持不变。
+  - alias 持久化仍走现有 name record 链路：学习得到的 alias 会按 `source_kind = learning` 写入 `wechat_group_profile_name_records`，供后续 `primary_nickname / aliases / room_summaries` 聚合与搜索命中使用。
+  - 学习结果与发言人画像学习结果按 `sender_id` 去重合并：同一轮 learner 既可能更新发言人自己的画像，也可能更新被 @ 成员的 alias；最终按 `sender_id` 合并成一份结果，避免重复计数同一画像。
 
 新增或修改模型 Provider：
 

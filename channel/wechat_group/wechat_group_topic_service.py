@@ -3,10 +3,40 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from channel.wechat_group.wechat_group_topic_store import WechatGroupTopicStore
 from config import conf
+
+
+def _normalize_participant_display_name(value: Any, sender_id: str = "") -> str:
+    text = str(value or "").replace("\u2005", " ").replace("\xa0", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    if not text:
+        return ""
+    if text.startswith("@") and not _looks_like_raw_sender_name(text, sender_id):
+        text = text[1:].strip()
+    if _looks_like_raw_sender_name(text, sender_id):
+        return ""
+    return text
+
+
+def _looks_like_raw_sender_name(value: Any, sender_id: str = "") -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    normalized = text.lstrip("@")
+    sender_text = str(sender_id or "").strip()
+    sender_normalized = sender_text.lstrip("@")
+    if sender_text and text == sender_text:
+        return True
+    if sender_normalized and normalized == sender_normalized:
+        return True
+    if normalized.startswith("wxid_"):
+        return True
+    if text.startswith("@") and re.fullmatch(r"[0-9A-Za-z_-]{12,}", normalized):
+        return True
+    return False
 
 
 class WechatGroupTopicService:
@@ -124,8 +154,9 @@ class WechatGroupTopicService:
                 continue
             texts.append(text)
             sender_id = str(item.get("sender_id") or "").strip()
-            if sender_id and sender_id not in participants:
-                participants.append(sender_id)
+            participant = _normalize_participant_display_name(item.get("sender_nickname"), sender_id) or sender_id
+            if participant and participant not in participants:
+                participants.append(participant)
             if WechatGroupTopicService._looks_like_open_loop(text) and text not in open_loops:
                 open_loops.append(text[:80])
         if not texts:

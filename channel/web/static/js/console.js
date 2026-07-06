@@ -380,6 +380,10 @@ const I18N = {
         groups_emotion_metric_valence: '情绪正负值',
         groups_emotion_metric_energy: '活跃度',
         groups_emotion_metric_sociability: '社交倾向',
+        groups_emotion_state_withdrawn: '收敛',
+        groups_emotion_state_engaged: '积极',
+        groups_emotion_state_guarded: '谨慎',
+        groups_emotion_state_steady: '平稳',
         groups_emotion_time_rules_invalid: '时段规则 JSON 格式不正确',
         groups_sticker_title: '表情包',
         groups_sticker_desc: '查看当前群沉淀的表情包资产，支持搜索、预览和停用。',
@@ -1001,6 +1005,10 @@ const I18N = {
         groups_emotion_metric_valence: 'Valence',
         groups_emotion_metric_energy: 'Energy',
         groups_emotion_metric_sociability: 'Sociability',
+        groups_emotion_state_withdrawn: 'Withdrawn',
+        groups_emotion_state_engaged: 'Engaged',
+        groups_emotion_state_guarded: 'Guarded',
+        groups_emotion_state_steady: 'Steady',
         groups_emotion_time_rules_invalid: 'Time-rule JSON is invalid',
         groups_sticker_title: 'Stickers',
         groups_sticker_desc: 'Inspect collected room stickers, with search, preview, and disable controls.',
@@ -8129,11 +8137,11 @@ function buildGroupsEmotionPanel(extra) {
         : loading
             ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_emotion_loading')}</p>`
             : `<div class="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_valence'), state.valence)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_energy'), state.energy)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_sociability'), state.sociability)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_valence'), state.valence, 'number')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_energy'), state.energy, 'number')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_sociability'), state.sociability, 'number')}
                 ${buildGroupsEmotionMetric(t('groups_emotion_reply_count'), state.reply_count_1h)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-', 'state')}
             </div>
             <div class="mt-3 text-xs text-slate-500 dark:text-slate-400">
                 ${t('groups_emotion_last_reply')}：${escapeHtml(formatGroupsEmotionTimestamp(state.last_reply_at))}
@@ -8195,10 +8203,33 @@ function buildGroupsEmotionPanel(extra) {
     </div>`;
 }
 
-function buildGroupsEmotionMetric(label, value) {
+function translateGroupsEmotionState(value) {
+    const key = String(value || '').trim().toLowerCase();
+    const labels = {
+        withdrawn: t('groups_emotion_state_withdrawn'),
+        engaged: t('groups_emotion_state_engaged'),
+        guarded: t('groups_emotion_state_guarded'),
+        steady: t('groups_emotion_state_steady')
+    };
+    return labels[key] || String(value || '-');
+}
+
+function formatGroupsEmotionMetricValue(value, type = '') {
+    if (type === 'number') {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : String(value ?? '-');
+    }
+    if (type === 'state') {
+        return translateGroupsEmotionState(value);
+    }
+    return String(value ?? '-');
+}
+
+function buildGroupsEmotionMetric(label, value, type = '') {
+    const displayValue = formatGroupsEmotionMetricValue(value, type);
     return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] px-3 py-3">
         <div class="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">${escapeHtml(String(label))}</div>
-        <div class="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(String(value ?? '-'))}</div>
+        <div class="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(displayValue)}</div>
     </div>`;
 }
 
@@ -8644,7 +8675,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
     return profiles.map(profile => {
         const senderId = profile.sender_id || '';
         const aliases = Array.isArray(profile.aliases) ? profile.aliases : [];
-        const roomSummaries = Array.isArray(profile.room_summaries) ? profile.room_summaries : [];
+        const nameRecords = Array.isArray(profile.name_records) ? profile.name_records : [];
         const active = senderId === selectedSenderId;
         return `<button type="button" onclick="selectGroupsProfile(this)"
             data-sender-id="${escapeHtml(senderId)}"
@@ -8653,7 +8684,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                         <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(profile.primary_nickname || senderId)}</span>
-                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(roomSummaries.length))}</span>
+                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(nameRecords.length))}</span>
                     </div>
                     <div class="mt-1 text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(senderId)}</div>
                     ${aliases.length ? `<div class="mt-2 text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtml(aliases.join(' / '))}</div>` : ''}

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs/promises'
 import xmlParser from 'fast-xml-parser'
 
 const APP_MESSAGE_TYPE_REFER = 57
@@ -16,6 +17,19 @@ const aliasSyncCooldownByRoom = new Map()
 function stringValue(value = '') {
   if (value === null || value === undefined) return ''
   return String(value)
+}
+
+function decodeXmlAttribute(value = '') {
+  let text = String(value || '')
+  for (let i = 0; i < 2; i++) {
+    text = text
+      .replace(/&amp;/giu, '&')
+      .replace(/&lt;/giu, '<')
+      .replace(/&gt;/giu, '>')
+      .replace(/&quot;/giu, '"')
+      .replace(/&apos;/giu, "'")
+  }
+  return text
 }
 
 function emptyQuoteResult() {
@@ -78,9 +92,9 @@ export function sanitizeMediaFilePart(value = '') {
 }
 
 function mediaExtension(fileName = '', mediaType = '') {
+  if (mediaType === 'sticker') return 'gif'
   const ext = path.extname(String(fileName || '')).toLowerCase().replace('.', '')
   if (ext) return ext
-  if (mediaType === 'sticker') return 'gif'
   if (mediaType === 'image') return 'jpg'
   if (mediaType === 'audio') return 'mp3'
   if (mediaType === 'video') return 'mp4'
@@ -92,6 +106,34 @@ export function buildMediaFilePath(mediaDir, roomId, messageId, fileName = '', m
   const baseName = sanitizeMediaFilePart(messageId)
   const ext = mediaExtension(fileName, mediaType)
   return path.join(dir, `${baseName}.${ext}`)
+}
+
+export function extractStickerMediaUrl(rawText = '') {
+  const text = String(rawText || '')
+  for (const attr of ['cdnurl', 'externurl', 'encrypturl', 'thumburl']) {
+    const match = text.match(new RegExp(`${attr}\\s*=\\s*["']([^"']+)`, 'iu'))
+    if (match?.[1]) return decodeXmlAttribute(match[1])
+  }
+  return ''
+}
+
+export async function downloadStickerMediaFromText(rawText = '', targetPath = '', deps = {}) {
+  const url = extractStickerMediaUrl(rawText)
+  if (!url || !targetPath) return false
+  const fetchFn = deps.fetch || globalThis.fetch
+  if (typeof fetchFn !== 'function') return false
+  const mkdir = deps.mkdir || fs.mkdir
+  const writeFile = deps.writeFile || fs.writeFile
+  const response = await fetchFn(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  })
+  if (!response?.ok) return false
+  const arrayBuffer = await response.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  if (!buffer.length) return false
+  await mkdir(path.dirname(targetPath), { recursive: true })
+  await writeFile(targetPath, buffer)
+  return true
 }
 
 export function extractQuotedMessageFromRawPayload(rawPayload = {}, selfId = '') {

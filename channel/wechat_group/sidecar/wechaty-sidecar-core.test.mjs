@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   buildMediaFilePath,
   detectMessageMediaType,
+  downloadStickerMediaFromText,
+  extractStickerMediaUrl,
   extractQuotedMessageFromRawPayload,
   sanitizeMediaFilePart,
   sendText,
@@ -428,4 +430,40 @@ test('buildMediaFilePath keeps media files under the configured media directory'
   const path = buildMediaFilePath('D:/cow/media', '../room@@abc', '../../msg-1', 'photo.large.JPG')
 
   assert.equal(path.replaceAll('\\', '/'), 'D:/cow/media/room@@abc/msg-1.jpg')
+})
+
+test('buildMediaFilePath stores stickers with gif extension', () => {
+  const path = buildMediaFilePath('D:/cow/media', 'room@@abc', 'msg-1', 'emoji.jpg', 'sticker')
+
+  assert.equal(path.replaceAll('\\', '/'), 'D:/cow/media/room@@abc/msg-1.gif')
+})
+
+test('extractStickerMediaUrl reads escaped cdnurl from emoji xml', () => {
+  const xml = '<msg><emoji cdnurl="http://wx.example/stodownload?m=abc&amp;amp;filekey=key" encrypturl="http://wx.example/encrypted" /></msg>'
+
+  assert.equal(extractStickerMediaUrl(xml), 'http://wx.example/stodownload?m=abc&filekey=key')
+})
+
+test('downloadStickerMediaFromText writes fetched sticker bytes', async () => {
+  const writes = []
+  const mkdirs = []
+  const ok = await downloadStickerMediaFromText(
+    '<msg><emoji cdnurl="http://wx.example/sticker.gif?m=abc&amp;amp;filekey=key" /></msg>',
+    'D:/cow/media/room/msg-1.gif',
+    {
+      fetch: async url => ({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => new Uint8Array([0x47, 0x49, 0x46, 0x38]).buffer,
+        url,
+      }),
+      mkdir: async dir => mkdirs.push(dir),
+      writeFile: async (target, buffer) => writes.push([target, Buffer.from(buffer)]),
+    },
+  )
+
+  assert.equal(ok, true)
+  assert.equal(mkdirs[0].replaceAll('\\', '/'), 'D:/cow/media/room')
+  assert.equal(writes[0][0].replaceAll('\\', '/'), 'D:/cow/media/room/msg-1.gif')
+  assert.deepEqual([...writes[0][1]], [0x47, 0x49, 0x46, 0x38])
 })

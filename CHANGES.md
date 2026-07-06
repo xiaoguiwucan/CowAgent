@@ -2,6 +2,53 @@
 
 ## 2026-07-06
 
+### 微信群表情包预览空文件修复
+
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：表情消息优先保存为 `.gif`；当 Wechaty `toFileBox()` 写出 0 字节文件时，从表情 XML 的 `cdnurl` 等地址补下载真实图片内容，避免 Web 预览拿到空文件。
+- 更新 `channel/wechat_group/wechat_group_sticker_service.py`：收集表情包时拒绝 0 字节文件，防止下载失败的空资产进入表情包列表。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs` 与 `tests/test_wechat_group_sticker_service.py`：覆盖表情 CDN 地址提取、fallback 下载、`.gif` 扩展名和空文件跳过。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_sticker_service.WechatGroupStickerServiceTest.test_collect_from_message_skips_empty_sticker_file`（先在旧实现下确认失败，修复后通过）
+- `npm test -- wechaty-sidecar-core.test.mjs`（在 `channel/wechat_group/sidecar` 目录执行，先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_sticker_service`
+
+### 微信群全局画像命名记录计数修复
+
+- 更新 `channel/web/static/js/console.js`：全局画像左侧画像列表的“命名记录”改为统计 `name_records.length`，与右侧详情保持一致，不再误用“出现过的群”数量。
+- 更新 `tests/test_wechat_group_memory_ui.py`：新增前端静态回归断言，锁定画像列表必须使用实际命名记录数量。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_global_profiles_list_counts_actual_name_records`（先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+
+### 微信群话题参与者群昵称显示修复
+
+- 更新 `channel/wechat_group/wechat_group_topic_service.py`：刷新活动话题时，参与者优先写入归档消息中的 `sender_nickname`，昵称为空或疑似原始 ID 时才回退 `sender_id`。
+- 更新 `channel/web/web_channel.py`：`/api/wechat-group/topics/active` 与 `/api/wechat-group/topics/archive` 返回前按当前群成员归档把旧话题中的 `sender_id` 映射为群昵称，修复当前活动话题和历史活动话题参与者显示原始 ID 的问题。
+- 更新 `tests/test_wechat_group_topic_service.py` 与 `tests/test_wechat_group_web.py`：新增昵称展示回归测试，并同步旧断言到群昵称展示语义。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicServiceTest.test_build_prompt_block_from_archive_uses_sender_nicknames_as_participants`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_topics_archive_api_uses_service`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_topic_service`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_context`
+
+### 微信群情绪状态展示格式修复
+
+- 更新 `channel/web/static/js/console.js`：在“群聊 -> 情绪与主动性”当前情绪卡片中，对情绪正负值、活跃度、社交倾向统一按两位小数展示，避免 `0.010000000000000002` 这类浮点误差直接暴露给用户。
+- 更新 `channel/web/static/js/console.js`：新增 `withdrawn / engaged / guarded / steady` 解释状态的本地化映射，中文界面展示为“收敛 / 积极 / 谨慎 / 平稳”。
+- 更新 `tests/test_wechat_group_web.py`：新增控制台资源回归断言，锁定情绪数值格式化与解释状态本地化入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_formats_wechat_group_emotion_state_for_display`（先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_contains_wechat_group_emotion_panel tests.test_wechat_group_web.WechatGroupWebTest.test_console_formats_wechat_group_emotion_state_for_display tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_emotion_state_api_uses_service_and_running_status`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_web` 未全量通过：`test_wechat_group_topics_archive_api_uses_service` 当前期望归档参与者展示群昵称，但接口实际返回 `wxid_alice / wxid_bob`；该失败来自工作区已有话题归档相关改动，非本次情绪展示改动引入。
+
 ### 微信群学习运行时间格式修复
 
 - 更新 `channel/web/static/js/console.js`：为「群聊 -> 永久记忆 -> 学习运行 -> 运行记录」新增运行时间格式化，将秒级/毫秒级时间戳展示为 `yyyy-MM-dd HH:mm:ss`。

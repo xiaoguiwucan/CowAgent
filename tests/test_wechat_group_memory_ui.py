@@ -52,6 +52,16 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
         self.assertNotIn("approveGroupsMemoryCandidate", console_js)
         self.assertNotIn("rejectGroupsMemoryCandidate", console_js)
 
+    def test_global_profiles_list_counts_actual_name_records(self):
+        console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
+        start = console_js.index("function buildGroupsProfilesList")
+        end = console_js.index("function buildGroupsProfilesDetail", start)
+        body = console_js[start:end]
+
+        self.assertIn("const nameRecords = Array.isArray(profile.name_records) ? profile.name_records : [];", body)
+        self.assertIn("String(nameRecords.length)", body)
+        self.assertNotIn("String(roomSummaries.length)", body)
+
     def test_groups_page_cache_buster_changes_for_memory_ui(self):
         chat_html = (ROOT / "channel/web/chat.html").read_text(encoding="utf-8")
 
