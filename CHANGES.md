@@ -2,6 +2,16 @@
 
 ## 2026-07-06
 
+### 微信群全局画像命名记录计数修复
+
+- 更新 `channel/web/static/js/console.js`：全局画像左侧画像列表的“命名记录”改为统计 `name_records.length`，与右侧详情保持一致，不再误用“出现过的群”数量。
+- 更新 `tests/test_wechat_group_memory_ui.py`：新增前端静态回归断言，锁定画像列表必须使用实际命名记录数量。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_memory_ui.WechatGroupMemoryUiTest.test_global_profiles_list_counts_actual_name_records`（先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_memory_ui`
+- `node --check .\channel\web\static\js\console.js`
+
 ### 微信群话题参与者群昵称显示修复
 
 - 更新 `channel/wechat_group/wechat_group_topic_service.py`：刷新活动话题时，参与者优先写入归档消息中的 `sender_nickname`，昵称为空或疑似原始 ID 时才回退 `sender_id`。

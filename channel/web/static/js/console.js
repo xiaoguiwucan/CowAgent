@@ -8675,7 +8675,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
     return profiles.map(profile => {
         const senderId = profile.sender_id || '';
         const aliases = Array.isArray(profile.aliases) ? profile.aliases : [];
-        const roomSummaries = Array.isArray(profile.room_summaries) ? profile.room_summaries : [];
+        const nameRecords = Array.isArray(profile.name_records) ? profile.name_records : [];
         const active = senderId === selectedSenderId;
         return `<button type="button" onclick="selectGroupsProfile(this)"
             data-sender-id="${escapeHtml(senderId)}"
@@ -8684,7 +8684,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                         <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(profile.primary_nickname || senderId)}</span>
-                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(roomSummaries.length))}</span>
+                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(nameRecords.length))}</span>
                     </div>
                     <div class="mt-1 text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(senderId)}</div>
                     ${aliases.length ? `<div class="mt-2 text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtml(aliases.join(' / '))}</div>` : ''}
