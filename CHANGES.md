@@ -2,6 +2,20 @@
 
 ## 2026-07-06
 
+### 微信群话题参与者群昵称显示修复
+
+- 更新 `channel/wechat_group/wechat_group_topic_service.py`：刷新活动话题时，参与者优先写入归档消息中的 `sender_nickname`，昵称为空或疑似原始 ID 时才回退 `sender_id`。
+- 更新 `channel/web/web_channel.py`：`/api/wechat-group/topics/active` 与 `/api/wechat-group/topics/archive` 返回前按当前群成员归档把旧话题中的 `sender_id` 映射为群昵称，修复当前活动话题和历史活动话题参与者显示原始 ID 的问题。
+- 更新 `tests/test_wechat_group_topic_service.py` 与 `tests/test_wechat_group_web.py`：新增昵称展示回归测试，并同步旧断言到群昵称展示语义。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_topic_service.WechatGroupTopicServiceTest.test_build_prompt_block_from_archive_uses_sender_nicknames_as_participants`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_topics_archive_api_uses_service`（先在旧实现下确认失败，再修复后通过）
+- `python -m unittest tests.test_wechat_group_topic_service`
+- `python -m unittest tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web`
+- `python -m unittest tests.test_wechat_group_context`
+
 ### 微信群情绪状态展示格式修复
 
 - 更新 `channel/web/static/js/console.js`：在“群聊 -> 情绪与主动性”当前情绪卡片中，对情绪正负值、活跃度、社交倾向统一按两位小数展示，避免 `0.010000000000000002` 这类浮点误差直接暴露给用户。

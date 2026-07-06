@@ -717,18 +717,30 @@ class WechatGroupWebTest(unittest.TestCase):
         class FakeTopicService:
             def search_topics(self, room_id, query="", limit=20):
                 self.args = (room_id, query, limit)
-                return [{"thread_id": "topic-2", "title": "release archive"}]
+                return [{"thread_id": "topic-2", "title": "release archive", "participants": ["wxid_alice", "wxid_bob"]}]
+
+        class FakeArchive:
+            def list_members(self, room_id, query="", limit=20):
+                self.args = (room_id, query, limit)
+                return [
+                    {"sender_id": "wxid_alice", "sender_nickname": "Alice In Group"},
+                    {"sender_id": "wxid_bob", "sender_nickname": "Bob In Group"},
+                ]
 
         fake = FakeTopicService()
+        archive = FakeArchive()
         handler = WechatGroupTopicsHandler()
         with patch("channel.web.web_channel._require_auth"), \
                 patch.object(WechatGroupTopicsHandler, "_get_topic_service", return_value=fake), \
+                patch.object(WechatGroupTopicsHandler, "_get_archive", return_value=archive), \
                 patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(room_id="room@@abc", q="release", limit="4")):
             result = json.loads(handler.GET("archive"))
 
         self.assertEqual("success", result["status"])
         self.assertEqual("topic-2", result["topics"][0]["thread_id"])
+        self.assertEqual(["Alice In Group", "Bob In Group"], result["topics"][0]["participants"])
         self.assertEqual(("room@@abc", "release", 4), fake.args)
+        self.assertEqual(("room@@abc", "", 500), archive.args)
 
     def test_wechat_group_stickers_list_api_uses_service(self):
         from channel.web.web_channel import WechatGroupStickersHandler

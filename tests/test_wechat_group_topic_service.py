@@ -218,9 +218,43 @@ class WechatGroupTopicServiceTest(unittest.TestCase):
         self.assertIn("<wechat-group-topic>", block)
         self.assertIn("title:", block)
         self.assertIn("gist:", block)
-        self.assertIn("participants: wxid_alice, wxid_bob", block)
+        self.assertIn("participants: Alice, Bob", block)
         self.assertEqual(1, len(rows))
         self.assertEqual("msg-2", rows[0]["last_message_id"])
+
+    def test_build_prompt_block_from_archive_uses_sender_nicknames_as_participants(self):
+        from channel.wechat_group.wechat_group_topic_service import WechatGroupTopicService
+        from channel.wechat_group.wechat_group_topic_store import WechatGroupTopicStore
+
+        archive = WechatGroupArchive(os.path.join(self._tmp.name, "wechat_group_archive.db"))
+        archive.record_message(
+            message_id="msg-1",
+            room_id="room@@abc",
+            room_name="Test Room",
+            sender_id="wxid_alice",
+            sender_nickname="Alice In Group",
+            message_type="text",
+            text="please confirm the release plan",
+            created_at=100,
+        )
+        archive.record_message(
+            message_id="msg-2",
+            room_id="room@@abc",
+            room_name="Test Room",
+            sender_id="wxid_bob",
+            sender_nickname="Bob In Group",
+            message_type="text",
+            text="I will update the checklist tonight",
+            created_at=101,
+        )
+        store = WechatGroupTopicStore(self.db_path)
+        service = WechatGroupTopicService(store=store)
+
+        block = service.build_prompt_block_from_archive(archive, "room@@abc", now=102)
+        rows = store.list_active_threads("room@@abc", limit=5)
+
+        self.assertIn("participants: Alice In Group, Bob In Group", block)
+        self.assertEqual(["Alice In Group", "Bob In Group"], rows[0]["participants"])
 
 
 if __name__ == "__main__":
