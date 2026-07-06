@@ -234,6 +234,8 @@ const I18N = {
         groups_recent_limit_hint: '最多读取多少条最近消息。',
         groups_recent_minutes: '时间窗口（分钟）',
         groups_recent_minutes_hint: '只读取该时间范围内的消息。',
+        groups_alias_sync_cooldown_minutes: '群昵称补同步冷却时间（分钟）',
+        groups_alias_sync_cooldown_minutes_hint: '群昵称缺失时，当前群最多多久补同步一次成员信息。',
         groups_rooms_title: '群聊开关',
         groups_rooms_desc: '选择机器人允许响应的微信群，列表只展示群名。',
         groups_rooms_select_label: '目标群',
@@ -378,6 +380,10 @@ const I18N = {
         groups_emotion_metric_valence: '情绪正负值',
         groups_emotion_metric_energy: '活跃度',
         groups_emotion_metric_sociability: '社交倾向',
+        groups_emotion_state_withdrawn: '收敛',
+        groups_emotion_state_engaged: '积极',
+        groups_emotion_state_guarded: '谨慎',
+        groups_emotion_state_steady: '平稳',
         groups_emotion_time_rules_invalid: '时段规则 JSON 格式不正确',
         groups_sticker_title: '表情包',
         groups_sticker_desc: '查看当前群沉淀的表情包资产，支持搜索、预览和停用。',
@@ -853,6 +859,8 @@ const I18N = {
         groups_recent_limit_hint: 'Maximum recent messages to read.',
         groups_recent_minutes: 'Time window (minutes)',
         groups_recent_minutes_hint: 'Only read messages within this time window.',
+        groups_alias_sync_cooldown_minutes: 'Alias refresh cooldown (minutes)',
+        groups_alias_sync_cooldown_minutes_hint: 'When a room alias is missing, limit how often member info is resynced per group.',
         groups_rooms_title: 'Group switches',
         groups_rooms_desc: 'Choose which WeChat groups the bot may respond to. Only group names are shown.',
         groups_rooms_select_label: 'Target groups',
@@ -997,6 +1005,10 @@ const I18N = {
         groups_emotion_metric_valence: 'Valence',
         groups_emotion_metric_energy: 'Energy',
         groups_emotion_metric_sociability: 'Sociability',
+        groups_emotion_state_withdrawn: 'Withdrawn',
+        groups_emotion_state_engaged: 'Engaged',
+        groups_emotion_state_guarded: 'Guarded',
+        groups_emotion_state_steady: 'Steady',
         groups_emotion_time_rules_invalid: 'Time-rule JSON is invalid',
         groups_sticker_title: 'Stickers',
         groups_sticker_desc: 'Inspect collected room stickers, with search, preview, and disable controls.',
@@ -7554,9 +7566,11 @@ function buildGroupsPanelTitle(icon, titleKey, descKey) {
 
 function buildGroupsBasicPanel(extra) {
     const recent = extra.recent_context || {};
+    const basic = extra.basic || {};
     const enabled = recent.enabled !== false;
     const limit = Number(recent.limit || 20);
     const minutes = Number(recent.minutes || 60);
+    const aliasSyncCooldownMinutes = Number(basic.alias_sync_cooldown_minutes || 1);
     return `<div class="h-full w-full">
         ${buildGroupsPanelTitle('fa-sliders', 'groups_basic_title', 'groups_basic_desc')}
         <div class="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(220px,0.7fr)_minmax(220px,0.7fr)] gap-4">
@@ -7574,6 +7588,9 @@ function buildGroupsBasicPanel(extra) {
             </div>
             ${buildGroupsNumberField('groups-recent-limit', 'groups_recent_limit', 'groups_recent_limit_hint', limit)}
             ${buildGroupsNumberField('groups-recent-minutes', 'groups_recent_minutes', 'groups_recent_minutes_hint', minutes)}
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(280px,1fr)_minmax(220px,0.7fr)_minmax(220px,0.7fr)] gap-4 mt-4">
+            ${buildGroupsNumberField('groups-alias-sync-cooldown-minutes', 'groups_alias_sync_cooldown_minutes', 'groups_alias_sync_cooldown_minutes_hint', aliasSyncCooldownMinutes)}
         </div>
     </div>`;
 }
@@ -8120,11 +8137,11 @@ function buildGroupsEmotionPanel(extra) {
         : loading
             ? `<p class="text-sm text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>${t('groups_emotion_loading')}</p>`
             : `<div class="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_valence'), state.valence)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_energy'), state.energy)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_metric_sociability'), state.sociability)}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_valence'), state.valence, 'number')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_energy'), state.energy, 'number')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_metric_sociability'), state.sociability, 'number')}
                 ${buildGroupsEmotionMetric(t('groups_emotion_reply_count'), state.reply_count_1h)}
-                ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-')}
+                ${buildGroupsEmotionMetric(t('groups_emotion_interpreted_state'), state.interpreted_state || '-', 'state')}
             </div>
             <div class="mt-3 text-xs text-slate-500 dark:text-slate-400">
                 ${t('groups_emotion_last_reply')}：${escapeHtml(formatGroupsEmotionTimestamp(state.last_reply_at))}
@@ -8186,10 +8203,33 @@ function buildGroupsEmotionPanel(extra) {
     </div>`;
 }
 
-function buildGroupsEmotionMetric(label, value) {
+function translateGroupsEmotionState(value) {
+    const key = String(value || '').trim().toLowerCase();
+    const labels = {
+        withdrawn: t('groups_emotion_state_withdrawn'),
+        engaged: t('groups_emotion_state_engaged'),
+        guarded: t('groups_emotion_state_guarded'),
+        steady: t('groups_emotion_state_steady')
+    };
+    return labels[key] || String(value || '-');
+}
+
+function formatGroupsEmotionMetricValue(value, type = '') {
+    if (type === 'number') {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : String(value ?? '-');
+    }
+    if (type === 'state') {
+        return translateGroupsEmotionState(value);
+    }
+    return String(value ?? '-');
+}
+
+function buildGroupsEmotionMetric(label, value, type = '') {
+    const displayValue = formatGroupsEmotionMetricValue(value, type);
     return `<div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] px-3 py-3">
         <div class="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">${escapeHtml(String(label))}</div>
-        <div class="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(String(value ?? '-'))}</div>
+        <div class="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100 break-words">${escapeHtml(displayValue)}</div>
     </div>`;
 }
 
@@ -8635,7 +8675,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
     return profiles.map(profile => {
         const senderId = profile.sender_id || '';
         const aliases = Array.isArray(profile.aliases) ? profile.aliases : [];
-        const roomSummaries = Array.isArray(profile.room_summaries) ? profile.room_summaries : [];
+        const nameRecords = Array.isArray(profile.name_records) ? profile.name_records : [];
         const active = senderId === selectedSenderId;
         return `<button type="button" onclick="selectGroupsProfile(this)"
             data-sender-id="${escapeHtml(senderId)}"
@@ -8644,7 +8684,7 @@ function buildGroupsProfilesList(profiles, selectedSenderId) {
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                         <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">${escapeHtml(profile.primary_nickname || senderId)}</span>
-                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(roomSummaries.length))}</span>
+                        <span class="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">${t('groups_profiles_name_records').replace('{count}', String(nameRecords.length))}</span>
                     </div>
                     <div class="mt-1 text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">${escapeHtml(senderId)}</div>
                     ${aliases.length ? `<div class="mt-2 text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHtml(aliases.join(' / '))}</div>` : ''}
@@ -8817,6 +8857,18 @@ function formatGroupsProfileTimestamp(value) {
     const date = new Date(timestamp < 1000000000000 ? timestamp * 1000 : timestamp);
     if (Number.isNaN(date.getTime())) return '-';
     return formatTime(date);
+}
+
+function formatGroupsMemoryRunTimestamp(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const raw = String(value).trim();
+    const numeric = Number(raw);
+    const date = raw && Number.isFinite(numeric) && /^\d+(\.\d+)?$/.test(raw)
+        ? new Date(numeric < 1000000000000 ? numeric * 1000 : numeric)
+        : new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    const pad = (part) => String(part).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function buildGroupsMemoryPanel(extra) {
@@ -8999,21 +9051,24 @@ function buildGroupsMemoryLearningPanel(roomId, extra) {
     const loadingHtml = groupsMemoryState.learningLoading
         ? `<p class="text-xs text-slate-500 dark:text-slate-400"><i class="fas fa-spinner fa-spin mr-1"></i>${t('groups_loading')}</p>`
         : '';
-    const runsHtml = runs.length ? runs.map(run => `
-        <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
-            <div class="flex flex-wrap items-center gap-2 text-xs">
-                <span class="font-mono text-slate-500 dark:text-slate-400">${escapeHtml(run.run_id || '')}</span>
-                <span class="rounded-full px-2 py-0.5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400">${escapeHtml(translateGroupsMemoryRunStatus(run.status))}</span>
-                <span class="ml-auto text-slate-400 dark:text-slate-500">${escapeHtml(String(run.started_at || ''))}</span>
+    const runsHtml = runs.length ? runs.map(run => {
+        const startedAt = formatGroupsMemoryRunTimestamp(run.started_at);
+        return `
+            <div class="rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#111111] p-3">
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="font-mono text-slate-500 dark:text-slate-400">${escapeHtml(run.run_id || '')}</span>
+                    <span class="rounded-full px-2 py-0.5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400">${escapeHtml(translateGroupsMemoryRunStatus(run.status))}</span>
+                    <span class="ml-auto text-slate-400 dark:text-slate-500">${escapeHtml(startedAt)}</span>
+                </div>
+                <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>${t('groups_memory_run_messages')} ${escapeHtml(String(run.batch_message_count || 0))}</span>
+                    <span>${t('groups_memory_run_profiles')} ${escapeHtml(String(run.profile_update_count || 0))}</span>
+                    <span>${t('groups_memory_run_memories')} ${escapeHtml(String(run.group_memory_upsert_count || 0))}</span>
+                    <span>${escapeHtml(run.failed_reason || '')}</span>
+                </div>
             </div>
-            <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <span>${t('groups_memory_run_messages')} ${escapeHtml(String(run.batch_message_count || 0))}</span>
-                <span>${t('groups_memory_run_profiles')} ${escapeHtml(String(run.profile_update_count || 0))}</span>
-                <span>${t('groups_memory_run_memories')} ${escapeHtml(String(run.group_memory_upsert_count || 0))}</span>
-                <span>${escapeHtml(run.failed_reason || '')}</span>
-            </div>
-        </div>
-    `).join('') : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_memory_auto_no_runs')}</p>`;
+        `;
+    }).join('') : `<p class="text-xs text-slate-500 dark:text-slate-400">${t('groups_memory_auto_no_runs')}</p>`;
     return `<div class="space-y-4">
         <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
             <div class="mb-4">
@@ -9761,6 +9816,7 @@ function saveWechatGroupSettings() {
         ? splitWechatGroupLines(document.getElementById('groups-room-names')?.value || '')
         : (extra.selected_room_names || []);
     const recent = extra.recent_context || {};
+    const basic = extra.basic || {};
     const recentEnabled = document.getElementById('groups-recent-enabled')
         ? !!document.getElementById('groups-recent-enabled').checked
         : recent.enabled !== false;
@@ -9770,6 +9826,9 @@ function saveWechatGroupSettings() {
     const recentMinutes = document.getElementById('groups-recent-minutes')
         ? Math.max(1, Number(document.getElementById('groups-recent-minutes').value || 1))
         : Number(recent.minutes || 60);
+    const aliasSyncCooldownMinutes = document.getElementById('groups-alias-sync-cooldown-minutes')
+        ? Math.max(1, Number(document.getElementById('groups-alias-sync-cooldown-minutes').value || 1))
+        : Number(basic.alias_sync_cooldown_minutes || 1);
     const freeReply = readWechatGroupFreeReplySettings(extra.free_reply || {});
     const image = readWechatGroupImageSettings(extra.image || {});
     if (btn) btn.disabled = true;
@@ -9784,6 +9843,7 @@ function saveWechatGroupSettings() {
                 wechat_group_names: selectedNames,
                 wechat_group_persona_prompt: prompt,
                 wechat_group_persona_preset_id: 'custom',
+                wechat_group_alias_sync_cooldown_minutes: aliasSyncCooldownMinutes,
                 wechat_group_recent_context_enabled: recentEnabled,
                 wechat_group_recent_context_limit: recentLimit,
                 wechat_group_recent_context_minutes: recentMinutes,

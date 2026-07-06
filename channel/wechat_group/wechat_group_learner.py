@@ -70,7 +70,12 @@ class WechatGroupLearner:
                     "group_memories": [],
                 }
 
-            profiles = self._learn_profiles(room_id, messages) if mode in ("all", "profile") else []
+            profiles = []
+            if mode in ("all", "profile"):
+                profiles = _merge_profile_results(
+                    self._learn_profiles(room_id, messages),
+                    self._learn_mentioned_aliases(room_id, messages),
+                )
             group_memories = self._learn_group_memories(room_id, messages) if mode in ("all", "memory") else []
             batch_end_row_id = int(messages[-1].get("id") or batch_start_row_id)
             self.knowledge_store.update_cursor(room_id, batch_end_row_id)
@@ -138,6 +143,37 @@ class WechatGroupLearner:
                 last_seen_at=int(sample_rows[-1].get("created_at") or 0),
             )
             results.append(profile)
+        return results
+
+    def _learn_mentioned_aliases(self, room_id: str, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        collected: Dict[str, Dict[str, Any]] = {}
+        for item in messages:
+            resolved = _resolve_single_mentioned_alias(item)
+            if not resolved:
+                continue
+            target_sender_id, alias = resolved
+            bucket = collected.setdefault(target_sender_id, {
+                "aliases": [],
+                "room_name": str(item.get("room_name") or ""),
+                "last_seen_at": 0,
+            })
+            if alias not in bucket["aliases"]:
+                bucket["aliases"].append(alias)
+            if not bucket["room_name"]:
+                bucket["room_name"] = str(item.get("room_name") or "")
+            bucket["last_seen_at"] = max(int(bucket["last_seen_at"] or 0), int(item.get("created_at") or 0))
+
+        results = []
+        for target_sender_id, payload in collected.items():
+            profile = self.profile_service.merge_learned_aliases(
+                sender_id=target_sender_id,
+                aliases=payload["aliases"],
+                room_id=room_id,
+                room_name=payload["room_name"],
+                last_seen_at=payload["last_seen_at"],
+            )
+            if profile:
+                results.append(profile)
         return results
 
     def _learn_group_memories(self, room_id: str, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -253,6 +289,76 @@ def _merge_memory_texts(texts: List[str]) -> str:
 
 def _normalize_text(text: str) -> str:
     return re.sub(r"\s+|[，。,.!！?？:：]", "", text or "").lower()
+
+
+def _merge_profile_results(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    merged: Dict[str, Dict[str, Any]] = {}
+    for group in groups:
+        for profile in group or []:
+            sender_id = str((profile or {}).get("sender_id") or "").strip()
+            if sender_id:
+                merged[sender_id] = profile
+    return list(merged.values())
+
+
+def _resolve_single_mentioned_alias(row: Dict[str, Any]) -> Optional[tuple[str, str]]:
+    if str(row.get("message_type") or "text") != "text":
+        return None
+    sender_id = str(row.get("sender_id") or "").strip()
+    text = str(row.get("text") or "")
+    if not sender_id or not text.strip():
+        return None
+    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    mention_ids = [
+        str(item or "").strip()
+        for item in (metadata.get("at_list") or row.get("at_list") or [])
+        if str(item or "").strip()
+    ]
+    self_id = str(metadata.get("self_id") or "").strip()
+    target_ids = []
+    for mentioned_id in mention_ids:
+        if mentioned_id == sender_id:
+            continue
+        if self_id and mentioned_id == self_id:
+            continue
+        if mentioned_id not in target_ids:
+            target_ids.append(mentioned_id)
+    if len(target_ids) != 1:
+        return None
+
+    bot_name = _normalize_name_lookup(metadata.get("self_display_name"))
+    mention_names = []
+    for item in _extract_explicit_mention_names(text):
+        alias = _normalize_mention_alias(item)
+        if not alias:
+            continue
+        if bot_name and _normalize_name_lookup(alias) == bot_name:
+            continue
+        if alias not in mention_names:
+            mention_names.append(alias)
+    if len(mention_names) != 1:
+        return None
+    return target_ids[0], mention_names[0]
+
+
+def _extract_explicit_mention_names(text: str) -> List[str]:
+    pattern = r"[@＠]([^\s\u2005\u2006\u2007\u2008\u2009\u200a,，。:：;；!?！？]{1,40})"
+    return [match.group(1) for match in re.finditer(pattern, text or "")]
+
+
+def _normalize_mention_alias(value: Any) -> str:
+    text = str(value or "").replace("\u2005", " ").replace("\xa0", " ").strip()
+    text = re.sub(r"\s+", " ", text).strip(" ,，。:：;；!?！？")
+    text = text.lstrip("@＠").strip()
+    if not text or _looks_like_raw_sender_name(text):
+        return ""
+    if len(text) == 1 and not re.search(r"[A-Za-z0-9]", text):
+        return ""
+    return text[:40]
+
+
+def _normalize_name_lookup(value: Any) -> str:
+    return "".join(str(value or "").replace("\u2005", " ").strip().lower().split())
 
 
 def _pick_sender_nickname(sender_id: str, rows: List[Dict[str, Any]]) -> str:

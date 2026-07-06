@@ -36,6 +36,7 @@ class WechatGroupWebTest(unittest.TestCase):
             "channel_type": conf().get("channel_type"),
             "wechat_group_room_ids": conf().get("wechat_group_room_ids"),
             "wechat_group_names": conf().get("wechat_group_names"),
+            "wechat_group_alias_sync_cooldown_minutes": conf().get("wechat_group_alias_sync_cooldown_minutes"),
             "wechat_group_persona_prompt": conf().get("wechat_group_persona_prompt"),
             "wechat_group_persona_preset_id": conf().get("wechat_group_persona_preset_id"),
             "wechat_group_recent_context_enabled": conf().get("wechat_group_recent_context_enabled"),
@@ -132,6 +133,12 @@ class WechatGroupWebTest(unittest.TestCase):
                 "minutes": 60,
             },
             item["extra"]["recent_context"],
+        )
+        self.assertEqual(
+            {
+                "alias_sync_cooldown_minutes": 1,
+            },
+            item["extra"]["basic"],
         )
         self.assertEqual(
             {
@@ -260,6 +267,7 @@ class WechatGroupWebTest(unittest.TestCase):
                 "wechat_group_names": ["测试群"],
                 "wechat_group_persona_prompt": "  自定义人设\r\n第二行  ",
                 "wechat_group_persona_preset_id": "tech-duty",
+                "wechat_group_alias_sync_cooldown_minutes": "5",
                 "wechat_group_recent_context_enabled": False,
                 "wechat_group_recent_context_limit": "12",
                 "wechat_group_recent_context_minutes": "45",
@@ -286,6 +294,7 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertEqual(["测试群"], conf()["wechat_group_names"])
         self.assertEqual("自定义人设\n第二行", conf()["wechat_group_persona_prompt"])
         self.assertEqual("custom", conf()["wechat_group_persona_preset_id"])
+        self.assertEqual(5, conf()["wechat_group_alias_sync_cooldown_minutes"])
         self.assertFalse(conf()["wechat_group_recent_context_enabled"])
         self.assertEqual(12, conf()["wechat_group_recent_context_limit"])
         self.assertEqual(45, conf()["wechat_group_recent_context_minutes"])
@@ -505,6 +514,15 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("wechat_group_forward_preview_enabled", console_js)
         self.assertIn("wechat_group_quote_context_enabled", console_js)
 
+    def test_console_contains_wechat_group_alias_sync_cooldown_setting(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("groups-alias-sync-cooldown-minutes", console_js)
+        self.assertIn("groups_alias_sync_cooldown_minutes", console_js)
+        self.assertIn("groups_alias_sync_cooldown_minutes_hint", console_js)
+        self.assertIn("wechat_group_alias_sync_cooldown_minutes", console_js)
+
     def test_console_labels_profile_common_words_as_common_words(self):
         with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
             console_js = f.read()
@@ -699,18 +717,30 @@ class WechatGroupWebTest(unittest.TestCase):
         class FakeTopicService:
             def search_topics(self, room_id, query="", limit=20):
                 self.args = (room_id, query, limit)
-                return [{"thread_id": "topic-2", "title": "release archive"}]
+                return [{"thread_id": "topic-2", "title": "release archive", "participants": ["wxid_alice", "wxid_bob"]}]
+
+        class FakeArchive:
+            def list_members(self, room_id, query="", limit=20):
+                self.args = (room_id, query, limit)
+                return [
+                    {"sender_id": "wxid_alice", "sender_nickname": "Alice In Group"},
+                    {"sender_id": "wxid_bob", "sender_nickname": "Bob In Group"},
+                ]
 
         fake = FakeTopicService()
+        archive = FakeArchive()
         handler = WechatGroupTopicsHandler()
         with patch("channel.web.web_channel._require_auth"), \
                 patch.object(WechatGroupTopicsHandler, "_get_topic_service", return_value=fake), \
+                patch.object(WechatGroupTopicsHandler, "_get_archive", return_value=archive), \
                 patch("channel.web.web_channel.web.input", return_value=types.SimpleNamespace(room_id="room@@abc", q="release", limit="4")):
             result = json.loads(handler.GET("archive"))
 
         self.assertEqual("success", result["status"])
         self.assertEqual("topic-2", result["topics"][0]["thread_id"])
+        self.assertEqual(["Alice In Group", "Bob In Group"], result["topics"][0]["participants"])
         self.assertEqual(("room@@abc", "release", 4), fake.args)
+        self.assertEqual(("room@@abc", "", 500), archive.args)
 
     def test_wechat_group_stickers_list_api_uses_service(self):
         from channel.web.web_channel import WechatGroupStickersHandler
@@ -790,6 +820,18 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("/api/wechat-group/emotion/state", console_js)
         self.assertIn("/api/wechat-group/emotion/config", console_js)
         self.assertIn("/api/wechat-group/emotion/reset", console_js)
+
+    def test_console_formats_wechat_group_emotion_state_for_display(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("formatGroupsEmotionMetricValue", console_js)
+        self.assertIn(".toFixed(2)", console_js)
+        self.assertIn("translateGroupsEmotionState", console_js)
+        self.assertIn("groups_emotion_state_withdrawn", console_js)
+        self.assertIn("groups_emotion_state_engaged", console_js)
+        self.assertIn("groups_emotion_state_guarded", console_js)
+        self.assertIn("groups_emotion_state_steady", console_js)
 
     def test_console_contains_wechat_group_style_panel(self):
         with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:

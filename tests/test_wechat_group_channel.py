@@ -55,6 +55,7 @@ class WechatGroupChannelTest(unittest.TestCase):
         self._original_config = {
             "wechat_group_room_ids": conf().get("wechat_group_room_ids"),
             "wechat_group_names": conf().get("wechat_group_names"),
+            "wechat_group_alias_sync_cooldown_minutes": conf().get("wechat_group_alias_sync_cooldown_minutes"),
             "group_name_white_list": conf().get("group_name_white_list"),
             "wechat_group_free_reply_enabled": conf().get("wechat_group_free_reply_enabled"),
             "wechat_group_free_reply_room_ids": conf().get("wechat_group_free_reply_room_ids"),
@@ -443,6 +444,25 @@ class WechatGroupChannelTest(unittest.TestCase):
                 {"type": "send_image", "room_id": "room@@abc", "path": "D:/tmp/a.png"},
                 {"type": "send_file", "room_id": "room@@abc", "path": "D:/tmp/a.txt"},
                 {"type": "send_audio", "room_id": "room@@abc", "path": "D:/tmp/a.mp3"},
+            ],
+            client.sent,
+        )
+
+    def test_client_send_text_includes_alias_sync_cooldown_minutes(self):
+        conf()["wechat_group_alias_sync_cooldown_minutes"] = 5
+        client = CapturingClient()
+
+        client.send_text("room@@abc", "hello", mention_ids=["wxid_alice"])
+
+        self.assertEqual(
+            [
+                {
+                    "type": "send_text",
+                    "room_id": "room@@abc",
+                    "text": "hello",
+                    "mention_ids": ["wxid_alice"],
+                    "alias_sync_cooldown_minutes": 5,
+                }
             ],
             client.sent,
         )

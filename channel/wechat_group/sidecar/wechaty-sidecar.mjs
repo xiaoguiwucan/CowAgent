@@ -6,6 +6,7 @@ import { FileBox } from 'file-box'
 import {
   buildMediaFilePath,
   detectMessageMediaType,
+  downloadStickerMediaFromText,
   extractQuotedMessageFromRawPayload,
   findContactById,
   findRoomById,
@@ -57,6 +58,12 @@ async function downloadMessageMedia(message, roomId, mediaType) {
   )
   await fs.mkdir(path.dirname(target), { recursive: true })
   await fileBox.toFile(target, true)
+  if (mediaType === 'sticker') {
+    const stat = await fs.stat(target).catch(() => ({ size: 0 }))
+    if (!stat.size) {
+      await downloadStickerMediaFromText(message.text?.() || '', target)
+    }
+  }
   return target
 }
 

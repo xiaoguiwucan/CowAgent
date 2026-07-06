@@ -117,6 +117,34 @@ class WechatGroupProfileService:
         )
         return self.get_profile(sender_id, room_id=room_id) or profile
 
+    def merge_learned_aliases(
+        self,
+        sender_id: str,
+        aliases: List[str],
+        room_id: str,
+        room_name: str,
+        last_seen_at: int,
+    ) -> Dict[str, Any]:
+        normalized_aliases = _normalize_aliases(aliases, sender_id)
+        if not normalized_aliases:
+            return self.get_profile(sender_id, room_id=room_id) or {}
+        existing = self.store.get_profile(sender_id) or {}
+        existing_primary = str(existing.get("primary_nickname") or "").strip()
+        profile = self.store.upsert_profile(
+            sender_id=sender_id,
+            primary_nickname=_choose_primary_nickname("", sender_id, existing_primary, normalized_aliases),
+            last_seen_at=max(int(existing.get("last_seen_at") or 0), int(last_seen_at or 0)),
+        )
+        self._record_aliases(
+            sender_id=sender_id,
+            aliases=normalized_aliases,
+            room_id=room_id,
+            room_name=room_name,
+            last_seen_at=last_seen_at,
+            source_kind="learning",
+        )
+        return self.get_profile(sender_id, room_id=room_id) or profile
+
     def resolve_profiles_for_prompt(
         self,
         sender_id: str,

@@ -686,6 +686,7 @@ class WechatGroupChannel(ChatChannel):
                 is_at=msg.is_at,
                 metadata={
                     "at_list": getattr(msg, "at_list", []) or [],
+                    "self_id": getattr(msg, "to_user_id", "") or "",
                     "quote": getattr(msg, "quote", {}) or {},
                     "forward": getattr(msg, "forward", {}) or {},
                     "raw_app_type": getattr(msg, "raw_app_type", "") or "",

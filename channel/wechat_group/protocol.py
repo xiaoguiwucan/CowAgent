@@ -57,12 +57,16 @@ def build_send_text_command(
     room_id: str,
     text: str,
     mention_ids: Optional[List[str]] = None,
+    alias_sync_cooldown_minutes: Optional[int] = None,
 ) -> SidecarCommand:
+    payload = {
+        "room_id": room_id,
+        "text": text,
+        "mention_ids": mention_ids or [],
+    }
+    if alias_sync_cooldown_minutes is not None:
+        payload["alias_sync_cooldown_minutes"] = alias_sync_cooldown_minutes
     return SidecarCommand(
         SidecarCommandType.SEND_TEXT,
-        {
-            "room_id": room_id,
-            "text": text,
-            "mention_ids": mention_ids or [],
-        },
+        payload,
     )

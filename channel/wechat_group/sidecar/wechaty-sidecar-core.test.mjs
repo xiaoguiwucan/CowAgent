@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   buildMediaFilePath,
   detectMessageMediaType,
+  downloadStickerMediaFromText,
+  extractStickerMediaUrl,
   extractQuotedMessageFromRawPayload,
   sanitizeMediaFilePart,
   sendText,
@@ -169,6 +171,103 @@ test('sendText uses visible room alias mention text for wechat4u', async () => {
   assert.deepEqual(room.sayCalls, [['@Alice Alias\u2005hello']])
 })
 
+test('sendText refreshes room members before falling back to contact name for wechat4u mentions', async () => {
+  const alice = { id: 'wxid_alice', name: () => 'Alice Contact' }
+  const room = {
+    id: 'room@@abc',
+    aliasReady: false,
+    syncCalls: 0,
+    sayCalls: [],
+    async memberAll() {
+      return [alice]
+    },
+    async alias(contact) {
+      if (contact.id !== alice.id) return ''
+      return this.aliasReady ? 'Alice Room Alias' : ''
+    },
+    async sync() {
+      this.syncCalls += 1
+      this.aliasReady = true
+    },
+    async say(...args) {
+      this.sayCalls.push(args)
+    },
+  }
+
+  await sendText(
+    { room_id: room.id, text: 'hello', mention_ids: [alice.id] },
+    {
+      emit: () => {},
+      findRoom: async roomId => roomId === room.id ? room : undefined,
+      findContact: async () => undefined,
+      getWechat4u: () => ({}),
+    },
+  )
+
+  assert.equal(room.syncCalls, 1)
+  assert.deepEqual(room.sayCalls, [['@Alice Room Alias\u2005hello']])
+})
+
+test('sendText throttles alias refresh sync by room within cooldown minutes', async () => {
+  const alice = { id: 'wxid_alice', name: () => 'Alice Contact' }
+  let roomAlias = ''
+  const room = {
+    id: 'room@@cooldown',
+    syncCalls: 0,
+    sayCalls: [],
+    async memberAll() {
+      return [alice]
+    },
+    async alias(contact) {
+      if (contact.id !== alice.id) return ''
+      return roomAlias
+    },
+    async sync() {
+      this.syncCalls += 1
+      roomAlias = 'Alice Room Alias'
+    },
+    async say(...args) {
+      this.sayCalls.push(args)
+    },
+  }
+  const cooldownStore = new Map()
+  let nowMs = 0
+  const deps = {
+    emit: () => {},
+    findRoom: async roomId => roomId === room.id ? room : undefined,
+    findContact: async () => undefined,
+    getWechat4u: () => ({}),
+    aliasSyncCooldownStore: cooldownStore,
+    nowMs: () => nowMs,
+  }
+
+  await sendText(
+    { room_id: room.id, text: 'hello', mention_ids: [alice.id], alias_sync_cooldown_minutes: 1 },
+    deps,
+  )
+
+  roomAlias = ''
+  nowMs = 30 * 1000
+  await sendText(
+    { room_id: room.id, text: 'hello again', mention_ids: [alice.id], alias_sync_cooldown_minutes: 1 },
+    deps,
+  )
+
+  roomAlias = ''
+  nowMs = 61 * 1000
+  await sendText(
+    { room_id: room.id, text: 'hello after cooldown', mention_ids: [alice.id], alias_sync_cooldown_minutes: 1 },
+    deps,
+  )
+
+  assert.equal(room.syncCalls, 2)
+  assert.deepEqual(room.sayCalls, [
+    ['@Alice Room Alias\u2005hello'],
+    ['@Alice Contact\u2005hello again'],
+    ['@Alice Room Alias\u2005hello after cooldown'],
+  ])
+})
+
 test('sendText uses wechat4u MsgSource atuserlist for real group mention when runtime internals are available', async () => {
   const alice = { id: '@alice', name: () => 'Alice Contact' }
   const room = {
@@ -331,4 +430,40 @@ test('buildMediaFilePath keeps media files under the configured media directory'
   const path = buildMediaFilePath('D:/cow/media', '../room@@abc', '../../msg-1', 'photo.large.JPG')
 
   assert.equal(path.replaceAll('\\', '/'), 'D:/cow/media/room@@abc/msg-1.jpg')
+})
+
+test('buildMediaFilePath stores stickers with gif extension', () => {
+  const path = buildMediaFilePath('D:/cow/media', 'room@@abc', 'msg-1', 'emoji.jpg', 'sticker')
+
+  assert.equal(path.replaceAll('\\', '/'), 'D:/cow/media/room@@abc/msg-1.gif')
+})
+
+test('extractStickerMediaUrl reads escaped cdnurl from emoji xml', () => {
+  const xml = '<msg><emoji cdnurl="http://wx.example/stodownload?m=abc&amp;amp;filekey=key" encrypturl="http://wx.example/encrypted" /></msg>'
+
+  assert.equal(extractStickerMediaUrl(xml), 'http://wx.example/stodownload?m=abc&filekey=key')
+})
+
+test('downloadStickerMediaFromText writes fetched sticker bytes', async () => {
+  const writes = []
+  const mkdirs = []
+  const ok = await downloadStickerMediaFromText(
+    '<msg><emoji cdnurl="http://wx.example/sticker.gif?m=abc&amp;amp;filekey=key" /></msg>',
+    'D:/cow/media/room/msg-1.gif',
+    {
+      fetch: async url => ({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => new Uint8Array([0x47, 0x49, 0x46, 0x38]).buffer,
+        url,
+      }),
+      mkdir: async dir => mkdirs.push(dir),
+      writeFile: async (target, buffer) => writes.push([target, Buffer.from(buffer)]),
+    },
+  )
+
+  assert.equal(ok, true)
+  assert.equal(mkdirs[0].replaceAll('\\', '/'), 'D:/cow/media/room')
+  assert.equal(writes[0][0].replaceAll('\\', '/'), 'D:/cow/media/room/msg-1.gif')
+  assert.deepEqual([...writes[0][1]], [0x47, 0x49, 0x46, 0x38])
 })

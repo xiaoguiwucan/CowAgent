@@ -3868,6 +3868,9 @@ class ChannelsHandler:
                 "limit": conf().get("wechat_group_recent_context_limit", 20),
                 "minutes": conf().get("wechat_group_recent_context_minutes", 60),
             },
+            "basic": {
+                "alias_sync_cooldown_minutes": conf().get("wechat_group_alias_sync_cooldown_minutes", 1),
+            },
             "memory": {
                 "knowledge_enabled": conf().get("wechat_group_knowledge_enabled", True),
                 "profile_enabled": conf().get("wechat_group_profile_enabled", True),
@@ -3939,6 +3942,7 @@ class ChannelsHandler:
             "wechat_group_names",
             "wechat_group_persona_prompt",
             "wechat_group_persona_preset_id",
+            "wechat_group_alias_sync_cooldown_minutes",
             "wechat_group_recent_context_enabled",
             "wechat_group_recent_context_limit",
             "wechat_group_recent_context_minutes",
@@ -4045,6 +4049,8 @@ class ChannelsHandler:
                 value = cls._clamp_int(value, 1, 120, 30)
             elif key == "wechat_group_image_create_hourly_limit":
                 value = cls._clamp_int(value, 0, 100, 5)
+            elif key == "wechat_group_alias_sync_cooldown_minutes":
+                value = cls._clamp_int(value, 1, 1440, 1)
             elif key in ("wechat_group_recent_context_limit", "wechat_group_recent_context_minutes"):
                 value = max(1, int(value))
             elif key in (
@@ -4972,6 +4978,7 @@ class WechatGroupTopicsHandler:
             limit = self._to_int(getattr(params, "limit", 20), default=20)
             if action == "active":
                 topics = self._get_topic_service().list_active_topics(room_id, limit=limit)
+                topics = self._resolve_topic_participants(room_id, topics)
                 return self._json({"status": "success", "topics": topics})
             if action == "archive":
                 topics = self._get_topic_service().search_topics(
@@ -4979,6 +4986,7 @@ class WechatGroupTopicsHandler:
                     query=str(getattr(params, "q", "") or "").strip(),
                     limit=limit,
                 )
+                topics = self._resolve_topic_participants(room_id, topics)
                 return self._json({"status": "success", "topics": topics})
             return self._json({"status": "error", "message": f"unknown action: {action}"})
         except Exception as e:
@@ -5003,6 +5011,7 @@ class WechatGroupTopicsHandler:
                     room_id,
                     limit=self._to_int(body.get("limit"), default=20),
                 )
+                topics = self._resolve_topic_participants(room_id, topics)
                 return self._json({"status": "success", "topic": topic or {}, "topics": topics})
             return self._json({"status": "error", "message": f"unknown action: {action}"})
         except Exception as e:
@@ -5025,6 +5034,37 @@ class WechatGroupTopicsHandler:
         from channel.wechat_group.wechat_group_archive import WechatGroupArchive
 
         return WechatGroupArchive()
+
+    def _resolve_topic_participants(self, room_id, topics):
+        if not any(topic.get("participants") for topic in topics or []):
+            return topics
+        try:
+            from channel.wechat_group.wechat_group_topic_service import _normalize_participant_display_name
+
+            members = self._get_archive().list_members(room_id, limit=500)
+            name_map = {}
+            for member in members:
+                sender_id = str(member.get("sender_id") or "").strip()
+                display_name = _normalize_participant_display_name(member.get("sender_nickname"), sender_id)
+                if sender_id and display_name:
+                    name_map[sender_id] = display_name
+            resolved_topics = []
+            for topic in topics or []:
+                item = dict(topic)
+                resolved = []
+                for participant in topic.get("participants") or []:
+                    text = str(participant or "").strip()
+                    if not text:
+                        continue
+                    display = name_map.get(text) or name_map.get(text.lstrip("@")) or _normalize_participant_display_name(text) or text
+                    if display and display not in resolved:
+                        resolved.append(display)
+                item["participants"] = resolved
+                resolved_topics.append(item)
+            return resolved_topics
+        except Exception as e:
+            logger.warning(f"[WebChannel] resolve topic participants failed: {e}")
+            return topics
 
     @staticmethod
     def _json(payload):

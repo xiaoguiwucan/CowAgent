@@ -52,10 +52,20 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
         self.assertNotIn("approveGroupsMemoryCandidate", console_js)
         self.assertNotIn("rejectGroupsMemoryCandidate", console_js)
 
+    def test_global_profiles_list_counts_actual_name_records(self):
+        console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
+        start = console_js.index("function buildGroupsProfilesList")
+        end = console_js.index("function buildGroupsProfilesDetail", start)
+        body = console_js[start:end]
+
+        self.assertIn("const nameRecords = Array.isArray(profile.name_records) ? profile.name_records : [];", body)
+        self.assertIn("String(nameRecords.length)", body)
+        self.assertNotIn("String(roomSummaries.length)", body)
+
     def test_groups_page_cache_buster_changes_for_memory_ui(self):
         chat_html = (ROOT / "channel/web/chat.html").read_text(encoding="utf-8")
 
-        self.assertIn("console.js?v=20260704-global-profile-memory", chat_html)
+        self.assertIn("console.js?v=20260706-memory-run-time", chat_html)
 
     def test_groups_memory_rooms_use_saved_room_names_as_fallback(self):
         console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
@@ -65,6 +75,16 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
 
         self.assertIn("selected_room_names", body)
         self.assertIn("selectedNames[idx]", body)
+
+    def test_learning_runs_format_started_at_as_full_datetime(self):
+        console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
+        start = console_js.index("function buildGroupsMemoryLearningPanel")
+        end = console_js.index("function buildGroupsMemoryNumberInput", start)
+        body = console_js[start:end]
+
+        self.assertIn("function formatGroupsMemoryRunTimestamp(value)", console_js)
+        self.assertIn("formatGroupsMemoryRunTimestamp(run.started_at)", body)
+        self.assertNotIn("String(run.started_at || '')", body)
 
 
 if __name__ == "__main__":
