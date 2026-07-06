@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildMediaFilePath,
+  buildManualMentionText,
   detectMessageMediaType,
   downloadStickerMediaFromText,
   extractStickerMediaUrl,
@@ -10,6 +11,7 @@ import {
   sanitizeMediaFilePart,
   sendText,
   sendWechat4uRawTextWithMsgSource,
+  resolveContactDisplayName,
 } from './wechaty-sidecar-core.mjs'
 
 function buildReferMsgContent({ fromusr = '@bot', displayname = 'CowBot', content = 'previous answer', title = 'current reply' } = {}) {
@@ -169,6 +171,41 @@ test('sendText uses visible room alias mention text for wechat4u', async () => {
   )
 
   assert.deepEqual(room.sayCalls, [['@Alice Alias\u2005hello']])
+})
+
+test('buildManualMentionText strips leading long raw sender id from model output', () => {
+  const rawSenderId = '@ec16ad646512ce039fd5b1885a848f170362fed7b7fbe874d257455cf85ea0b2'
+
+  const text = buildManualMentionText(`${rawSenderId} hello`, [{ name: 'Alice Alias' }])
+
+  assert.equal(text, '@Alice Alias\u2005hello')
+})
+
+test('buildManualMentionText does not expose raw sender id as visible mention name', () => {
+  const text = buildManualMentionText('hello', [
+    { name: '@ec16ad646512ce039fd5b1885a848f170362fed7b7fbe874d257455cf85ea0b2' },
+  ])
+
+  assert.equal(text, 'hello')
+})
+
+test('resolveContactDisplayName prefers room alias over raw contact id', async () => {
+  const rawSenderId = '@ec16ad646512ce039fd5b1885a848f170362fed7b7fbe874d257455cf85ea0b2'
+  const contact = { id: rawSenderId, name: () => rawSenderId }
+  const room = { alias: async () => 'Alice Alias' }
+
+  const name = await resolveContactDisplayName(contact, room)
+
+  assert.equal(name, 'Alice Alias')
+})
+
+test('resolveContactDisplayName uses raw payload sender nickname when contact name is raw id', async () => {
+  const rawSenderId = '@ec16ad646512ce039fd5b1885a848f170362fed7b7fbe874d257455cf85ea0b2'
+  const contact = { id: rawSenderId, name: () => rawSenderId }
+
+  const name = await resolveContactDisplayName(contact, null, { ActualNickName: 'Alice Raw' })
+
+  assert.equal(name, 'Alice Raw')
 })
 
 test('sendText refreshes room members before falling back to contact name for wechat4u mentions', async () => {
