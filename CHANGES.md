@@ -2,6 +2,18 @@
 
 ## 2026-07-06
 
+### WebFetch 文档站 404 导航恢复修复
+
+- 更新 `agent/tools/web_fetch/web_fetch.py`：当网页抓取遇到 HTTP 404/410 时，不再只返回死错误；工具会自动回退到同站父级页面，提取真实导航链接，并提示模型不要继续猜测 URL 路径。
+- 新增同站链接提取和过滤逻辑：只返回同域名 HTTP/HTTPS 链接，并继续复用 `validate_url_safe()`，避免把内网地址或外站链接作为恢复候选交给模型。
+- 更新 `tests/test_security_ssrf_web_fetch.py`：新增缺失文档页恢复测试，覆盖 Symedia 这类文档站路径猜错后，应从父级菜单返回 `Webhook`、`EmbyServer` 等真实入口，并过滤 `127.0.0.1` 与外站链接。
+- 本地运行工作区新增 `workspace/knowledge/projects/symedia.md`，并更新 `workspace/knowledge/index.md`、`workspace/knowledge/log.md`、`workspace/memory/2026-07-06.md`：将 Symedia 官网和部署顺序 Wiki 整理为持久知识库与永久记忆资料。该目录属于运行期本地数据，按项目 `.gitignore` 不随代码仓库提交。
+
+验证记录：
+- `python -m unittest tests.test_security_ssrf_web_fetch tests.test_agent_stream_logging tests.test_agent_stream_scheduler_guard`
+- 授权网络下用项目内 `WebFetch` 实测 `https://www.symedia.top/`、`https://wiki.viplee.cc/symedia/process/deployment_process/` 均可成功提取正文。
+- 授权网络下用项目内 `WebFetch` 实测错误路径 `https://wiki.viplee.cc/symedia/process/webhook/`，工具返回 404 恢复提示，并给出真实链接 `https://wiki.viplee.cc/symedia/use/webhook/`。
+
 ### 微信群真实 @ 原始 ID 泄露修复
 - 对照 BaiLongmaPro 的微信群发送链路后，修复 sidecar 出站 @ 文本清理：`buildManualMentionText()` 不再把 web 微信内部长 `@sender_id` 当作可见群昵称，也会在模型回复开头带超长 raw `@id` 时先剥离，再重建正确的可见 `@群昵称`。
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：新增 raw 微信内部 ID 判断、可见 mention 名称清理、长 raw mention 前缀清理，以及 `resolveContactDisplayName()`，入站成员显示名优先使用群内 alias / raw payload 可见昵称，避免最近发言上下文继续暴露内部 ID。

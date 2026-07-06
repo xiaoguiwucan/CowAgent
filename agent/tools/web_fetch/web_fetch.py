@@ -6,11 +6,12 @@ Supports:
 - Document files (PDF, Word, TXT, Markdown, etc.): downloads to workspace/tmp and parses content
 """
 
+import html as html_lib
 import os
 import re
 import uuid
 from typing import Dict, Any, Optional, Set
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, urljoin
 
 import requests
 
@@ -39,6 +40,8 @@ SPREADSHEET_SUFFIXES: Set[str] = {".xls", ".xlsx"}
 PPT_SUFFIXES: Set[str] = {".ppt", ".pptx"}
 
 ALL_DOC_SUFFIXES = PDF_SUFFIXES | WORD_SUFFIXES | TEXT_SUFFIXES | SPREADSHEET_SUFFIXES | PPT_SUFFIXES
+RECOVERY_LINK_LIMIT = 16
+RECOVERY_PAGE_LIMIT = 3
 
 _CHARSET_RE = re.compile(r'charset\s*=\s*["\']?\s*([\w\-]+)', re.IGNORECASE)
 _META_CHARSET_RE = re.compile(rb'<meta[^>]+charset\s*=\s*["\']?\s*([\w\-]+)', re.IGNORECASE)
@@ -203,7 +206,9 @@ class WebFetch(BaseTool):
         except requests.ConnectionError:
             return ToolResult.fail(f"Error: Failed to connect to {parsed.netloc}")
         except requests.HTTPError as e:
-            return ToolResult.fail(f"Error: HTTP {e.response.status_code} for URL: {url}")
+            status_code = e.response.status_code if e.response is not None else "unknown"
+            hint = self._build_http_error_hint(url, status_code)
+            return ToolResult.fail(f"Error: HTTP {status_code} for URL: {url}{hint}")
         except ValueError as e:
             return ToolResult.fail(f"Error: {e}")
         except Exception as e:
@@ -425,6 +430,119 @@ class WebFetch(BaseTool):
         return "utf-8"
 
     # ---- Helper methods ----
+
+    def _build_http_error_hint(self, url: str, status_code) -> str:
+        """Return recovery guidance and real same-site links for missing pages."""
+        if status_code not in (404, 410):
+            return ""
+
+        pages = []
+        for fallback_url in self._candidate_fallback_urls(url):
+            try:
+                response = self._safe_get(fallback_url)
+                response.raise_for_status()
+            except Exception as e:
+                logger.debug(f"[WebFetch] Recovery fetch failed: {fallback_url} ({e})")
+                continue
+
+            content_type = response.headers.get("Content-Type", "")
+            if self._is_binary_content_type(content_type):
+                continue
+
+            response.encoding = self._detect_encoding(response)
+            html = response.text
+            links = self._extract_links(html, fallback_url, RECOVERY_LINK_LIMIT)
+            if links:
+                pages.append((fallback_url, self._extract_title(html), links))
+            if len(pages) >= RECOVERY_PAGE_LIMIT:
+                break
+
+        guidance = [
+            "",
+            "",
+            "Recovery hint: this page does not exist. Do not keep guessing URL paths.",
+            "Open one of the discovered same-site navigation links below, or summarize content already fetched and ask the user for a more specific link.",
+        ]
+
+        if pages:
+            guidance.append("Discovered navigation links:")
+            seen_links = set()
+            for page_url, title, links in pages:
+                guidance.append(f"- From {title or 'Untitled'} ({page_url}):")
+                for text, href in links:
+                    if href in seen_links:
+                        continue
+                    seen_links.add(href)
+                    guidance.append(f"  - {text}: {href}")
+        else:
+            guidance.append("No fallback navigation links could be extracted from parent pages.")
+
+        return "\n" + "\n".join(guidance)
+
+    @staticmethod
+    def _candidate_fallback_urls(url: str):
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        path = parsed.path or "/"
+        if not path.startswith("/"):
+            path = "/" + path
+
+        candidates = []
+        seen = set()
+        parts = [part for part in path.strip("/").split("/") if part]
+        for count in range(len(parts) - 1, -1, -1):
+            parent_path = "/" + "/".join(parts[:count])
+            if parent_path != "/":
+                parent_path += "/"
+            candidate = base + parent_path
+            if candidate == url or candidate in seen:
+                continue
+            seen.add(candidate)
+            candidates.append(candidate)
+            if len(candidates) >= RECOVERY_PAGE_LIMIT:
+                break
+
+        return candidates
+
+    @staticmethod
+    def _extract_links(html: str, base_url: str, limit: int = RECOVERY_LINK_LIMIT):
+        base_parsed = urlparse(base_url)
+        links = []
+        seen = set()
+        anchor_re = re.compile(
+            r"<a\b[^>]*\bhref\s*=\s*(['\"])(.*?)\1[^>]*>(.*?)</a>",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for match in anchor_re.finditer(html):
+            href = html_lib.unescape(match.group(2).strip())
+            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+                continue
+
+            absolute = urljoin(base_url, href)
+            parsed = urlparse(absolute)
+            if parsed.scheme not in ("http", "https") or parsed.netloc != base_parsed.netloc:
+                continue
+
+            try:
+                validate_url_safe(absolute)
+            except ValueError:
+                continue
+
+            normalized = parsed._replace(fragment="").geturl()
+            if normalized in seen:
+                continue
+
+            text = re.sub(r"<[^>]+>", " ", match.group(3))
+            text = html_lib.unescape(re.sub(r"\s+", " ", text)).strip()
+            if not text:
+                text = normalized
+
+            seen.add(normalized)
+            links.append((text[:80], normalized))
+            if len(links) >= limit:
+                break
+
+        return links
 
     def _ensure_tmp_dir(self) -> str:
         """Ensure workspace/tmp directory exists and return its path."""

@@ -250,5 +250,56 @@ class TestWebFetchProxy(unittest.TestCase):
         self.assertEqual(mock_get.call_args.kwargs.get("proxies"), {"http": proxy, "https": proxy})
 
 
+class TestWebFetchMissingPageRecovery(unittest.TestCase):
+    """Missing docs pages should guide the model back to real navigation links."""
+
+    def test_404_returns_same_site_navigation_links_from_parent_page(self):
+        import requests
+        from agent.tools.web_fetch.web_fetch import WebFetch
+
+        missing = MagicMock()
+        missing.is_redirect = False
+        missing.is_permanent_redirect = False
+        missing.headers = {"Content-Type": "text/html; charset=utf-8"}
+        missing.status_code = 404
+        error = requests.HTTPError("404 Client Error")
+        error.response = missing
+        missing.raise_for_status.side_effect = error
+
+        parent = _fake_ok_response(
+            b"""
+            <html>
+              <head><title>Wiki</title></head>
+              <body>
+                <a href="/symedia/use/webhook/">Webhook</a>
+                <a href="/symedia/use/emby_server/">EmbyServer</a>
+                <a href="http://127.0.0.1/private">bad</a>
+                <a href="https://external.example.com/out">external</a>
+              </body>
+            </html>
+            """
+        )
+
+        def fake_get(url, **kwargs):
+            if url == "https://wiki.viplee.cc/symedia/process/webhook/":
+                return missing
+            if url == "https://wiki.viplee.cc/symedia/process/":
+                return parent
+            return _fake_ok_response(b"<html><head><title>Empty</title></head><body></body></html>")
+
+        with patch("requests.get", side_effect=fake_get) as mock_get:
+            result = WebFetch().execute({"url": "https://wiki.viplee.cc/symedia/process/webhook/"})
+
+        self.assertEqual(result.status, "error")
+        self.assertIn("HTTP 404", result.result)
+        self.assertIn("Do not keep guessing URL paths", result.result)
+        self.assertIn("Webhook: https://wiki.viplee.cc/symedia/use/webhook/", result.result)
+        self.assertIn("EmbyServer: https://wiki.viplee.cc/symedia/use/emby_server/", result.result)
+        self.assertNotIn("127.0.0.1", result.result)
+        self.assertNotIn("external.example.com", result.result)
+        requested_urls = [call.args[0] for call in mock_get.call_args_list]
+        self.assertIn("https://wiki.viplee.cc/symedia/process/", requested_urls)
+
+
 if __name__ == "__main__":
     unittest.main()
