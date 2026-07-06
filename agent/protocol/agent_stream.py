@@ -558,6 +558,8 @@ class AgentStreamExecutor:
         
         # Hard stop at 8 failures - abort with critical message
         if same_tool_failures >= 8:
+            if tool_name in {"web_fetch", "web_search"}:
+                return True, f"工具 '{tool_name}' 连续失败 {same_tool_failures} 次（使用不同参数），停止继续抓取；请基于已经成功获取的内容总结，或向用户询问更准确的链接。", False
             return True, _t(
                 "抱歉，我没能完成这个任务。可能是我理解有误或者当前方法不太合适。\n\n建议你：\n• 换个方式描述需求试试\n• 把任务拆分成更小的步骤\n• 或者换个思路来解决",
                 "Sorry, I couldn't complete this task. I may have misunderstood, or my current approach isn't quite right.\n\nYou could try:\n• Rephrasing your request\n• Breaking the task into smaller steps\n• Taking a different approach",

@@ -7,6 +7,66 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class TestAgentStreamLogging(unittest.TestCase):
+    def test_web_fetch_failure_guard_does_not_abort_conversation(self):
+        from agent.protocol.agent_stream import AgentStreamExecutor
+        from agent.protocol.models import LLMModel
+
+        class StreamingModel(LLMModel):
+            def __init__(self):
+                super().__init__(model="unit-test-model")
+
+            def call_stream(self, request):
+                yield {"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}
+
+        executor = AgentStreamExecutor(
+            agent=None,
+            model=StreamingModel(),
+            system_prompt="",
+            tools=[],
+            messages=[],
+        )
+        for idx in range(8):
+            executor.tool_failure_history.append(("web_fetch", f"bad{idx}", False))
+
+        should_stop, reason, is_critical = executor._check_consecutive_failures(
+            "web_fetch",
+            {"url": "https://example.com/missing"},
+        )
+
+        self.assertTrue(should_stop)
+        self.assertFalse(is_critical)
+        self.assertIn("基于已经成功获取的内容总结", reason)
+
+    def test_non_fetch_failure_guard_still_aborts_conversation(self):
+        from agent.protocol.agent_stream import AgentStreamExecutor
+        from agent.protocol.models import LLMModel
+
+        class StreamingModel(LLMModel):
+            def __init__(self):
+                super().__init__(model="unit-test-model")
+
+            def call_stream(self, request):
+                yield {"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}]}
+
+        executor = AgentStreamExecutor(
+            agent=None,
+            model=StreamingModel(),
+            system_prompt="",
+            tools=[],
+            messages=[],
+        )
+        for idx in range(8):
+            executor.tool_failure_history.append(("bash", f"bad{idx}", False))
+
+        should_stop, reason, is_critical = executor._check_consecutive_failures(
+            "bash",
+            {"command": "failing command"},
+        )
+
+        self.assertTrue(should_stop)
+        self.assertTrue(is_critical)
+        self.assertIn("抱歉，我没能完成这个任务", reason)
+
     def test_run_stream_logs_wechat_group_persona_as_label_only(self):
         from agent.protocol.agent_stream import AgentStreamExecutor
         from agent.protocol.models import LLMModel
