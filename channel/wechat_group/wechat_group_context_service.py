@@ -104,6 +104,13 @@ class WechatGroupContextService:
         sections = []
         for item in group_memories or []:
             sections.append("[group_memory]\n{}".format(str(item.get("content") or "").strip()))
+        if speaker_profile or mentioned_profiles:
+            sections.append(
+                "[naming_policy]\n"
+                "When referring to any listed WeChat group member in the reply, "
+                "use reply_name as the preferred display name. If reply_name is "
+                "unavailable, use primary_nickname. Do not use sender_id as a name."
+            )
         if speaker_profile:
             sections.append(
                 '[speaker_profile sender_id="{}"]\n{}'.format(

@@ -381,10 +381,12 @@ class WechatGroupProfileService:
 
     @staticmethod
     def _format_profile_content(profile: Dict[str, Any]) -> str:
+        reply_name = WechatGroupProfileService._choose_reply_name(profile)
         lines = [
             f"sender_id: {profile.get('sender_id', '')}",
             f"primary_nickname: {profile.get('primary_nickname', '')}",
             f"aliases: {', '.join(profile.get('aliases') or [])}",
+            f"reply_name: {reply_name}",
             f"speak_style: {profile.get('speak_style', '')}",
             f"interests: {', '.join(profile.get('interests') or [])}",
             f"common_words: {', '.join(profile.get('common_words') or [])}",
@@ -393,6 +395,14 @@ class WechatGroupProfileService:
             f"intimacy_score: {profile.get('intimacy_score', 0)}",
         ]
         return "\n".join(line for line in lines if not line.endswith(": "))
+
+    @staticmethod
+    def _choose_reply_name(profile: Dict[str, Any]) -> str:
+        for alias in profile.get("aliases") or []:
+            text = str(alias or "").strip()
+            if text:
+                return text
+        return str(profile.get("primary_nickname") or "").strip()
 
     @staticmethod
     def _matches_profile(profile: Dict[str, Any], query_text: str) -> bool:

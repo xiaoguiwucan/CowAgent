@@ -227,10 +227,61 @@ function stripLeadingMentionText(text = '') {
   return value || String(text || '').trim()
 }
 
+function looksLikeRawWechatInternalId(value = '') {
+  const text = String(value || '').trim().replace(/^[@\uFF20]+/u, '')
+  return /^[0-9a-f]{32,}$/iu.test(text) || /^wxid_[a-z0-9_-]{4,}$/iu.test(text)
+}
+
+function cleanVisibleMentionName(value = '') {
+  const cleaned = cleanMentionName(value)
+  return looksLikeRawWechatInternalId(cleaned) ? '' : cleaned
+}
+
+function extractSenderNameFromRawPayload(rawPayload = {}) {
+  if (!rawPayload || typeof rawPayload !== 'object') return ''
+  const content = String(rawPayload?.Content || rawPayload?.MMActualContent || '')
+  const original = String(rawPayload?.OriginalContent || '')
+  const candidates = [
+    rawPayload?.ActualNickName,
+    rawPayload?.RecommendInfo?.NickName,
+    rawPayload?.User?.NickName,
+  ]
+  if (content.includes(':\n')) candidates.push(content.split(':\n')[0])
+  if (original.includes(':<br/>')) candidates.push(original.split(':<br/>')[0])
+  return candidates.map(cleanVisibleMentionName).find(Boolean) || ''
+}
+
+export async function resolveContactDisplayName(contact, room = null, rawPayload = null) {
+  const candidates = []
+  try { candidates.push(await room?.alias?.(contact) || '') } catch {}
+  candidates.push(extractSenderNameFromRawPayload(rawPayload))
+  try { candidates.push(contact?.name?.() || '') } catch {}
+  return candidates.map(cleanVisibleMentionName).find(Boolean) || ''
+}
+
+function stripLeadingWechatMentionText(text = '') {
+  let value = String(text || '').trim()
+  for (let i = 0; i < 5; i++) {
+    const next = stripOneLeadingWechatMention(value)
+    if (next === value) break
+    value = next
+  }
+  return value || String(text || '').trim()
+}
+
+function stripOneLeadingWechatMention(text = '') {
+  const value = String(text || '').trim()
+  const match = value.match(/^[@\uFF20]([^\s\u2005\u2006\u2007\u2008\u2009\u200a,，.。!！?？:：、]{1,128})([\s\u2005\u2006\u2007\u2008\u2009\u200a,，.。!！?？:：、]*)/u)
+  if (!match) return value
+  const name = match[1] || ''
+  if (!looksLikeRawWechatInternalId(name) && name.length > 40) return value
+  return value.slice(match[0].length).trim()
+}
+
 export function buildManualMentionText(text = '', targets = []) {
-  const names = targets.map(item => cleanMentionName(item?.name || '')).filter(Boolean)
+  const names = targets.map(item => cleanVisibleMentionName(item?.name || '')).filter(Boolean)
   if (!names.length) return String(text || '')
-  return `${names.map(name => `@${name}`).join('\u2005')}\u2005${stripLeadingMentionText(text)}`
+  return `${names.map(name => `@${name}`).join('\u2005')}\u2005${stripLeadingWechatMentionText(text)}`
 }
 
 function escapeMsgSourceXml(value = '') {

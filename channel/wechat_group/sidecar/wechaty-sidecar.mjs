@@ -12,6 +12,7 @@ import {
   findRoomById,
   getWechat4uRuntime,
   isWechat4uBot,
+  resolveContactDisplayName,
   sendText as sendTextCore,
 } from './wechaty-sidecar-core.mjs'
 
@@ -38,10 +39,10 @@ async function listRooms() {
   emit('rooms', { rooms: payload })
 }
 
-async function contactPayload(contact) {
+async function contactPayload(contact, room = null, rawPayload = null) {
   return {
     id: contact.id,
-    name: contact.name(),
+    name: await resolveContactDisplayName(contact, room, rawPayload),
   }
 }
 
@@ -75,7 +76,13 @@ async function handleMessage(message) {
   const mentions = await message.mentionList().catch(() => [])
   const self = state.self
   const roomName = await room.topic()
-  const talkerInfo = await contactPayload(talker)
+  let rawPayload = null
+  if (message.id && state.bot?.puppet?.messageRawPayload) {
+    try {
+      rawPayload = await state.bot.puppet.messageRawPayload(message.id)
+    } catch {}
+  }
+  const talkerInfo = await contactPayload(talker, room, rawPayload)
   const selfInfo = self ? await contactPayload(self) : { id: '', name: '' }
   const mediaType = detectMessageMediaType(message)
   let filePath = ''
@@ -89,9 +96,8 @@ async function handleMessage(message) {
     }
   }
   let quoteInfo = { is_quote_self: false, quote: {} }
-  if (selfInfo.id && message.id && state.bot?.puppet?.messageRawPayload) {
+  if (selfInfo.id && rawPayload) {
     try {
-      const rawPayload = await state.bot.puppet.messageRawPayload(message.id)
       quoteInfo = extractQuotedMessageFromRawPayload(rawPayload, selfInfo.id)
     } catch {}
   }

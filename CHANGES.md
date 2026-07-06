@@ -2,6 +2,27 @@
 
 ## 2026-07-06
 
+### 微信群真实 @ 原始 ID 泄露修复
+- 对照 BaiLongmaPro 的微信群发送链路后，修复 sidecar 出站 @ 文本清理：`buildManualMentionText()` 不再把 web 微信内部长 `@sender_id` 当作可见群昵称，也会在模型回复开头带超长 raw `@id` 时先剥离，再重建正确的可见 `@群昵称`。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs`：新增 raw 微信内部 ID 判断、可见 mention 名称清理、长 raw mention 前缀清理，以及 `resolveContactDisplayName()`，入站成员显示名优先使用群内 alias / raw payload 可见昵称，避免最近发言上下文继续暴露内部 ID。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar.mjs`：入站消息组装复用 `resolveContactDisplayName()`，并复用一次 `messageRawPayload()` 结果给引用解析，减少重复读取。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs`：覆盖长 raw `@sender_id` 清理、raw ID 不作为可见 mention 名称、群 alias 优先和 raw payload 昵称兜底。
+验证记录：
+- `npm test`（在 `channel/wechat_group/sidecar` 目录执行，先在旧实现下确认新增 raw ID 用例失败，修复后通过）
+- `node --check wechaty-sidecar.mjs`
+- `node --check wechaty-sidecar-core.mjs`
+
+### 微信群全局画像别名称呼提示词约束
+
+- 更新 `channel/wechat_group/wechat_group_profile_service.py`：群成员画像 prompt 内容新增 `reply_name` 字段，优先使用全局画像别名，别名为空时回退到 `primary_nickname`。
+- 更新 `channel/wechat_group/wechat_group_context_service.py`：当生成前上下文注入群成员画像时，同步注入 `[naming_policy]`，提示 LLM 在回复中提到该成员时优先使用 `reply_name`，避免使用 `sender_id` 作为称呼。
+- 更新 `tests/test_wechat_group_context.py`：新增回归测试，覆盖全局画像中 `徐徐图之 -> 图总` 这类别名应进入生成前提示词约束。
+验证记录：
+- `python -m unittest tests.test_wechat_group_context.WechatGroupRecentContextTest.test_context_service_adds_reply_name_policy_for_member_aliases`（先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_context tests.test_wechat_group_profile_service`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_context tests.test_wechat_group_profile_service`
+- `python -m py_compile channel\wechat_group\wechat_group_profile_service.py channel\wechat_group\wechat_group_context_service.py`
+
 ### 微信群表情包预览空文件修复
 
 - 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：表情消息优先保存为 `.gif`；当 Wechaty `toFileBox()` 写出 0 字节文件时，从表情 XML 的 `cdnurl` 等地址补下载真实图片内容，避免 Web 预览拿到空文件。
