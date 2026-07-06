@@ -4685,6 +4685,7 @@ class WechatGroupMemoriesHandler:
                     limit=limit,
                     room_id=params.room_id or "",
                 )
+                data = self._enrich_profile_room_names(data)
                 return self._json({"status": "success", "profiles": data})
             if action == "learn/runs":
                 data = self._get_knowledge_store().list_learning_runs(
@@ -4820,6 +4821,55 @@ class WechatGroupMemoriesHandler:
             from channel.wechat_group.wechat_group_archive import WechatGroupArchive
             cls._archive = WechatGroupArchive()
         return cls._archive
+
+    @classmethod
+    def _get_room_name_map(cls):
+        result = {}
+        selected_ids = conf().get("wechat_group_room_ids", []) or []
+        selected_names = conf().get("wechat_group_names", []) or []
+        for idx, room_id in enumerate(selected_ids):
+            room_text = str(room_id or "").strip()
+            name = str(selected_names[idx] if idx < len(selected_names) else "").strip()
+            if room_text and name:
+                result[room_text] = name
+        running_ch = ChannelsHandler._get_running_wechat_group_channel()
+        if running_ch and getattr(running_ch, "rooms", None):
+            try:
+                for room in running_ch.rooms:
+                    room_text = str(room.get("id") or room.get("room_id") or "").strip()
+                    name = str(room.get("name") or room.get("topic") or "").strip()
+                    if room_text and name:
+                        result[room_text] = name
+            except Exception:
+                pass
+        return result
+
+    @classmethod
+    def _resolve_room_name(cls, room_id, current_name=""):
+        current_text = str(current_name or "").strip()
+        if current_text:
+            return current_text
+        room_text = str(room_id or "").strip()
+        if not room_text:
+            return current_text
+        return cls._get_room_name_map().get(room_text, current_text)
+
+    @classmethod
+    def _enrich_profile_room_names(cls, profiles):
+        enriched = []
+        for profile in profiles or []:
+            item = dict(profile)
+            summaries = []
+            for summary in item.get("room_summaries") or []:
+                room_item = dict(summary)
+                room_item["room_name"] = cls._resolve_room_name(
+                    room_item.get("room_id"),
+                    room_item.get("room_name"),
+                )
+                summaries.append(room_item)
+            item["room_summaries"] = summaries
+            enriched.append(item)
+        return enriched
 
     @staticmethod
     def _json(payload):
