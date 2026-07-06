@@ -273,5 +273,32 @@ class WechatGroupProfileServiceTest(unittest.TestCase):
         self.assertEqual(["wxid_bob"], [item["sender_id"] for item in result["mentioned_profiles"]])
 
 
+    def test_merge_learned_aliases_preserves_existing_profile_fields(self):
+        self.service.upsert_manual_profile(
+            sender_id="wxid_bob",
+            primary_nickname="Bob",
+            speak_style="keeps answers concise",
+            interests=["release"],
+            common_words=["ship"],
+            aliases=[],
+            room_id="room@@a",
+            room_name="Group A",
+        )
+
+        profile = self.service.merge_learned_aliases(
+            sender_id="wxid_bob",
+            aliases=["张总"],
+            room_id="room@@a",
+            room_name="Group A",
+            last_seen_at=300,
+        )
+
+        self.assertEqual("keeps answers concise", profile["speak_style"])
+        self.assertEqual(["release"], profile["interests"])
+        self.assertEqual(["ship"], profile["common_words"])
+        self.assertIn("张总", profile["aliases"])
+        self.assertEqual(300, profile["last_seen_at"])
+
+
 if __name__ == "__main__":
     unittest.main()

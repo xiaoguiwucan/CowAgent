@@ -266,6 +266,7 @@ current user message:
 - 4.3 完成前，当前微信群 `_compose_context()` 直接注入链路只明确使用人设块和最近群聊 transcript；不要假设已经有独立的 room/member 长期记忆块被自动拼进当前消息。
 - 4.3 完成后，`<wechat-group-memory>` 必须通过 `WechatGroupMemoryService` 或等价适配层装配，统一从 CowAgent 作用域记忆读取已过滤结果，不允许在通道层绕过 `room_id` / `sender_id` 校验直接拼接原始记忆。
 - Agent 模式会预持久化传入的 `query`；微信群增强后的 `context.content` 可能进入 Agent 会话历史。后续如需避免 prompt 块污染长期会话，应单独设计 no-persist 或原文/增强 prompt 分离机制。
+- 正文别名自动学习当前只允许在归档学习阶段处理“一个非机器人目标成员 + 一个非机器人显式 `@称呼` 文本”的高置信场景；不把普通文本昵称猜测、多目标映射或跨群自由匹配作为默认能力。
 
 新增或修改模型 Provider：
 

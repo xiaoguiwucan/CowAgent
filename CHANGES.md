@@ -1,5 +1,18 @@
 # CHANGES
 
+## 2026-07-06
+
+### 微信群正文显式 @ 别名自动学习
+
+- 更新 `channel/wechat_group/wechat_group_learner.py`：新增正文显式 mention 别名学习，只在“一个非机器人目标成员 + 一个非机器人显式 mention 文本”时，将称呼学习到被提及成员画像，避免多目标误学。
+- 更新 `channel/wechat_group/wechat_group_profile_service.py`：新增 `merge_learned_aliases()`，仅合并学习别名并更新最近出现时间，不覆盖既有 `speak_style`、`interests`、`common_words` 等画像字段。
+- 更新 `channel/wechat_group/wechat_group_channel.py`：归档入站消息 metadata 时补充 `self_id`，供学习器识别并排除机器人 mention。
+- 更新 `tests/test_wechat_group_learner.py`、`tests/test_wechat_group_profile_service.py`：补充“单目标显式 @ 学别名”“多目标不学习”“学习别名不覆盖既有字段”回归测试。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_profile_service tests.test_wechat_group_learner`
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_profile_service tests.test_wechat_group_learner`
+- `python -m py_compile channel\wechat_group\wechat_group_profile_service.py channel\wechat_group\wechat_group_learner.py channel\wechat_group\wechat_group_channel.py`
 ## 2026-07-05
 
 ### 微信群图片后省略追问识图修复

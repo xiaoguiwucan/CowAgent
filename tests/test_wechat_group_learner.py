@@ -146,5 +146,54 @@ class WechatGroupLearnerTest(unittest.TestCase):
         self.assertEqual("success", runs[0]["status"])
 
 
+    def test_learner_learns_alias_from_single_explicit_member_mention(self):
+        self.archive.record_message(
+            message_id="m-alias-1",
+            room_id="room@@a",
+            room_name="Group A",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            text="@CowBot\u2005请@张总\u2005看下发布安排",
+            metadata={
+                "at_list": ["wxid_bot", "wxid_bob"],
+                "self_id": "wxid_bot",
+                "self_display_name": "CowBot",
+            },
+            created_at=110,
+        )
+
+        result = self.learner.run_once("room@@a", mode="profile")
+        profile = self.profile_service.get_profile("wxid_bob")
+        speaker = self.profile_service.get_profile("wxid_alice")
+
+        self.assertEqual(2, result["profile_update_count"])
+        self.assertIsNotNone(profile)
+        learned_names = [profile.get("primary_nickname", "")] + list(profile.get("aliases") or [])
+        self.assertIn("张总", learned_names)
+        self.assertNotIn("张总", [speaker.get("primary_nickname", "")] + list(speaker.get("aliases") or []))
+
+    def test_learner_skips_alias_learning_for_multiple_non_bot_mentions(self):
+        self.archive.record_message(
+            message_id="m-alias-2",
+            room_id="room@@a",
+            room_name="Group A",
+            sender_id="wxid_alice",
+            sender_nickname="Alice",
+            text="@CowBot\u2005请@老王\u2005和@小李\u2005一起看下",
+            metadata={
+                "at_list": ["wxid_bot", "wxid_bob", "wxid_cindy"],
+                "self_id": "wxid_bot",
+                "self_display_name": "CowBot",
+            },
+            created_at=111,
+        )
+
+        result = self.learner.run_once("room@@a", mode="profile")
+
+        self.assertEqual(1, result["profile_update_count"])
+        self.assertIsNone(self.profile_service.get_profile("wxid_bob"))
+        self.assertIsNone(self.profile_service.get_profile("wxid_cindy"))
+
+
 if __name__ == "__main__":
     unittest.main()
