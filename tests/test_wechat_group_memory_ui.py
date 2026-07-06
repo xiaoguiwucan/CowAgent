@@ -55,7 +55,7 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
     def test_groups_page_cache_buster_changes_for_memory_ui(self):
         chat_html = (ROOT / "channel/web/chat.html").read_text(encoding="utf-8")
 
-        self.assertIn("console.js?v=20260704-global-profile-memory", chat_html)
+        self.assertIn("console.js?v=20260706-memory-run-time", chat_html)
 
     def test_groups_memory_rooms_use_saved_room_names_as_fallback(self):
         console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
@@ -65,6 +65,16 @@ class WechatGroupMemoryUiTest(unittest.TestCase):
 
         self.assertIn("selected_room_names", body)
         self.assertIn("selectedNames[idx]", body)
+
+    def test_learning_runs_format_started_at_as_full_datetime(self):
+        console_js = (ROOT / "channel/web/static/js/console.js").read_text(encoding="utf-8")
+        start = console_js.index("function buildGroupsMemoryLearningPanel")
+        end = console_js.index("function buildGroupsMemoryNumberInput", start)
+        body = console_js[start:end]
+
+        self.assertIn("function formatGroupsMemoryRunTimestamp(value)", console_js)
+        self.assertIn("formatGroupsMemoryRunTimestamp(run.started_at)", body)
+        self.assertNotIn("String(run.started_at || '')", body)
 
 
 if __name__ == "__main__":
