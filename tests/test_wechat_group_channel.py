@@ -347,6 +347,53 @@ class WechatGroupChannelTest(unittest.TestCase):
         self.assertEqual(ContextType.IMAGE_CREATE, context.type)
         self.assertEqual("\u7279\u6717\u666e\u548c\u5b59\u7ea2\u96f7\u6253\u67b6\u7684\u56fe", context.content)
 
+    def test_wechat_group_lightweight_ping_skips_history_context(self):
+        conf()["wechat_group_room_ids"] = ["room@@allowed"]
+        conf()["group_name_white_list"] = []
+        channel = WechatGroupChannel(
+            client=FakeClient(),
+            memory_service=Mock(preview_context=Mock(return_value={"content": "[memory]\nold image task"})),
+        )
+        channel._build_recent_context_block = Mock(return_value="[recent]\n@CowBot 画个特朗普骑马")
+        channel._build_topic_context_block = Mock(return_value="<wechat-group-topic>\n画个特朗普骑马\n</wechat-group-topic>")
+        channel._build_style_context_block = Mock(return_value="[style]\ncasual")
+        channel._build_emotion_context_block = Mock(return_value="[emotion]\nactive")
+        channel._build_multimodal_context_block = Mock(return_value="[multimodal]\nold image")
+        msg = Mock(
+            ctype=ContextType.TEXT,
+            content="@CowBot 在吗",
+            from_user_id="room@@allowed",
+            other_user_id="room@@allowed",
+            other_user_nickname="Test Room",
+            actual_user_id="wxid_alice",
+            actual_user_nickname="Alice",
+            to_user_id="wxid_bot",
+            is_at=True,
+            at_list=["wxid_bot"],
+            self_display_name="CowBot",
+            is_group=True,
+            create_time=100000,
+            msg_id="msg-ping",
+            message_type="text",
+            media_path="",
+        )
+
+        context = channel._compose_context(ContextType.TEXT, msg.content, isgroup=True, msg=msg)
+
+        self.assertIsNotNone(context)
+        self.assertTrue(context.content.endswith("在吗"))
+        self.assertNotIn("画个特朗普骑马", context.content)
+        self.assertNotIn("old image task", context.content)
+        self.assertTrue(context["wechat_group_lightweight_ping"])
+        self.assertNotIn("wechat_group_recent_context_injected", context)
+        self.assertNotIn("wechat_group_topic_injected", context)
+        self.assertNotIn("wechat_group_memory_injected", context)
+        channel._build_recent_context_block.assert_not_called()
+        channel._build_topic_context_block.assert_not_called()
+        channel._build_style_context_block.assert_not_called()
+        channel._build_emotion_context_block.assert_not_called()
+        channel._build_multimodal_context_block.assert_not_called()
+
     def test_send_text_reply_to_original_room_with_sender_mention(self):
         client = FakeClient()
         channel = WechatGroupChannel(client=client)

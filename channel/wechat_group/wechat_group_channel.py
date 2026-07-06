@@ -88,6 +88,39 @@ def _looks_like_image_understanding_request(text: str) -> bool:
     ))
 
 
+def _looks_like_lightweight_group_ping(text: str) -> bool:
+    value = re.sub(r"\s+", "", str(text or "")).strip()
+    if not value:
+        return False
+    value = re.sub(r"^[,，。.!！?？~～、:：]+|[,，。.!！?？~～、:：]+$", "", value)
+    if not value or len(value) > 12:
+        return False
+    if value in {
+        "在吗",
+        "在不",
+        "在么",
+        "在呢",
+        "人呢",
+        "还在吗",
+        "还在不",
+        "你在吗",
+        "你在不",
+        "前夜在吗",
+        "前夜在不",
+        "收到吗",
+        "好了没",
+        "好了么",
+        "行了吗",
+        "可以了吗",
+        "怎么了",
+        "咋了",
+        "啥情况",
+        "什么情况",
+    }:
+        return True
+    return bool(re.fullmatch(r"(在|在吗|在不|人呢|收到|ok|OK|嗯|啊|哈|喂|hi|hello)[?？!！]*", value))
+
+
 def _is_archived_image_message(item) -> bool:
     return bool(
         item
@@ -595,6 +628,9 @@ class WechatGroupChannel(ChatChannel):
             context["intent_requires_scheduler"] = True
         self._record_inbound_message(msg)
         blocks = []
+        skip_history_context = _looks_like_lightweight_group_ping(context.content)
+        if skip_history_context:
+            context["wechat_group_lightweight_ping"] = True
         if should_skip_persona_for_message(msg):
             context["wechat_group_persona_skipped"] = True
         else:
@@ -603,33 +639,34 @@ class WechatGroupChannel(ChatChannel):
             if block:
                 context["wechat_group_persona_preset_id"] = persona["preset_id"]
                 blocks.append(block)
-        recent_block = self._build_recent_context_block(msg)
-        if recent_block:
-            blocks.append(recent_block)
-            context["wechat_group_recent_context_injected"] = True
-        topic_block = self._build_topic_context_block(msg)
-        if topic_block:
-            blocks.append(topic_block)
-            context["wechat_group_topic_injected"] = True
-        memory_block = self._build_memory_context_block(msg, context.content)
-        if memory_block:
-            blocks.append(memory_block)
-            context["wechat_group_memory_injected"] = True
-        style_block = self._build_style_context_block(msg)
-        if style_block:
-            blocks.append(style_block)
-            context["wechat_group_style_injected"] = True
-        emotion_block = self._build_emotion_context_block(msg)
-        if emotion_block:
-            blocks.append(emotion_block)
-            context["wechat_group_emotion_injected"] = True
-        multimodal_block = self._build_multimodal_context_block(
-            msg,
-            include_quote=not context.get("wechat_group_skip_multimodal_quote", False),
-        )
-        if multimodal_block:
-            blocks.append(multimodal_block)
-            context["wechat_group_multimodal_injected"] = True
+        if not skip_history_context:
+            recent_block = self._build_recent_context_block(msg)
+            if recent_block:
+                blocks.append(recent_block)
+                context["wechat_group_recent_context_injected"] = True
+            topic_block = self._build_topic_context_block(msg)
+            if topic_block:
+                blocks.append(topic_block)
+                context["wechat_group_topic_injected"] = True
+            memory_block = self._build_memory_context_block(msg, context.content)
+            if memory_block:
+                blocks.append(memory_block)
+                context["wechat_group_memory_injected"] = True
+            style_block = self._build_style_context_block(msg)
+            if style_block:
+                blocks.append(style_block)
+                context["wechat_group_style_injected"] = True
+            emotion_block = self._build_emotion_context_block(msg)
+            if emotion_block:
+                blocks.append(emotion_block)
+                context["wechat_group_emotion_injected"] = True
+            multimodal_block = self._build_multimodal_context_block(
+                msg,
+                include_quote=not context.get("wechat_group_skip_multimodal_quote", False),
+            )
+            if multimodal_block:
+                blocks.append(multimodal_block)
+                context["wechat_group_multimodal_injected"] = True
         if blocks:
             context.content = "{}\n\n{}".format("\n\n".join(blocks), context.content).strip()
         return context
