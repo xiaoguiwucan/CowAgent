@@ -2,6 +2,17 @@
 
 ## 2026-07-06
 
+### 微信群表情包预览空文件修复
+
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.mjs` 与 `wechaty-sidecar.mjs`：表情消息优先保存为 `.gif`；当 Wechaty `toFileBox()` 写出 0 字节文件时，从表情 XML 的 `cdnurl` 等地址补下载真实图片内容，避免 Web 预览拿到空文件。
+- 更新 `channel/wechat_group/wechat_group_sticker_service.py`：收集表情包时拒绝 0 字节文件，防止下载失败的空资产进入表情包列表。
+- 更新 `channel/wechat_group/sidecar/wechaty-sidecar-core.test.mjs` 与 `tests/test_wechat_group_sticker_service.py`：覆盖表情 CDN 地址提取、fallback 下载、`.gif` 扩展名和空文件跳过。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_sticker_service.WechatGroupStickerServiceTest.test_collect_from_message_skips_empty_sticker_file`（先在旧实现下确认失败，修复后通过）
+- `npm test -- wechaty-sidecar-core.test.mjs`（在 `channel/wechat_group/sidecar` 目录执行，先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_message tests.test_wechat_group_channel tests.test_wechat_group_web tests.test_wechat_group_sticker_service`
+
 ### 微信群全局画像命名记录计数修复
 
 - 更新 `channel/web/static/js/console.js`：全局画像左侧画像列表的“命名记录”改为统计 `name_records.length`，与右侧详情保持一致，不再误用“出现过的群”数量。
