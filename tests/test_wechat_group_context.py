@@ -315,6 +315,32 @@ class WechatGroupRecentContextTest(unittest.TestCase):
         self.assertIn('[speaker_profile sender_id="wxid_alice"]', preview["content"])
         self.assertIn('[mentioned_profile sender_id="wxid_bob"]', preview["content"])
 
+    def test_context_service_adds_reply_name_policy_for_member_aliases(self):
+        profile_service = WechatGroupProfileService(WechatGroupProfileStore(self.profile_db_path))
+        knowledge_service = WechatGroupKnowledgeService(WechatGroupKnowledgeStore(self.knowledge_db_path))
+        profile_service.upsert_manual_profile(
+            sender_id="wxid_xuxu",
+            primary_nickname="\u5f90\u5f90\u56fe\u4e4b",
+            speak_style="",
+            interests=[],
+            common_words=[],
+            aliases=["\u56fe\u603b"],
+        )
+        service = WechatGroupContextService(
+            profile_service=profile_service,
+            knowledge_service=knowledge_service,
+        )
+
+        preview = service.preview_context(
+            room_id="room@@abc",
+            sender_id="wxid_alice",
+            query="",
+            mentioned_sender_ids=["wxid_xuxu"],
+        )
+
+        self.assertIn("[naming_policy]", preview["content"])
+        self.assertIn("reply_name: \u56fe\u603b", preview["content"])
+
     def test_channel_injects_memory_after_recent_context_before_request(self):
         class FakeContextService:
             def preview_context(self, **kwargs):
