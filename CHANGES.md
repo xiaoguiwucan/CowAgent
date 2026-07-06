@@ -2,6 +2,18 @@
 
 ## 2026-07-06
 
+### 微信群情绪状态展示格式修复
+
+- 更新 `channel/web/static/js/console.js`：在“群聊 -> 情绪与主动性”当前情绪卡片中，对情绪正负值、活跃度、社交倾向统一按两位小数展示，避免 `0.010000000000000002` 这类浮点误差直接暴露给用户。
+- 更新 `channel/web/static/js/console.js`：新增 `withdrawn / engaged / guarded / steady` 解释状态的本地化映射，中文界面展示为“收敛 / 积极 / 谨慎 / 平稳”。
+- 更新 `tests/test_wechat_group_web.py`：新增控制台资源回归断言，锁定情绪数值格式化与解释状态本地化入口。
+
+验证记录：
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_formats_wechat_group_emotion_state_for_display`（先在旧实现下确认失败，修复后通过）
+- `python -m unittest tests.test_wechat_group_web.WechatGroupWebTest.test_console_contains_wechat_group_emotion_panel tests.test_wechat_group_web.WechatGroupWebTest.test_console_formats_wechat_group_emotion_state_for_display tests.test_wechat_group_web.WechatGroupWebTest.test_wechat_group_emotion_state_api_uses_service_and_running_status`
+- `node --check .\channel\web\static\js\console.js`
+- `python -m unittest tests.test_wechat_group_web` 未全量通过：`test_wechat_group_topics_archive_api_uses_service` 当前期望归档参与者展示群昵称，但接口实际返回 `wxid_alice / wxid_bob`；该失败来自工作区已有话题归档相关改动，非本次情绪展示改动引入。
+
 ### 微信群学习运行时间格式修复
 
 - 更新 `channel/web/static/js/console.js`：为「群聊 -> 永久记忆 -> 学习运行 -> 运行记录」新增运行时间格式化，将秒级/毫秒级时间戳展示为 `yyyy-MM-dd HH:mm:ss`。

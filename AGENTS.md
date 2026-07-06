@@ -267,6 +267,16 @@ current user message:
 - 4.3 完成后，`<wechat-group-memory>` 必须通过 `WechatGroupMemoryService` 或等价适配层装配，统一从 CowAgent 作用域记忆读取已过滤结果，不允许在通道层绕过 `room_id` / `sender_id` 校验直接拼接原始记忆。
 - Agent 模式会预持久化传入的 `query`；微信群增强后的 `context.content` 可能进入 Agent 会话历史。后续如需避免 prompt 块污染长期会话，应单独设计 no-persist 或原文/增强 prompt 分离机制。
 - 正文别名自动学习当前只允许在归档学习阶段处理“一个非机器人目标成员 + 一个非机器人显式 `@称呼` 文本”的高置信场景；不把普通文本昵称猜测、多目标映射或跨群自由匹配作为默认能力。
+- 当前正文别名自动学习的内部逻辑如下：
+  - 数据来源只看归档文本消息：`message_type = text`，且消息里必须同时具备有效 `sender_id`、正文 `text`，以及 `metadata.at_list`；机器人自身 ID 来自 `metadata.self_id`，机器人展示名来自 `metadata.self_display_name`。
+  - 目标成员筛选先基于 `at_list` 做强约束：从 `at_list` 中排除当前发言人 `sender_id` 和机器人 `self_id` 后，必须只剩 1 个目标成员；如果剩余为 0 个或大于 1 个，整条消息直接放弃正文别名学习。
+  - 正文称呼抽取只识别显式 mention 片段：使用 `@` / `＠` 起始的文本片段作为候选称呼，按现有正则规则截取连续非空白、非常见中文标点的内容，不从普通自然语言里猜测昵称。
+  - 机器人 mention 会被二次排除：抽取出的显式称呼在归一化后若等于 `self_display_name`，视为机器人称呼，不计入候选；只有“非机器人显式称呼”最终也恰好只剩 1 个时，才继续学习。
+  - 别名归一化会做最小清洗：统一空白、移除开头 `@`、裁掉两侧常见标点、限制最大长度，并拒绝原始 ID 形态（如 `wxid_*`、与 `sender_id` 相同的串、明显账号串）以及单个无意义符号。
+  - 入库映射不做猜测：唯一保留的“目标成员 sender_id”与唯一保留的“显式称呼 alias”一一对应，调用 `merge_learned_aliases()` 写入全局画像；不存在多目标 mention 与多个正文称呼之间的推断映射。
+  - 画像更新只合并 alias，不覆盖既有画像主体字段：`merge_learned_aliases()` 仅更新 `last_seen_at`，并在主昵称为空时才允许用 alias 兜底 `primary_nickname`；已有 `speak_style`、`interests`、`common_words`、分数统计保持不变。
+  - alias 持久化仍走现有 name record 链路：学习得到的 alias 会按 `source_kind = learning` 写入 `wechat_group_profile_name_records`，供后续 `primary_nickname / aliases / room_summaries` 聚合与搜索命中使用。
+  - 学习结果与发言人画像学习结果按 `sender_id` 去重合并：同一轮 learner 既可能更新发言人自己的画像，也可能更新被 @ 成员的 alias；最终按 `sender_id` 合并成一份结果，避免重复计数同一画像。
 
 新增或修改模型 Provider：
 

@@ -809,6 +809,18 @@ class WechatGroupWebTest(unittest.TestCase):
         self.assertIn("/api/wechat-group/emotion/config", console_js)
         self.assertIn("/api/wechat-group/emotion/reset", console_js)
 
+    def test_console_formats_wechat_group_emotion_state_for_display(self):
+        with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
+            console_js = f.read()
+
+        self.assertIn("formatGroupsEmotionMetricValue", console_js)
+        self.assertIn(".toFixed(2)", console_js)
+        self.assertIn("translateGroupsEmotionState", console_js)
+        self.assertIn("groups_emotion_state_withdrawn", console_js)
+        self.assertIn("groups_emotion_state_engaged", console_js)
+        self.assertIn("groups_emotion_state_guarded", console_js)
+        self.assertIn("groups_emotion_state_steady", console_js)
+
     def test_console_contains_wechat_group_style_panel(self):
         with open("channel/web/static/js/console.js", "r", encoding="utf-8") as f:
             console_js = f.read()
